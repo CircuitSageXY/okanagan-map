@@ -59,21 +59,20 @@ const IHA_POLY = [
   {lat:49.00,lng:-120.00},{lat:49.00,lng:-114.00},{lat:51.20,lng:-114.00},
   {lat:53.00,lng:-116.00}
 ];
-function insidePoly(pt, poly) {
-  let c=false, j=poly.length-1;
-  for (let i=0;i<poly.length;i++) {
+function insidePoly(pt,poly){
+  let c=false,j=poly.length-1;
+  for(let i=0;i<poly.length;i++){
     const pi=poly[i], pj=poly[j];
-    if (((pi.lng>pt.lng)!=(pj.lng>pt.lng)) &&
-        pt.lat < (pj.lat-pi.lat)*(pt.lng-pi.lng)/(pj.lng-pi.lng)+pi.lat)
-        c = !c;
-    j = i;
+    if(((pi.lng>pt.lng)!=(pj.lng>pt.lng)) &&
+        pt.lat < (pj.lat-pi.lat)*(pt.lng-pi.lng)/(pj.lng-pi.lng)+pi.lat) c=!c;
+    j=i;
   }
   return c;
 }
 
 /* ── helpers ── */
-function makeRow(i) {
-  const d = document.createElement('div'); d.className = 'row';
+function makeRow(i){
+  const d=document.createElement('div'); d.className='row';
   d.innerHTML = `
     <div class="bullet ${labels[i]}">${labels[i]}</div>
     <input class="stop" placeholder="Enter stop">
@@ -82,60 +81,57 @@ function makeRow(i) {
 }
 const addresses = () => [...document.querySelectorAll('input.stop')]
                      .map(e=>e.value.trim()).filter(Boolean);
-function renumber() {
+function renumber(){
   [...document.querySelectorAll('.row')].forEach((r,i)=>{
     const b=r.querySelector('.bullet');
-    b.textContent = labels[i] || '?';
+    b.textContent = labels[i]||'?';
     b.className   = 'bullet ' + (i<4?labels[i]:'defaultBullet');
   });
 }
 
-/* ── hide “forbidden” predictions ── */
-function installPredictionFilter() {
-  const forbid = /vancouver\b|victoria\b|island|nanaimo|campbell river|saanich/i;
+/* ── prediction filter ── */
+function installPredictionFilter(){
+  const forbid=/vancouver\b|victoria\b|island|nanaimo|campbell river|saanich/i;
   new MutationObserver(muts=>{
     muts.forEach(m=>m.addedNodes.forEach(node=>{
-      if (node.nodeType===1 && node.classList.contains('pac-item') &&
-          forbid.test(node.textContent))
-        node.style.display='none';
-    }));
-  }).observe(document.body,{childList:true,subtree:true});
+      if(node.nodeType===1 && node.classList.contains('pac-item') &&
+         forbid.test(node.textContent))
+         node.style.display='none';
+    }));}).observe(document.body,{childList:true,subtree:true});
 }
 
 /* ── init ── */
 window.init = () => {
   installPredictionFilter();
 
-  map = new google.maps.Map(document.getElementById('map'), {
+  map = new google.maps.Map(document.getElementById('map'),{
     center:{lat:49.9,lng:-119.5}, zoom:9
   });
 
   /* ►►  KMZ overlay  ◄◄ */
   new google.maps.KmlLayer({
-    url: 'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',
-    map,
-    preserveViewport:true
+    url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',
+    map, preserveViewport:true
   });
 
   dirSvc  = new google.maps.DirectionsService();
   dirRend = new google.maps.DirectionsRenderer({map});
 
-  const list = document.getElementById('stops');
+  const list=document.getElementById('stops');
   list.appendChild(makeRow(0)); list.appendChild(makeRow(1));
 
   Sortable.create(list,{handle:'.drag',animation:150,
     onEnd:()=>{renumber(); rebuildRoute();}});
 
-  const bcInterior = {south:49.2,north:53.5,west:-124.0,east:-113.5};
-  const acOpts = {fields:['formatted_address','geometry'],
-                  componentRestrictions:{country:'ca'},
-                  bounds:bcInterior, strictBounds:true};
+  const bcInterior={south:49.2,north:53.5,west:-124.0,east:-113.5};
+  const acOpts={fields:['formatted_address','geometry'],
+                componentRestrictions:{country:'ca'},
+                bounds:bcInterior,strictBounds:true};
 
-  /* attach Google Places AC to every input */
-  const attach = input=>{
-    const ac = new google.maps.places.Autocomplete(input,acOpts);
-    ac.addListener('place_changed', ()=>{
-      const plc = ac.getPlace();
+  const attach=input=>{
+    const ac=new google.maps.places.Autocomplete(input,acOpts);
+    ac.addListener('place_changed',()=>{
+      const plc=ac.getPlace();
       if(!plc.geometry){input.value='';return;}
       const {lat,lng}=plc.geometry.location;
       if(!insidePoly({lat:lat(),lng:lng()},IHA_POLY)){
@@ -155,10 +151,79 @@ window.init = () => {
   document.getElementById('opt').onclick  =optimizeRoute;
 };
 
-/* ── routing (your existing code) ── */
-function rebuildRoute(){ /* … unchanged … */ }
-function optimizeRoute(){/* … unchanged … */ }
-function displayLegs(res,stat){/* … unchanged … */ }
+/* ── Routing logic ── */
+function rebuildRoute(){
+  const pts=addresses(),msg=document.getElementById('msg');
+  document.querySelectorAll('.leg-display').forEach(e=>e.remove());
+  if(pts.length<2){msg.textContent='';dirRend.setDirections({});return;}
+
+  dirSvc.route({
+    origin:pts[0],
+    destination:pts[pts.length-1],
+    waypoints:pts.slice(1,-1).map(l=>({location:l,stopover:true})),
+    travelMode:'DRIVING',
+    optimizeWaypoints:false
+  },(res,stat)=>displayLegs(res,stat));
+}
+
+function optimizeRoute(){
+  const pts=addresses();
+  if(pts.length<3){rebuildRoute();return;}
+
+  /* ask for a round-trip so Google returns full waypoint_order */
+  dirSvc.route({
+    origin:pts[0],
+    destination:pts[0],
+    waypoints:pts.slice(1).map(l=>({location:l,stopover:true})),
+    travelMode:'DRIVING',
+    optimizeWaypoints:true
+  },(res,stat)=>{
+    if(stat!=='OK'){alert('Optimize failed: '+stat);return;}
+
+    const order   = res.routes[0].waypoint_order;        // for pts[1..]
+    const loopIdx = [0, ...order.map(i=>i+1)];           // full loop
+    const legs    = res.routes[0].legs;
+    /* cut at the longest leg so trip becomes open path            */
+    const longest = legs.reduce((mx,l,i)=>
+                     l.distance.value>mx.v?{i,v:l.distance.value}:mx,{i:-1,v:0}).i;
+
+    const list=document.getElementById('stops');
+    const rows=[...list.querySelectorAll('.row')];
+
+    /* rotate indices so list starts *after* longest leg           */
+    const rotated=[];
+    for(let n=1;n<loopIdx.length;n++)
+      rotated.push(loopIdx[(longest+1+n)%loopIdx.length]);
+
+    rotated.forEach(i=>list.appendChild(rows[i]));
+    list.prepend(rows[loopIdx[(longest+1)%loopIdx.length]]);
+
+    renumber(); rebuildRoute();
+  });
+}
+
+function displayLegs(res,stat){
+  const msg=document.getElementById('msg');
+  if(stat!=='OK'){msg.textContent='Route error: '+stat; dirRend.setDirections({}); return;}
+
+  dirRend.setDirections(res);
+
+  const list=document.getElementById('stops');
+  const rows=[...list.querySelectorAll('.row')];
+  let kmTot=0,minTot=0;
+  document.querySelectorAll('.leg-display').forEach(e=>e.remove());
+
+  res.routes[0].legs.forEach((leg,i)=>{
+    const km = leg.distance.value/1000,
+          min= Math.round(leg.duration.value/60);
+    kmTot+=km; minTot+=min;
+    const div=document.createElement('div');
+    div.className='leg-display';
+    div.textContent = `Distance ${km.toFixed(1)} km | ≈ ${min} min`;
+    rows[i].after(div);
+  });
+  msg.textContent=`Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
+}
 </script>
 </body>
 </html>
