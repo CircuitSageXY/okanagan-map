@@ -2,8 +2,7 @@
 <meta charset="utf-8">
 <title>Okanagan Route Planner</title>
 
-<link rel="stylesheet"
-      href="https://fonts.googleapis.com/icon?family=Material+Icons">
+<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 <style>
 /* ── your existing CSS ─────────────────────────────────────────── */
 html,body,#map{height:100%;margin:0;font-family:Roboto,Arial,sans-serif}
@@ -83,7 +82,7 @@ function renumber(){
   });
 }
 
-/* ── NEW   prediction-filter helper ── */
+/* ── prediction filter (unchanged) ── */
 function installPredictionFilter(){
   const forbid=/vancouver\b|victoria\b|island|nanaimo|campbell river|saanich/i;
   new MutationObserver(muts=>{
@@ -96,13 +95,16 @@ function installPredictionFilter(){
 
 /* ── init ── */
 window.init=()=>{
-  installPredictionFilter();                       /* ← added */
+  installPredictionFilter();
 
   map=new google.maps.Map(document.getElementById('map'),{
        center:{lat:49.9,lng:-119.5},zoom:9});
+
+  /* ►►  Local KML file  ◄◄ */
   new google.maps.KmlLayer({
-       url:'https://raw.githubusercontent.com/CircuitSageXY/okanagan-map/main/Central%20Okanagan.kmz',
-       map,preserveViewport:true});
+       url:'CentralOkanagan.kml',       //   ← only this line changed
+       map,
+       preserveViewport:true});
 
   dirSvc=new google.maps.DirectionsService();
   dirRend=new google.maps.DirectionsRenderer({map});
@@ -204,4 +206,3 @@ function displayLegs(res,stat){
 }
 </script>
 </body></html>
-
