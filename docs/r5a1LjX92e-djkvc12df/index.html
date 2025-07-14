@@ -100,9 +100,9 @@ window.init=()=>{
   map=new google.maps.Map(document.getElementById('map'),{
        center:{lat:49.9,lng:-119.5},zoom:9});
 
-  /* ►►  Local KML file  ◄◄ */
+  /* ►►  Local KMZ file  ◄◄ */
   new google.maps.KmlLayer({
-       url:'CentralOkanagan.kml',       //   ← only this line changed
+       url:'okanagan.kmz',       //   ← only this line changed
        map,
        preserveViewport:true});
 
