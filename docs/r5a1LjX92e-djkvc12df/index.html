@@ -20,6 +20,8 @@ html,body,#map{height:100%;margin:0;font-family:Roboto,Arial,sans-serif}
 .defaultBullet{background:#607d8b}
 input.stop{flex:1;height:38px;border:1px solid #ccc;border-radius:4px;padding:4px 6px;font-size:14px}
 .drag{cursor:grab;margin-left:6px;color:#666}
+/* ▼ NEW – red “×” remove button */
+.remove{cursor:pointer;margin-left:4px;color:#c00;font-size:20px}
 #add{margin:8px 0 14px 28px;padding:6px 10px}
 #route,#opt{margin-left:8px;padding:8px 14px}
 #msg{margin:10px 0;color:#0066cc;font-weight:500}
@@ -42,7 +44,7 @@ input.stop{flex:1;height:38px;border:1px solid #ccc;border-radius:4px;padding:4p
   <button id="route">Route</button>
   <button id="opt">Optimize</button>
   <div id="msg"></div>
-  <small>Hold <b>Ctrl</b> and click the map to add way-points interactively.</small>
+  <small>Hold <b>Ctrl</b> and click the map to add way‑points interactively.</small>
 </div>
 <div id="map"></div>
 
@@ -52,7 +54,7 @@ import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 const labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 let map, dirSvc, dirRend;
 
-/* ── Interior-Health polygon ── */
+/* ── Interior‑Health polygon ── */
 const IHA_POLY = [
   {lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
   {lat:51.00,lng:-123.00},{lat:50.10,lng:-123.20},{lat:49.80,lng:-122.40},
@@ -76,7 +78,12 @@ function makeRow(i){
   d.innerHTML = `
     <div class="bullet ${labels[i]}">${labels[i]}</div>
     <input class="stop" placeholder="Enter stop">
-    <span class="material-icons drag">drag_indicator</span>`;
+    <span class="material-icons drag">drag_indicator</span>
+    <span class="material-icons remove" title="Remove">close</span>`;
+  /* ▼ NEW – delete this row, then renumber & rebuild */
+  d.querySelector('.remove').onclick = () => {
+    d.remove(); renumber(); rebuildRoute();
+  };
   return d;
 }
 const addresses = () => [...document.querySelectorAll('input.stop')]
@@ -91,13 +98,16 @@ function renumber(){
 
 /* ── prediction filter ── */
 function installPredictionFilter(){
-  const forbid=/vancouver\b|victoria\b|island|nanaimo|campbell river|saanich/i;
+  const forbid = /vancouver\b|victoria\b|island|nanaimo|campbell river|saanich/i;
+  const isBC   = /,\s?BC\b|\bBritish\s+Columbia\b/i;  // keep only B.C.
   new MutationObserver(muts=>{
     muts.forEach(m=>m.addedNodes.forEach(node=>{
-      if(node.nodeType===1 && node.classList.contains('pac-item') &&
-         forbid.test(node.textContent))
-         node.style.display='none';
-    }));}).observe(document.body,{childList:true,subtree:true});
+      if(node.nodeType===1 && node.classList.contains('pac-item')){
+        const txt=node.textContent;
+        node.style.display = (isBC.test(txt) && !forbid.test(txt)) ? '' : 'none';
+      }
+    }));
+  }).observe(document.body,{childList:true,subtree:true});
 }
 
 /* ── init ── */
@@ -128,8 +138,15 @@ window.init = () => {
                 componentRestrictions:{country:'ca'},
                 bounds:bcInterior,strictBounds:true};
 
-  const attach=input=>{
+  const attach = input => {
     const ac=new google.maps.places.Autocomplete(input,acOpts);
+
+    // ▼ NEW – auto‑select whole text whenever box gains focus
+    ['focus','click'].forEach(ev =>
+      input.addEventListener(ev,e=>{
+        setTimeout(()=>e.target.select(),0);
+      }));
+
     ac.addListener('place_changed',()=>{
       const plc=ac.getPlace();
       if(!plc.geometry){input.value='';return;}
@@ -170,7 +187,7 @@ function optimizeRoute(){
   const pts=addresses();
   if(pts.length<3){rebuildRoute();return;}
 
-  /* ask for a round-trip so Google returns full waypoint_order */
+  /* ask for a round‑trip so Google returns full waypoint_order */
   dirSvc.route({
     origin:pts[0],
     destination:pts[0],
