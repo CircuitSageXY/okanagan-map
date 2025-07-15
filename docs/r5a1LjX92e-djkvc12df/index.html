@@ -7,7 +7,7 @@
 <link rel="stylesheet"
       href="https://fonts.googleapis.com/icon?family=Material+Icons">
 <style>
-/* ── existing CSS ──────────────────────────────────────────────── */
+/* ── layout & styling (unchanged) ─────────────────────────────── */
 html,body,#map{height:100%;margin:0;font-family:Roboto,Arial,sans-serif}
 #panel{position:absolute;top:0;left:0;z-index:5;width:340px;max-height:100%;
        background:#fff;padding:16px 14px 12px;border-right:1px solid #ddd;
@@ -20,14 +20,14 @@ html,body,#map{height:100%;margin:0;font-family:Roboto,Arial,sans-serif}
 .defaultBullet{background:#607d8b}
 input.stop{flex:1;height:38px;border:1px solid #ccc;border-radius:4px;padding:4px 6px;font-size:14px}
 .drag{cursor:grab;margin-left:6px;color:#666}
-/* ▼ NEW – red “×” remove button */
-.remove{cursor:pointer;margin-left:4px;color:#c00;font-size:20px}
+/* ▼ NEW – visible no‑font fallback “×” remove button */
+.remove{cursor:pointer;margin-left:4px;font-size:20px;line-height:20px;color:#c00}
 #add{margin:8px 0 14px 28px;padding:6px 10px}
 #route,#opt{margin-left:8px;padding:8px 14px}
 #msg{margin:10px 0;color:#0066cc;font-weight:500}
 </style>
 
-<!-- Google Maps JS -->
+<!-- Google Maps & Places -->
 <script async defer
   src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry">
 </script>
@@ -51,22 +51,22 @@ input.stop{flex:1;height:38px;border:1px solid #ccc;border-radius:4px;padding:4p
 <script type="module">
 import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 
-const labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+const labels='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 let map, dirSvc, dirRend;
 
-/* ── Interior‑Health polygon ── */
-const IHA_POLY = [
-  {lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
-  {lat:51.00,lng:-123.00},{lat:50.10,lng:-123.20},{lat:49.80,lng:-122.40},
-  {lat:49.00,lng:-120.00},{lat:49.00,lng:-114.00},{lat:51.20,lng:-114.00},
-  {lat:53.00,lng:-116.00}
+/* ── Interior‑Health polygon (unchanged) ── */
+const IHA_POLY=[
+ {lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
+ {lat:51.00,lng:-123.00},{lat:50.10,lng:-123.20},{lat:49.80,lng:-122.40},
+ {lat:49.00,lng:-120.00},{lat:49.00,lng:-114.00},{lat:51.20,lng:-114.00},
+ {lat:53.00,lng:-116.00}
 ];
 function insidePoly(pt,poly){
   let c=false,j=poly.length-1;
   for(let i=0;i<poly.length;i++){
-    const pi=poly[i], pj=poly[j];
+    const pi=poly[i],pj=poly[j];
     if(((pi.lng>pt.lng)!=(pj.lng>pt.lng)) &&
-        pt.lat < (pj.lat-pi.lat)*(pt.lng-pi.lng)/(pj.lng-pi.lng)+pi.lat) c=!c;
+        pt.lat<(pj.lat-pi.lat)*(pt.lng-pi.lng)/(pj.lng-pi.lng)+pi.lat) c=!c;
     j=i;
   }
   return c;
@@ -75,84 +75,84 @@ function insidePoly(pt,poly){
 /* ── helpers ── */
 function makeRow(i){
   const d=document.createElement('div'); d.className='row';
-  d.innerHTML = `
+  d.innerHTML=`
     <div class="bullet ${labels[i]}">${labels[i]}</div>
     <input class="stop" placeholder="Enter stop">
-    <span class="material-icons drag">drag_indicator</span>
-    <span class="material-icons remove" title="Remove">close</span>`;
-  /* ▼ NEW – delete this row, then renumber & rebuild */
-  d.querySelector('.remove').onclick = () => {
-    d.remove(); renumber(); rebuildRoute();
-  };
+    <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
+    <span class="remove" title="Remove stop">×</span>`;
+  /* delete this row, then renumber & rebuild */
+  d.querySelector('.remove').onclick=()=>{d.remove();renumber();rebuildRoute();};
   return d;
 }
-const addresses = () => [...document.querySelectorAll('input.stop')]
-                     .map(e=>e.value.trim()).filter(Boolean);
+const addresses=()=>[...document.querySelectorAll('input.stop')]
+                   .map(e=>e.value.trim()).filter(Boolean);
 function renumber(){
   [...document.querySelectorAll('.row')].forEach((r,i)=>{
     const b=r.querySelector('.bullet');
-    b.textContent = labels[i]||'?';
-    b.className   = 'bullet ' + (i<4?labels[i]:'defaultBullet');
+    b.textContent=labels[i]||'?';
+    b.className='bullet '+(i<4?labels[i]:'defaultBullet');
   });
 }
 
 /* ── prediction filter ── */
 function installPredictionFilter(){
-  const forbid = /vancouver\b|victoria\b|island|nanaimo|campbell river|saanich/i;
-  const isBC   = /,\s?BC\b|\bBritish\s+Columbia\b/i;  // keep only B.C.
+  const forbid=/vancouver\b|victoria\b|island|nanaimo|campbell river|saanich/i;
+  /* hide anything that clearly ends in another province/territory */
+  const notBC=/,\s?(AB|SK|MB|ON|QC|NB|NS|NL|PE|YT|NT|NU)\b/i;
+
   new MutationObserver(muts=>{
     muts.forEach(m=>m.addedNodes.forEach(node=>{
       if(node.nodeType===1 && node.classList.contains('pac-item')){
         const txt=node.textContent;
-        node.style.display = (isBC.test(txt) && !forbid.test(txt)) ? '' : 'none';
+        if(notBC.test(txt) || forbid.test(txt)) node.style.display='none';
       }
     }));
   }).observe(document.body,{childList:true,subtree:true});
 }
 
 /* ── init ── */
-window.init = () => {
+window.init=()=>{
   installPredictionFilter();
 
-  map = new google.maps.Map(document.getElementById('map'),{
-    center:{lat:49.9,lng:-119.5}, zoom:9
+  map=new google.maps.Map(document.getElementById('map'),{
+    center:{lat:49.9,lng:-119.5},zoom:9
   });
-
-  /* ►►  KMZ overlay  ◄◄ */
   new google.maps.KmlLayer({
     url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',
-    map, preserveViewport:true
+    map,preserveViewport:true
   });
 
-  dirSvc  = new google.maps.DirectionsService();
-  dirRend = new google.maps.DirectionsRenderer({map});
+  dirSvc =new google.maps.DirectionsService();
+  dirRend=new google.maps.DirectionsRenderer({map});
 
   const list=document.getElementById('stops');
   list.appendChild(makeRow(0)); list.appendChild(makeRow(1));
 
   Sortable.create(list,{handle:'.drag',animation:150,
-    onEnd:()=>{renumber(); rebuildRoute();}});
+    onEnd:()=>{renumber();rebuildRoute();}});
 
-  const bcInterior={south:49.2,north:53.5,west:-124.0,east:-113.5};
+  const bcInterior={south:49.2,north:53.5,west:-124.0,east:-114.0}; // east edge = B.C./AB border
   const acOpts={fields:['formatted_address','geometry'],
                 componentRestrictions:{country:'ca'},
                 bounds:bcInterior,strictBounds:true};
 
-  const attach = input => {
+  const attach=input=>{
+    /* ►► select‑all once on focus ◄◄ */
+    input.addEventListener('focus',e=>{
+      // delay so the click that gave focus doesn’t clear the selection
+      setTimeout(()=>e.target.select(),0);
+      /* prevent first mouse‑up from cancelling the selection */
+      const stopMouseUp=ev=>{ev.preventDefault();input.removeEventListener('mouseup',stopMouseUp);};
+      input.addEventListener('mouseup',stopMouseUp);
+    });
+
     const ac=new google.maps.places.Autocomplete(input,acOpts);
-
-    // ▼ NEW – auto‑select whole text whenever box gains focus
-    ['focus','click'].forEach(ev =>
-      input.addEventListener(ev,e=>{
-        setTimeout(()=>e.target.select(),0);
-      }));
-
     ac.addListener('place_changed',()=>{
       const plc=ac.getPlace();
       if(!plc.geometry){input.value='';return;}
       const {lat,lng}=plc.geometry.location;
       if(!insidePoly({lat:lat(),lng:lng()},IHA_POLY)){
-        input.value=''; input.placeholder='Outside Interior Health';
+        input.value='';input.placeholder='Outside Interior Health';
       }
     });
   };
@@ -160,26 +160,24 @@ window.init = () => {
 
   document.getElementById('add').onclick=()=>{
     if(list.children.length<labels.length){
-      const r=makeRow(list.children.length); list.appendChild(r);
-      attach(r.querySelector('input.stop')); renumber();
+      const r=makeRow(list.children.length);list.appendChild(r);
+      attach(r.querySelector('.stop'));renumber();
     }
   };
   document.getElementById('route').onclick=rebuildRoute;
   document.getElementById('opt').onclick  =optimizeRoute;
 };
 
-/* ── Routing logic ── */
+/* ── routing logic (unchanged) ── */
 function rebuildRoute(){
   const pts=addresses(),msg=document.getElementById('msg');
   document.querySelectorAll('.leg-display').forEach(e=>e.remove());
   if(pts.length<2){msg.textContent='';dirRend.setDirections({});return;}
 
   dirSvc.route({
-    origin:pts[0],
-    destination:pts[pts.length-1],
+    origin:pts[0],destination:pts[pts.length-1],
     waypoints:pts.slice(1,-1).map(l=>({location:l,stopover:true})),
-    travelMode:'DRIVING',
-    optimizeWaypoints:false
+    travelMode:'DRIVING',optimizeWaypoints:false
   },(res,stat)=>displayLegs(res,stat));
 }
 
@@ -187,56 +185,47 @@ function optimizeRoute(){
   const pts=addresses();
   if(pts.length<3){rebuildRoute();return;}
 
-  /* ask for a round‑trip so Google returns full waypoint_order */
   dirSvc.route({
-    origin:pts[0],
-    destination:pts[0],
+    origin:pts[0],destination:pts[0],
     waypoints:pts.slice(1).map(l=>({location:l,stopover:true})),
-    travelMode:'DRIVING',
-    optimizeWaypoints:true
+    travelMode:'DRIVING',optimizeWaypoints:true
   },(res,stat)=>{
     if(stat!=='OK'){alert('Optimize failed: '+stat);return;}
 
-    const order   = res.routes[0].waypoint_order;        // for pts[1..]
-    const loopIdx = [0, ...order.map(i=>i+1)];           // full loop
-    const legs    = res.routes[0].legs;
-    /* cut at the longest leg so trip becomes open path            */
-    const longest = legs.reduce((mx,l,i)=>
+    const order   =res.routes[0].waypoint_order;            // for pts[1..]
+    const loopIdx =[0,...order.map(i=>i+1)];
+    const legs    =res.routes[0].legs;
+    const longest =legs.reduce((mx,l,i)=>
                      l.distance.value>mx.v?{i,v:l.distance.value}:mx,{i:-1,v:0}).i;
 
     const list=document.getElementById('stops');
     const rows=[...list.querySelectorAll('.row')];
-
-    /* rotate indices so list starts *after* longest leg           */
     const rotated=[];
     for(let n=1;n<loopIdx.length;n++)
       rotated.push(loopIdx[(longest+1+n)%loopIdx.length]);
 
     rotated.forEach(i=>list.appendChild(rows[i]));
     list.prepend(rows[loopIdx[(longest+1)%loopIdx.length]]);
-
-    renumber(); rebuildRoute();
+    renumber();rebuildRoute();
   });
 }
 
 function displayLegs(res,stat){
   const msg=document.getElementById('msg');
-  if(stat!=='OK'){msg.textContent='Route error: '+stat; dirRend.setDirections({}); return;}
+  if(stat!=='OK'){msg.textContent='Route error: '+stat;dirRend.setDirections({});return;}
 
   dirRend.setDirections(res);
-
   const list=document.getElementById('stops');
   const rows=[...list.querySelectorAll('.row')];
   let kmTot=0,minTot=0;
   document.querySelectorAll('.leg-display').forEach(e=>e.remove());
 
   res.routes[0].legs.forEach((leg,i)=>{
-    const km = leg.distance.value/1000,
-          min= Math.round(leg.duration.value/60);
-    kmTot+=km; minTot+=min;
+    const km=leg.distance.value/1000,min=Math.round(leg.duration.value/60);
+    kmTot+=km;minTot+=min;
     const div=document.createElement('div');
     div.className='leg-display';
-    div.textContent = `Distance ${km.toFixed(1)} km | ≈ ${min} min`;
+    div.textContent=`Distance ${km.toFixed(1)} km | ≈ ${min} min`;
     rows[i].after(div);
   });
   msg.textContent=`Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
