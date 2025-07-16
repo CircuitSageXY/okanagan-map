@@ -21,8 +21,16 @@ input.stop{flex:1;height:38px;border:1px solid #ccc;border-radius:4px;padding:4p
 .drag{cursor:grab;margin-left:6px;color:#666}
 .remove{cursor:pointer;margin-left:4px;font-size:20px;line-height:20px;color:#c00}
 #add{margin:8px 0 14px 28px;padding:6px 10px}
-#route,#opt{margin-left:8px;padding:8px 14px}
+#route,#opt,#layersBtn{margin-left:8px;padding:8px 14px}
 #msg{margin:10px 0;color:#0066cc;font-weight:500}
+
+/* ▼ NEW – slide‑in layer drawer (hidden by default) */
+#layerDrawer{position:absolute;top:0;right:-240px;width:240px;max-height:100%;
+  background:#fff;border-left:1px solid #ddd;box-shadow:-2px 0 6px rgba(0,0,0,.25);
+  padding:12px 10px 10px;overflow:auto;transition:right .25s ease;}
+#layerDrawer.open{right:0}
+#layerDrawer h3{margin:0 0 6px;font-size:16px}
+#layerDrawer .close{position:absolute;top:6px;right:6px;cursor:pointer;font-size:18px}
 </style>
 
 <!-- Google Maps & Places -->
@@ -40,10 +48,22 @@ input.stop{flex:1;height:38px;border:1px solid #ccc;border-radius:4px;padding:4p
   <button id="add">+ Add stop</button>
   <button id="route">Route</button>
   <button id="opt">Optimize</button>
+  <!-- ▼ NEW button to toggle drawer -->
+  <button id="layersBtn">Layers</button>
   <div id="msg"></div>
   <small>Hold <b>Ctrl</b> and click the map to add way‑points interactively.</small>
 </div>
+
+<!-- map canvas -->
 <div id="map"></div>
+
+<!-- ▼ NEW hidden layer drawer -->
+<div id="layerDrawer">
+  <span class="material-icons close" title="Hide">close</span>
+  <h3>Map layers</h3>
+  <div id="layers"></div>
+  <small style="color:#555">Drag edges or vertices to edit.</small>
+</div>
 
 <script type="module">
 import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
@@ -51,13 +71,10 @@ import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 const labels='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 let map, dirSvc, dirRend;
 
-/* ── Interior‑Health polygon ── */
-const IHA_POLY=[
- {lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
- {lat:51.00,lng:-123.00},{lat:50.10,lng:-123.20},{lat:49.80,lng:-122.40},
- {lat:49.00,lng:-120.00},{lat:49.00,lng:-114.00},{lat:51.20,lng:-114.00},
- {lat:53.00,lng:-116.00}
-];
+/* ── Interior‑Health polygon (unchanged) ── */
+const IHA_POLY=[{lat:53.4,lng:-118.5},{lat:53.5,lng:-122},{lat:52.5,lng:-123},
+ {lat:51,lng:-123},{lat:50.1,lng:-123.2},{lat:49.8,lng:-122.4},
+ {lat:49,lng:-120},{lat:49,lng:-114},{lat:51.2,lng:-114},{lat:53,lng:-116}];
 function insidePoly(pt,poly){
   let c=false,j=poly.length-1;
   for(let i=0;i<poly.length;i++){
@@ -74,13 +91,13 @@ function makeRow(i){
   const d=document.createElement('div'); d.className='row';
   d.innerHTML=`<div class="bullet ${labels[i]}">${labels[i]}</div>
     <input class="stop" placeholder="Enter stop">
-    <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
-    <span class="remove" title="Remove stop">×</span>`;
+    <span class="material-icons drag">drag_indicator</span>
+    <span class="remove">×</span>`;
   d.querySelector('.remove').onclick=()=>{d.remove();renumber();rebuildRoute();};
   return d;
 }
 const addresses=()=>[...document.querySelectorAll('input.stop')]
-                   .map(e=>e.value.trim()).filter(Boolean);
+                     .map(e=>e.value.trim()).filter(Boolean);
 function renumber(){
   [...document.querySelectorAll('.row')].forEach((r,i)=>{
     const b=r.querySelector('.bullet');
@@ -103,16 +120,18 @@ function installPredictionFilter(){
   }).observe(document.body,{childList:true,subtree:true});
 }
 
+/* ── layer drawer helpers ── */
+function toggleDrawer(show){
+  const d=document.getElementById('layerDrawer');
+  d.classList.toggle('open',show===undefined? !d.classList.contains('open'):show);
+}
+
 /* ── init ── */
 window.init=()=>{
   installPredictionFilter();
 
   map=new google.maps.Map(document.getElementById('map'),{
     center:{lat:49.9,lng:-119.5},zoom:9
-  });
-  new google.maps.KmlLayer({
-    url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',
-    map,preserveViewport:true
   });
 
   dirSvc=new google.maps.DirectionsService();
@@ -124,16 +143,15 @@ window.init=()=>{
   Sortable.create(list,{handle:'.drag',animation:150,
     onEnd:()=>{renumber();rebuildRoute();}});
 
-  const bcInterior={south:49.2,north:53.5,west:-124.0,east:-114.0};
+  /* ------------- autocomplete ----------- */
+  const bcInterior={south:49.2,north:53.5,west:-124,east:-114};
   const acOpts={fields:['formatted_address','geometry'],
                 componentRestrictions:{country:'ca'},
                 bounds:bcInterior,strictBounds:true};
 
   const attach=input=>{
-    const normalPH='Enter stop';
-    input.placeholder=normalPH;
+    const normalPH='Enter stop'; input.placeholder=normalPH;
 
-    /* select‑all on first focus */
     input.addEventListener('focus',e=>{
       input.placeholder=normalPH;
       setTimeout(()=>e.target.select(),0);
@@ -141,34 +159,23 @@ window.init=()=>{
       input.addEventListener('mouseup',mu);
     });
 
-    /* ── NEW : smart‑paste multiple addresses ── */
+    /* smart‑paste multiple addresses */
     input.addEventListener('paste',e=>{
       const clip=(e.clipboardData||window.clipboardData).getData('text');
       const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-      if(lines.length<=1) return;               // single‑line paste behaves normally
+      if(lines.length<=1) return;
       e.preventDefault();
-
-      const list=document.getElementById('stops');
       const rows=[...list.querySelectorAll('.row')];
       const start=rows.indexOf(input.closest('.row'));
-
-      // add rows until we can fit everything (or hit Z)
       while(list.children.length<start+lines.length && list.children.length<labels.length){
-        const r=makeRow(list.children.length);
-        list.appendChild(r);
-        attach(r.querySelector('.stop'));
+        const r=makeRow(list.children.length);list.appendChild(r);attach(r.querySelector('.stop'));
       }
-
       lines.forEach((addr,i)=>{
-        if(start+i>=labels.length) return;      // out of letters
-        list.children[start+i].querySelector('.stop').value=addr;
+        if(start+i<labels.length) list.children[start+i].querySelector('.stop').value=addr;
       });
-
-      renumber();
-      rebuildRoute();
+      renumber(); rebuildRoute();
     });
 
-    /* autocomplete */
     const ac=new google.maps.places.Autocomplete(input,acOpts);
     ac.addListener('place_changed',()=>{
       const plc=ac.getPlace();
@@ -181,7 +188,6 @@ window.init=()=>{
     });
   };
   [...list.querySelectorAll('input.stop')].forEach(attach);
-
   document.getElementById('add').onclick=()=>{
     if(list.children.length<labels.length){
       const r=makeRow(list.children.length);list.appendChild(r);
@@ -190,9 +196,37 @@ window.init=()=>{
   };
   document.getElementById('route').onclick=rebuildRoute;
   document.getElementById('opt').onclick  =optimizeRoute;
+
+  /* ------------- NEW : GEOJSON layers & drawer ----------- */
+  const layerDefs=[
+    {name:'Geo Areas',              file:'Geo Areas.geojson',           color:'#ff6d00'},
+    {name:'Kelowna – Central',      file:'Kelowna - Central.geojson',   color:'#2962ff'},
+    {name:'Kelowna – South',        file:'Kelowna - South.geojson',     color:'#00c853'},
+    {name:'Rutland & Lake Country', file:'Rutland & Lake Country.geojson', color:'#d500f9'}
+  ];
+  const layersDiv=document.getElementById('layers');
+  layerDefs.forEach(def=>{
+    const g=new google.maps.Data();
+    g.setStyle({fillColor:def.color,fillOpacity:.25,strokeColor:def.color,
+                strokeWeight:2,editable:true,draggable:true});
+    fetch(def.file).then(r=>r.json()).then(j=>g.addGeoJson(j))
+      .catch(err=>console.error('Layer load',def.file,err));
+
+    const cb=document.createElement('input');cb.type='checkbox';
+    const lbl=document.createElement('label');
+    lbl.append(cb,' ',def.name); layersDiv.append(lbl,document.createElement('br'));
+    cb.onchange=()=>g.setMap(cb.checked?map:null);
+  });
+
+  /* show / hide drawer */
+  document.getElementById('layersBtn').onclick=()=>toggleDrawer(true);
+  document.querySelector('#layerDrawer .close').onclick=()=>toggleDrawer(false);
+  document.addEventListener('keydown',e=>{
+    if(e.key==='F1'){e.preventDefault();toggleDrawer();}
+  });
 };
 
-/* ── routing logic (unchanged) ── */
+/* ---------------- ROUTING (unchanged) ------------------ */
 function rebuildRoute(){
   const pts=addresses(),msg=document.getElementById('msg');
   document.querySelectorAll('.leg-display').forEach(e=>e.remove());
@@ -211,31 +245,26 @@ function optimizeRoute(){
     travelMode:'DRIVING',optimizeWaypoints:true
   },(res,stat)=>{
     if(stat!=='OK'){alert('Optimize failed: '+stat);return;}
-    const order=res.routes[0].waypoint_order;
-    const loop=[0,...order.map(i=>i+1)];
+    const ord=res.routes[0].waypoint_order,loop=[0,...ord.map(i=>i+1)];
     const legs=res.routes[0].legs;
     const longest=legs.reduce((mx,l,i)=>l.distance.value>mx.v?{i,v:l.distance.value}:mx,{i:-1,v:0}).i;
-    const list=document.getElementById('stops');
-    const rows=[...list.querySelectorAll('.row')];
+    const rows=[...document.querySelectorAll('.row')],list=document.getElementById('stops');
     const rot=[];for(let n=1;n<loop.length;n++)rot.push(loop[(longest+1+n)%loop.length]);
     rot.forEach(i=>list.appendChild(rows[i]));
-    list.prepend(rows[loop[(longest+1)%loop.length]]);
-    renumber();rebuildRoute();
+    list.prepend(rows[loop[(longest+1)%loop.length]]);renumber();rebuildRoute();
   });
 }
 function displayLegs(res,stat){
   const msg=document.getElementById('msg');
   if(stat!=='OK'){msg.textContent='Route error: '+stat;dirRend.setDirections({});return;}
   dirRend.setDirections(res);
-  const list=document.getElementById('stops');
-  const rows=[...list.querySelectorAll('.row')];
+  const rows=[...document.querySelectorAll('.row')];
   let kmTot=0,minTot=0;
   document.querySelectorAll('.leg-display').forEach(e=>e.remove());
   res.routes[0].legs.forEach((leg,i)=>{
     const km=leg.distance.value/1000,min=Math.round(leg.duration.value/60);
     kmTot+=km;minTot+=min;
-    const div=document.createElement('div');
-    div.className='leg-display';
+    const div=document.createElement('div');div.className='leg-display';
     div.textContent=`Distance ${km.toFixed(1)} km | ≈ ${min} min`;
     rows[i].after(div);
   });
