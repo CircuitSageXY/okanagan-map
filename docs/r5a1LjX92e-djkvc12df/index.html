@@ -7,7 +7,6 @@
 <link rel="stylesheet"
       href="https://fonts.googleapis.com/icon?family=Material+Icons">
 <style>
-/* ── layout & styling (unchanged) ─────────────────────────────── */
 html,body,#map{height:100%;margin:0;font-family:Roboto,Arial,sans-serif}
 #panel{position:absolute;top:0;left:0;z-index:5;width:340px;max-height:100%;
        background:#fff;padding:16px 14px 12px;border-right:1px solid #ddd;
@@ -20,7 +19,6 @@ html,body,#map{height:100%;margin:0;font-family:Roboto,Arial,sans-serif}
 .defaultBullet{background:#607d8b}
 input.stop{flex:1;height:38px;border:1px solid #ccc;border-radius:4px;padding:4px 6px;font-size:14px}
 .drag{cursor:grab;margin-left:6px;color:#666}
-/* ▼ NEW – visible no‑font fallback “×” remove button */
 .remove{cursor:pointer;margin-left:4px;font-size:20px;line-height:20px;color:#c00}
 #add{margin:8px 0 14px 28px;padding:6px 10px}
 #route,#opt{margin-left:8px;padding:8px 14px}
@@ -31,7 +29,6 @@ input.stop{flex:1;height:38px;border:1px solid #ccc;border-radius:4px;padding:4p
 <script async defer
   src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry">
 </script>
-<!-- SortableJS -->
 <script type="module"
   src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/modular/sortable.core.esm.js">
 </script>
@@ -54,7 +51,7 @@ import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 const labels='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 let map, dirSvc, dirRend;
 
-/* ── Interior‑Health polygon (unchanged) ── */
+/* ── Interior‑Health polygon ── */
 const IHA_POLY=[
  {lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
  {lat:51.00,lng:-123.00},{lat:50.10,lng:-123.20},{lat:49.80,lng:-122.40},
@@ -75,12 +72,10 @@ function insidePoly(pt,poly){
 /* ── helpers ── */
 function makeRow(i){
   const d=document.createElement('div'); d.className='row';
-  d.innerHTML=`
-    <div class="bullet ${labels[i]}">${labels[i]}</div>
+  d.innerHTML=`<div class="bullet ${labels[i]}">${labels[i]}</div>
     <input class="stop" placeholder="Enter stop">
     <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
     <span class="remove" title="Remove stop">×</span>`;
-  /* delete this row, then renumber & rebuild */
   d.querySelector('.remove').onclick=()=>{d.remove();renumber();rebuildRoute();};
   return d;
 }
@@ -97,9 +92,7 @@ function renumber(){
 /* ── prediction filter ── */
 function installPredictionFilter(){
   const forbid=/vancouver\b|victoria\b|island|nanaimo|campbell river|saanich/i;
-  /* hide anything that clearly ends in another province/territory */
   const notBC=/,\s?(AB|SK|MB|ON|QC|NB|NS|NL|PE|YT|NT|NU)\b/i;
-
   new MutationObserver(muts=>{
     muts.forEach(m=>m.addedNodes.forEach(node=>{
       if(node.nodeType===1 && node.classList.contains('pac-item')){
@@ -122,7 +115,7 @@ window.init=()=>{
     map,preserveViewport:true
   });
 
-  dirSvc =new google.maps.DirectionsService();
+  dirSvc=new google.maps.DirectionsService();
   dirRend=new google.maps.DirectionsRenderer({map});
 
   const list=document.getElementById('stops');
@@ -131,21 +124,51 @@ window.init=()=>{
   Sortable.create(list,{handle:'.drag',animation:150,
     onEnd:()=>{renumber();rebuildRoute();}});
 
-  const bcInterior={south:49.2,north:53.5,west:-124.0,east:-114.0}; // east edge = B.C./AB border
+  const bcInterior={south:49.2,north:53.5,west:-124.0,east:-114.0};
   const acOpts={fields:['formatted_address','geometry'],
                 componentRestrictions:{country:'ca'},
                 bounds:bcInterior,strictBounds:true};
 
   const attach=input=>{
-    /* ►► select‑all once on focus ◄◄ */
+    const normalPH='Enter stop';
+    input.placeholder=normalPH;
+
+    /* select‑all on first focus */
     input.addEventListener('focus',e=>{
-      // delay so the click that gave focus doesn’t clear the selection
+      input.placeholder=normalPH;
       setTimeout(()=>e.target.select(),0);
-      /* prevent first mouse‑up from cancelling the selection */
-      const stopMouseUp=ev=>{ev.preventDefault();input.removeEventListener('mouseup',stopMouseUp);};
-      input.addEventListener('mouseup',stopMouseUp);
+      const mu=ev=>{ev.preventDefault();input.removeEventListener('mouseup',mu);};
+      input.addEventListener('mouseup',mu);
     });
 
+    /* ── NEW : smart‑paste multiple addresses ── */
+    input.addEventListener('paste',e=>{
+      const clip=(e.clipboardData||window.clipboardData).getData('text');
+      const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+      if(lines.length<=1) return;               // single‑line paste behaves normally
+      e.preventDefault();
+
+      const list=document.getElementById('stops');
+      const rows=[...list.querySelectorAll('.row')];
+      const start=rows.indexOf(input.closest('.row'));
+
+      // add rows until we can fit everything (or hit Z)
+      while(list.children.length<start+lines.length && list.children.length<labels.length){
+        const r=makeRow(list.children.length);
+        list.appendChild(r);
+        attach(r.querySelector('.stop'));
+      }
+
+      lines.forEach((addr,i)=>{
+        if(start+i>=labels.length) return;      // out of letters
+        list.children[start+i].querySelector('.stop').value=addr;
+      });
+
+      renumber();
+      rebuildRoute();
+    });
+
+    /* autocomplete */
     const ac=new google.maps.places.Autocomplete(input,acOpts);
     ac.addListener('place_changed',()=>{
       const plc=ac.getPlace();
@@ -153,6 +176,7 @@ window.init=()=>{
       const {lat,lng}=plc.geometry.location;
       if(!insidePoly({lat:lat(),lng:lng()},IHA_POLY)){
         input.value='';input.placeholder='Outside Interior Health';
+        setTimeout(()=>{if(!input.value)input.placeholder=normalPH;},3000);
       }
     });
   };
@@ -173,53 +197,40 @@ function rebuildRoute(){
   const pts=addresses(),msg=document.getElementById('msg');
   document.querySelectorAll('.leg-display').forEach(e=>e.remove());
   if(pts.length<2){msg.textContent='';dirRend.setDirections({});return;}
-
   dirSvc.route({
     origin:pts[0],destination:pts[pts.length-1],
     waypoints:pts.slice(1,-1).map(l=>({location:l,stopover:true})),
     travelMode:'DRIVING',optimizeWaypoints:false
   },(res,stat)=>displayLegs(res,stat));
 }
-
 function optimizeRoute(){
-  const pts=addresses();
-  if(pts.length<3){rebuildRoute();return;}
-
+  const pts=addresses();if(pts.length<3){rebuildRoute();return;}
   dirSvc.route({
     origin:pts[0],destination:pts[0],
     waypoints:pts.slice(1).map(l=>({location:l,stopover:true})),
     travelMode:'DRIVING',optimizeWaypoints:true
   },(res,stat)=>{
     if(stat!=='OK'){alert('Optimize failed: '+stat);return;}
-
-    const order   =res.routes[0].waypoint_order;            // for pts[1..]
-    const loopIdx =[0,...order.map(i=>i+1)];
-    const legs    =res.routes[0].legs;
-    const longest =legs.reduce((mx,l,i)=>
-                     l.distance.value>mx.v?{i,v:l.distance.value}:mx,{i:-1,v:0}).i;
-
+    const order=res.routes[0].waypoint_order;
+    const loop=[0,...order.map(i=>i+1)];
+    const legs=res.routes[0].legs;
+    const longest=legs.reduce((mx,l,i)=>l.distance.value>mx.v?{i,v:l.distance.value}:mx,{i:-1,v:0}).i;
     const list=document.getElementById('stops');
     const rows=[...list.querySelectorAll('.row')];
-    const rotated=[];
-    for(let n=1;n<loopIdx.length;n++)
-      rotated.push(loopIdx[(longest+1+n)%loopIdx.length]);
-
-    rotated.forEach(i=>list.appendChild(rows[i]));
-    list.prepend(rows[loopIdx[(longest+1)%loopIdx.length]]);
+    const rot=[];for(let n=1;n<loop.length;n++)rot.push(loop[(longest+1+n)%loop.length]);
+    rot.forEach(i=>list.appendChild(rows[i]));
+    list.prepend(rows[loop[(longest+1)%loop.length]]);
     renumber();rebuildRoute();
   });
 }
-
 function displayLegs(res,stat){
   const msg=document.getElementById('msg');
   if(stat!=='OK'){msg.textContent='Route error: '+stat;dirRend.setDirections({});return;}
-
   dirRend.setDirections(res);
   const list=document.getElementById('stops');
   const rows=[...list.querySelectorAll('.row')];
   let kmTot=0,minTot=0;
   document.querySelectorAll('.leg-display').forEach(e=>e.remove());
-
   res.routes[0].legs.forEach((leg,i)=>{
     const km=leg.distance.value/1000,min=Math.round(leg.duration.value/60);
     kmTot+=km;minTot+=min;
