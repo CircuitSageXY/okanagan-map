@@ -12,7 +12,6 @@ html,body,#map{height:100%;margin:0;font-family:Roboto,Arial,sans-serif}
        background:#fff;padding:16px 14px 12px;border-right:1px solid #ddd;
        box-shadow:0 0 6px rgba(0,0,0,.25);overflow:auto}
 .row{display:flex;align-items:center;margin:10px 0}
-.leg-display{margin:4px 0 0 28px;font-size:16px;color:#444}
 .bullet{width:20px;height:20px;border-radius:50%;line-height:20px;text-align:center;
         font-weight:600;font-size:12px;color:#fff;margin-right:8px}
 .A{background:#4285F4}.B{background:#0F9D58}.C{background:#F4B400}.D{background:#DB4437}
@@ -24,13 +23,17 @@ input.stop{flex:1;height:38px;border:1px solid #ccc;border-radius:4px;padding:4p
 #route,#opt,#layersBtn{margin-left:8px;padding:8px 14px}
 #msg{margin:10px 0;color:#0066cc;font-weight:500}
 
-/* ▼ NEW – slide‑in layer drawer (hidden by default) */
-#layerDrawer{position:absolute;top:0;right:-240px;width:240px;max-height:100%;
+/* ── slide‑in layer drawer ─────────────────────────────────────── */
+#layerDrawer{position:absolute;top:0;right:-260px;width:260px;max-height:100%;
   background:#fff;border-left:1px solid #ddd;box-shadow:-2px 0 6px rgba(0,0,0,.25);
-  padding:12px 10px 10px;overflow:auto;transition:right .25s ease;}
+  padding:14px 12px 10px;overflow:auto;transition:right .25s ease;}
 #layerDrawer.open{right:0}
-#layerDrawer h3{margin:0 0 6px;font-size:16px}
-#layerDrawer .close{position:absolute;top:6px;right:6px;cursor:pointer;font-size:18px}
+#layerDrawer h3{margin:0 0 8px;font-size:16px}
+#layerDrawer .close{position:absolute;top:10px;right:10px;cursor:pointer;font-size:18px}
+.layerRow{display:flex;align-items:center;margin:6px 0;font-size:14px}
+.layerRow span.name[contenteditable]{outline:none;border-bottom:1px dashed transparent}
+.layerRow span.name[contenteditable]:focus{border-bottom-color:#999}
+.layerRow .trash{cursor:pointer;margin-left:4px;font-size:18px;color:#c00}
 </style>
 
 <!-- Google Maps & Places -->
@@ -48,28 +51,27 @@ input.stop{flex:1;height:38px;border:1px solid #ccc;border-radius:4px;padding:4p
   <button id="add">+ Add stop</button>
   <button id="route">Route</button>
   <button id="opt">Optimize</button>
-  <!-- ▼ NEW button to toggle drawer -->
   <button id="layersBtn">Layers</button>
   <div id="msg"></div>
   <small>Hold <b>Ctrl</b> and click the map to add way‑points interactively.</small>
 </div>
 
-<!-- map canvas -->
 <div id="map"></div>
 
-<!-- ▼ NEW hidden layer drawer -->
+<!-- layer drawer -->
 <div id="layerDrawer">
   <span class="material-icons close" title="Hide">close</span>
   <h3>Map layers</h3>
   <div id="layers"></div>
-  <small style="color:#555">Drag edges or vertices to edit.</small>
+  <input id="addKml" placeholder="Paste KML / KMZ URL then ↵" style="width:100%;margin-top:8px;padding:4px">
+  <small style="color:#555">Colours come from the KML itself.</small>
 </div>
 
 <script type="module">
 import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 
 const labels='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-let map, dirSvc, dirRend;
+let map,dirSvc,dirRend;
 
 /* ── Interior‑Health polygon (unchanged) ── */
 const IHA_POLY=[{lat:53.4,lng:-118.5},{lat:53.5,lng:-122},{lat:52.5,lng:-123},
@@ -86,190 +88,130 @@ function insidePoly(pt,poly){
   return c;
 }
 
-/* ── helpers ── */
-function makeRow(i){
-  const d=document.createElement('div'); d.className='row';
-  d.innerHTML=`<div class="bullet ${labels[i]}">${labels[i]}</div>
-    <input class="stop" placeholder="Enter stop">
-    <span class="material-icons drag">drag_indicator</span>
-    <span class="remove">×</span>`;
-  d.querySelector('.remove').onclick=()=>{d.remove();renumber();rebuildRoute();};
-  return d;
+/* ── KML drawer helpers ── */
+const drawer  = document.getElementById('layerDrawer');
+const layersDiv = document.getElementById('layers');
+function toggleDrawer(force){
+  drawer.classList.toggle('open',force===undefined? !drawer.classList.contains('open'):force);
 }
-const addresses=()=>[...document.querySelectorAll('input.stop')]
-                     .map(e=>e.value.trim()).filter(Boolean);
-function renumber(){
-  [...document.querySelectorAll('.row')].forEach((r,i)=>{
-    const b=r.querySelector('.bullet');
-    b.textContent=labels[i]||'?';
-    b.className='bullet '+(i<4?labels[i]:'defaultBullet');
-  });
-}
-
-/* ── prediction filter ── */
-function installPredictionFilter(){
-  const forbid=/vancouver\b|victoria\b|island|nanaimo|campbell river|saanich/i;
-  const notBC=/,\s?(AB|SK|MB|ON|QC|NB|NS|NL|PE|YT|NT|NU)\b/i;
-  new MutationObserver(muts=>{
-    muts.forEach(m=>m.addedNodes.forEach(node=>{
-      if(node.nodeType===1 && node.classList.contains('pac-item')){
-        const txt=node.textContent;
-        if(notBC.test(txt) || forbid.test(txt)) node.style.display='none';
-      }
-    }));
-  }).observe(document.body,{childList:true,subtree:true});
+function addKmlLayer(name,url){
+  const kml = new google.maps.KmlLayer({url, map:null, preserveViewport:true});
+  const row = document.createElement('div'); row.className='layerRow';
+  row.innerHTML = `
+    <input type="checkbox">
+    <span class="name" contenteditable="true">${name}</span>
+    <span class="material-icons trash" title="Remove">delete</span>`;
+  const cb = row.querySelector('input');
+  cb.onchange = () => kml.setMap(cb.checked?map:null);
+  row.querySelector('.trash').onclick = ()=>{kml.setMap(null);row.remove();};
+  layersDiv.append(row);
 }
 
-/* ── layer drawer helpers ── */
-function toggleDrawer(show){
-  const d=document.getElementById('layerDrawer');
-  d.classList.toggle('open',show===undefined? !d.classList.contains('open'):show);
-}
-
-/* ── init ── */
-window.init=()=>{
-  installPredictionFilter();
-
-  map=new google.maps.Map(document.getElementById('map'),{
-    center:{lat:49.9,lng:-119.5},zoom:9
-  });
-
+/* ── map / routing init ── */
+window.init = () => {
+  /* map & directions */
+  map=new google.maps.Map(document.getElementById('map'),{center:{lat:49.9,lng:-119.5},zoom:9});
   dirSvc=new google.maps.DirectionsService();
   dirRend=new google.maps.DirectionsRenderer({map});
 
+  /* stops UI */
   const list=document.getElementById('stops');
+  const makeRow=i=>{
+    const d=document.createElement('div');d.className='row';
+    d.innerHTML=`<div class="bullet ${labels[i]}">${labels[i]}</div>
+      <input class="stop" placeholder="Enter stop">
+      <span class="material-icons drag">drag_indicator</span>
+      <span class="remove">×</span>`;
+    d.querySelector('.remove').onclick=()=>{d.remove();renumber();rebuildRoute();};
+    return d;
+  };
   list.appendChild(makeRow(0)); list.appendChild(makeRow(1));
+  Sortable.create(list,{handle:'.drag',animation:150,onEnd:()=>{renumber();rebuildRoute();}});
+  const renumber=()=>[...document.querySelectorAll('.row')].forEach((r,i)=>{
+    const b=r.querySelector('.bullet');b.textContent=labels[i]||'?';
+    b.className='bullet '+(i<4?labels[i]:'defaultBullet');
+  });
+  const addresses=()=>[...document.querySelectorAll('input.stop')].map(e=>e.value.trim()).filter(Boolean);
 
-  Sortable.create(list,{handle:'.drag',animation:150,
-    onEnd:()=>{renumber();rebuildRoute();}});
-
-  /* ------------- autocomplete ----------- */
-  const bcInterior={south:49.2,north:53.5,west:-124,east:-114};
-  const acOpts={fields:['formatted_address','geometry'],
-                componentRestrictions:{country:'ca'},
-                bounds:bcInterior,strictBounds:true};
-
+  /* autocomplete + smart‑paste */
+  const acOpts={fields:['formatted_address','geometry'],componentRestrictions:{country:'ca'},
+                bounds:{south:49.2,north:53.5,west:-124,east:-114},strictBounds:true};
   const attach=input=>{
-    const normalPH='Enter stop'; input.placeholder=normalPH;
-
-    input.addEventListener('focus',e=>{
-      input.placeholder=normalPH;
-      setTimeout(()=>e.target.select(),0);
-      const mu=ev=>{ev.preventDefault();input.removeEventListener('mouseup',mu);};
-      input.addEventListener('mouseup',mu);
-    });
-
-    /* smart‑paste multiple addresses */
+    const normalPH='Enter stop';input.placeholder=normalPH;
+    input.addEventListener('focus',e=>{input.placeholder=normalPH;setTimeout(()=>e.target.select(),0);});
     input.addEventListener('paste',e=>{
-      const clip=(e.clipboardData||window.clipboardData).getData('text');
-      const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-      if(lines.length<=1) return;
-      e.preventDefault();
+      const lines=(e.clipboardData||window.clipboardData).getData('text').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+      if(lines.length<=1)return; e.preventDefault();
       const rows=[...list.querySelectorAll('.row')];
       const start=rows.indexOf(input.closest('.row'));
-      while(list.children.length<start+lines.length && list.children.length<labels.length){
+      while(list.children.length<start+lines.length&&list.children.length<labels.length){
         const r=makeRow(list.children.length);list.appendChild(r);attach(r.querySelector('.stop'));
       }
-      lines.forEach((addr,i)=>{
-        if(start+i<labels.length) list.children[start+i].querySelector('.stop').value=addr;
-      });
+      lines.forEach((addr,i)=>{if(start+i<labels.length)list.children[start+i].querySelector('.stop').value=addr;});
       renumber(); rebuildRoute();
     });
-
     const ac=new google.maps.places.Autocomplete(input,acOpts);
     ac.addListener('place_changed',()=>{
-      const plc=ac.getPlace();
-      if(!plc.geometry){input.value='';return;}
+      const plc=ac.getPlace();if(!plc.geometry){input.value='';return;}
       const {lat,lng}=plc.geometry.location;
-      if(!insidePoly({lat:lat(),lng:lng()},IHA_POLY)){
-        input.value='';input.placeholder='Outside Interior Health';
-        setTimeout(()=>{if(!input.value)input.placeholder=normalPH;},3000);
-      }
+      if(!insidePoly({lat:lat(),lng:lng()},IHA_POLY)){input.value='';input.placeholder='Outside Interior Health';}
     });
   };
   [...list.querySelectorAll('input.stop')].forEach(attach);
-  document.getElementById('add').onclick=()=>{
-    if(list.children.length<labels.length){
-      const r=makeRow(list.children.length);list.appendChild(r);
-      attach(r.querySelector('.stop'));renumber();
-    }
+  document.getElementById('add').onclick=()=>{if(list.children.length<labels.length){const r=makeRow(list.children.length);list.appendChild(r);attach(r.querySelector('.stop'));renumber();}};
+  document.getElementById('route').onclick=()=>rebuildRoute();
+  document.getElementById('opt').onclick  =()=>optimizeRoute();
+
+  /* routing fn */
+  const rebuildRoute=()=>{
+    const pts=addresses(),msg=document.getElementById('msg');
+    document.querySelectorAll('.leg-display').forEach(e=>e.remove());
+    if(pts.length<2){msg.textContent='';dirRend.setDirections({});return;}
+    dirSvc.route({origin:pts[0],destination:pts[pts.length-1],
+      waypoints:pts.slice(1,-1).map(l=>({location:l,stopover:true})),travelMode:'DRIVING'},(res,stat)=>displayLegs(res,stat));
   };
-  document.getElementById('route').onclick=rebuildRoute;
-  document.getElementById('opt').onclick  =optimizeRoute;
+  const optimizeRoute=()=>{
+    const pts=addresses();if(pts.length<3){rebuildRoute();return;}
+    dirSvc.route({origin:pts[0],destination:pts[0],
+      waypoints:pts.slice(1).map(l=>({location:l,stopover:true})),travelMode:'DRIVING',optimizeWaypoints:true},
+      (res,stat)=>{if(stat!=='OK'){alert('Optimize failed');return;}
+        const order=res.routes[0].waypoint_order,rows=[...list.querySelectorAll('.row')];
+        order.forEach(i=>list.appendChild(rows[i+1]));renumber();rebuildRoute();});
+  };
+  const displayLegs=(res,stat)=>{
+    const msg=document.getElementById('msg');if(stat!=='OK'){msg.textContent='Route error';return;}
+    dirRend.setDirections(res);
+    let kmTot=0,minTot=0;
+    res.routes[0].legs.forEach((l,i)=>{
+      kmTot+=l.distance.value/1000;minTot+=Math.round(l.duration.value/60);
+      const div=document.createElement('div');div.className='leg-display';
+      div.textContent=`Distance ${(l.distance.value/1000).toFixed(1)} km | ≈ ${Math.round(l.duration.value/60)} min`;
+      list.children[i].after(div);});
+    msg.textContent=`Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
+  };
 
-  /* ------------- NEW : GEOJSON layers & drawer ----------- */
-  const layerDefs=[
-    {name:'Geo Areas',              file:'Geo Areas.geojson',           color:'#ff6d00'},
-    {name:'Kelowna – Central',      file:'Kelowna - Central.geojson',   color:'#2962ff'},
-    {name:'Kelowna – South',        file:'Kelowna - South.geojson',     color:'#00c853'},
-    {name:'Rutland & Lake Country', file:'Rutland & Lake Country.geojson', color:'#d500f9'}
-  ];
-  const layersDiv=document.getElementById('layers');
-  layerDefs.forEach(def=>{
-    const g=new google.maps.Data();
-    g.setStyle({fillColor:def.color,fillOpacity:.25,strokeColor:def.color,
-                strokeWeight:2,editable:true,draggable:true});
-    fetch(def.file).then(r=>r.json()).then(j=>g.addGeoJson(j))
-      .catch(err=>console.error('Layer load',def.file,err));
+  /* prediction filter (unchanged) */
+  (function installPredictionFilter(){
+    const forbid=/vancouver\b|victoria\b|island|nanaimo|campbell river|saanich/i;
+    const notBC=/,\s?(AB|SK|MB|ON|QC|NB|NS|NL|PE|YT|NT|NU)\b/i;
+    new MutationObserver(muts=>{muts.forEach(m=>m.addedNodes.forEach(node=>{
+      if(node.nodeType===1&&node.classList.contains('pac-item')){
+        const txt=node.textContent;if(notBC.test(txt)||forbid.test(txt))node.style.display='none';}}));
+    }).observe(document.body,{childList:true,subtree:true});
+  })();
 
-    const cb=document.createElement('input');cb.type='checkbox';
-    const lbl=document.createElement('label');
-    lbl.append(cb,' ',def.name); layersDiv.append(lbl,document.createElement('br'));
-    cb.onchange=()=>g.setMap(cb.checked?map:null);
-  });
-
-  /* show / hide drawer */
+  /* ---------- KML drawer setup ---------- */
+  addKmlLayer('Okanagan Areas','okanagan.kmz');
   document.getElementById('layersBtn').onclick=()=>toggleDrawer(true);
   document.querySelector('#layerDrawer .close').onclick=()=>toggleDrawer(false);
-  document.addEventListener('keydown',e=>{
-    if(e.key==='F1'){e.preventDefault();toggleDrawer();}
+  document.addEventListener('keydown',e=>{if(e.key==='F1'){e.preventDefault();toggleDrawer();}});
+  document.getElementById('addKml').addEventListener('keydown',e=>{
+    if(e.key!=='Enter')return;
+    const url=e.target.value.trim();if(!url)return;
+    const nm=prompt('Layer name?',url.split('/').pop())||'Unnamed';
+    addKmlLayer(nm,url);e.target.value='';
   });
 };
-
-/* ---------------- ROUTING (unchanged) ------------------ */
-function rebuildRoute(){
-  const pts=addresses(),msg=document.getElementById('msg');
-  document.querySelectorAll('.leg-display').forEach(e=>e.remove());
-  if(pts.length<2){msg.textContent='';dirRend.setDirections({});return;}
-  dirSvc.route({
-    origin:pts[0],destination:pts[pts.length-1],
-    waypoints:pts.slice(1,-1).map(l=>({location:l,stopover:true})),
-    travelMode:'DRIVING',optimizeWaypoints:false
-  },(res,stat)=>displayLegs(res,stat));
-}
-function optimizeRoute(){
-  const pts=addresses();if(pts.length<3){rebuildRoute();return;}
-  dirSvc.route({
-    origin:pts[0],destination:pts[0],
-    waypoints:pts.slice(1).map(l=>({location:l,stopover:true})),
-    travelMode:'DRIVING',optimizeWaypoints:true
-  },(res,stat)=>{
-    if(stat!=='OK'){alert('Optimize failed: '+stat);return;}
-    const ord=res.routes[0].waypoint_order,loop=[0,...ord.map(i=>i+1)];
-    const legs=res.routes[0].legs;
-    const longest=legs.reduce((mx,l,i)=>l.distance.value>mx.v?{i,v:l.distance.value}:mx,{i:-1,v:0}).i;
-    const rows=[...document.querySelectorAll('.row')],list=document.getElementById('stops');
-    const rot=[];for(let n=1;n<loop.length;n++)rot.push(loop[(longest+1+n)%loop.length]);
-    rot.forEach(i=>list.appendChild(rows[i]));
-    list.prepend(rows[loop[(longest+1)%loop.length]]);renumber();rebuildRoute();
-  });
-}
-function displayLegs(res,stat){
-  const msg=document.getElementById('msg');
-  if(stat!=='OK'){msg.textContent='Route error: '+stat;dirRend.setDirections({});return;}
-  dirRend.setDirections(res);
-  const rows=[...document.querySelectorAll('.row')];
-  let kmTot=0,minTot=0;
-  document.querySelectorAll('.leg-display').forEach(e=>e.remove());
-  res.routes[0].legs.forEach((leg,i)=>{
-    const km=leg.distance.value/1000,min=Math.round(leg.duration.value/60);
-    kmTot+=km;minTot+=min;
-    const div=document.createElement('div');div.className='leg-display';
-    div.textContent=`Distance ${km.toFixed(1)} km | ≈ ${min} min`;
-    rows[i].after(div);
-  });
-  msg.textContent=`Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
-}
 </script>
 </body>
 </html>
