@@ -4,12 +4,11 @@
 <meta charset="utf-8">
 <title>Okanagan Route Planner</title>
 
-<link rel="stylesheet"
-      href="https://fonts.googleapis.com/icon?family=Material+Icons">
+<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 <style>
 html,body,#map{height:100%;margin:0;font-family:Roboto,Arial,sans-serif}
 #panel{position:absolute;top:0;left:0;z-index:5;width:340px;max-height:100%;
-       background:#fff;padding:16px 14px 12px;border-right:1px solid #ddd;
+       background:#fff;padding:16px;border-right:1px solid #ddd;
        box-shadow:0 0 6px rgba(0,0,0,.25);overflow:auto}
 .row{display:flex;align-items:center;margin:10px 0}
 .bullet{width:20px;height:20px;border-radius:50%;line-height:20px;text-align:center;
@@ -35,14 +34,6 @@ input.stop{flex:1;height:38px;border:1px solid #ccc;border-radius:4px;padding:4p
 .layerRow span.name[contenteditable]:focus{border-bottom-color:#999}
 .layerRow .trash{cursor:pointer;margin-left:4px;font-size:18px;color:#c00}
 </style>
-
-<!-- Google Maps & Places -->
-<script async defer
-  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry">
-</script>
-<script type="module"
-  src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/modular/sortable.core.esm.js">
-</script>
 </head>
 <body>
 
@@ -65,7 +56,7 @@ input.stop{flex:1;height:38px;border:1px solid #ccc;border-radius:4px;padding:4p
   <div id="layers"></div>
   <input id="addKml" placeholder="Paste KML / KMZ URL then ↵"
          style="width:100%;margin-top:8px;padding:4px">
-  <small style="color:#666">Colours come from the KML itself.</small>
+  <small style="color:#666">Colours come from the KML file.</small>
 </div>
 
 <script type="module">
@@ -74,129 +65,103 @@ import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 const labels='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 let map,dirSvc,dirRend;
 
-/* ── Interior‑Health polygon (unchanged) ── */
-const IHA_POLY=[{lat:53.4,lng:-118.5},{lat:53.5,lng:-122},{lat:52.5,lng:-123},
- {lat:51,lng:-123},{lat:50.1,lng:-123.2},{lat:49.8,lng:-122.4},
- {lat:49,lng:-120},{lat:49,lng:-114},{lat:51.2,lng:-114},{lat:53,lng:-116}];
-const insidePoly=(pt,poly)=>poly.reduce((c,p,i,arr)=>{
-  const pj=arr[(i+arr.length-1)%arr.length];
-  return ((p.lng>pt.lng)!=(pj.lng>pt.lng))&&pt.lat<(pj.lat-p.lat)*(pt.lng-p.lng)/(pj.lng-p.lng)+p.lat
-         ?!c:c;
-},false);
+/* ---------- helpers & UI for stops ---------- */
+function makeRow(i){
+  const d=document.createElement('div');d.className='row';
+  d.innerHTML=`<div class="bullet ${labels[i]}">${labels[i]}</div>
+    <input class="stop" placeholder="Enter stop">
+    <span class="material-icons drag">drag_indicator</span>
+    <span class="remove">×</span>`;
+  d.querySelector('.remove').onclick=()=>{d.remove();renumber();rebuildRoute();};
+  return d;
+}
+const renumber=()=>[...document.querySelectorAll('.row')].forEach((r,i)=>{
+  const b=r.querySelector('.bullet');b.textContent=labels[i]||'?';
+  b.className='bullet '+(i<4?labels[i]:'defaultBullet');
+});
+const addresses=()=>[...document.querySelectorAll('input.stop')].map(e=>e.value.trim()).filter(Boolean);
 
-/* ── KML drawer utilities ── */
-const drawer=document.getElementById('layerDrawer'),
-      listDiv=document.getElementById('layers');
-const toggleDrawer=(force)=>drawer.classList.toggle('open',
-                  force===undefined? !drawer.classList.contains('open'):force);
+/* ---------- drawer utilities ---------- */
+const drawer=document.getElementById('layerDrawer');
+const toggleDrawer=(f)=>drawer.classList.toggle('open',f===undefined?!drawer.classList.contains('open'):f);
 function addKmlLayer(name,url){
-  const kml=new google.maps.KmlLayer({url,map:null,preserveViewport:true});
+  const layer=new google.maps.KmlLayer({url,map:null,preserveViewport:true});
   const row=document.createElement('div');row.className='layerRow';
   row.innerHTML=`<input type="checkbox">
-                 <span class="name" contenteditable="true">${name}</span>
-                 <span class="material-icons trash" title="Remove">delete</span>`;
-  const cb=row.querySelector('input');
-  cb.onchange=()=>kml.setMap(cb.checked?map:null);
-  row.querySelector('.trash').onclick=()=>{kml.setMap(null);row.remove();};
-  listDiv.append(row);
+    <span class="name" contenteditable="true">${name}</span>
+    <span class="material-icons trash">delete</span>`;
+  row.querySelector('input').onchange=e=>layer.setMap(e.target.checked?map:null);
+  row.querySelector('.trash').onclick=()=>{layer.setMap(null);row.remove();};
+  document.getElementById('layers').append(row);
 }
 
-/* ── main init ── */
+/* ---------- init called by Google script ---------- */
 window.init=()=>{
+  /* base map */
   map=new google.maps.Map(document.getElementById('map'),
         {center:{lat:49.9,lng:-119.5},zoom:9});
+  new google.maps.KmlLayer({
+    url:'okanagan.kmz',map,preserveViewport:true
+  });
+
   dirSvc=new google.maps.DirectionsService();
   dirRend=new google.maps.DirectionsRenderer({map});
 
-  /* -------- stops UI -------- */
+  /* stops UI */
   const list=document.getElementById('stops');
-  const makeRow=i=>{
-    const d=document.createElement('div');d.className='row';
-    d.innerHTML=`<div class="bullet ${labels[i]}">${labels[i]}</div>
-      <input class="stop" placeholder="Enter stop">
-      <span class="material-icons drag">drag_indicator</span>
-      <span class="remove">×</span>`;
-    d.querySelector('.remove').onclick=()=>{d.remove();renumber();rebuildRoute();};
-    return d;
-  };
-  list.appendChild(makeRow(0));list.appendChild(makeRow(1));
-  Sortable.create(list,{handle:'.drag',animation:150,
-    onEnd:()=>{renumber();rebuildRoute();}});
-  const renumber=()=>[...document.querySelectorAll('.row')].forEach((r,i)=>{
-    const b=r.querySelector('.bullet');b.textContent=labels[i]||'?';
-    b.className='bullet '+(i<4?labels[i]:'defaultBullet');});
-  const addresses=()=>[...document.querySelectorAll('input.stop')].map(e=>e.value.trim()).filter(Boolean);
-
-  /* autocomplete & smart paste */
-  const acOpts={fields:['formatted_address','geometry'],componentRestrictions:{country:'ca'},
-                bounds:{south:49.2,north:53.5,west:-124,east:-114},strictBounds:true};
+  list.append(makeRow(0),makeRow(1));
+  Sortable.create(list,{handle:'.drag',animation:150,onEnd:()=>{renumber();rebuildRoute();}});
   const attach=input=>{
-    const norm='Enter stop';input.placeholder=norm;
-    input.addEventListener('focus',e=>{setTimeout(()=>e.target.select(),0);});
+    input.addEventListener('focus',e=>setTimeout(()=>e.target.select(),0));
     input.addEventListener('paste',e=>{
       const lines=(e.clipboardData||window.clipboardData).getData('text').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
       if(lines.length<=1)return;e.preventDefault();
-      const rows=[...list.querySelectorAll('.row')];
-      const start=rows.indexOf(input.closest('.row'));
+      const rows=[...list.children],start=rows.indexOf(input.parentElement);
       while(list.children.length<start+lines.length&&list.children.length<labels.length){
         const r=makeRow(list.children.length);list.appendChild(r);attach(r.querySelector('.stop'));
       }
-      lines.forEach((addr,i)=>{if(start+i<labels.length)list.children[start+i].querySelector('.stop').value=addr;});
+      lines.forEach((t,i)=>{if(start+i<labels.length)list.children[start+i].querySelector('.stop').value=t;});
       renumber();rebuildRoute();
     });
-    const ac=new google.maps.places.Autocomplete(input,acOpts);
-    ac.addListener('place_changed',()=>{
-      const plc=ac.getPlace();if(!plc.geometry){input.value='';return;}
-      const {lat,lng}=plc.geometry.location;
-      if(!insidePoly({lat:lat(),lng:lng()},IHA_POLY)){input.value='';input.placeholder='Outside Interior Health';}
-    });
+    new google.maps.places.Autocomplete(input,{fields:['formatted_address','geometry'],componentRestrictions:{country:'ca'}});
   };
   [...list.querySelectorAll('input.stop')].forEach(attach);
-  document.getElementById('add').onclick=()=>{
-    if(list.children.length<labels.length){
-      const r=makeRow(list.children.length);list.appendChild(r);
-      attach(r.querySelector('.stop'));renumber();}};
+  document.getElementById('add').onclick=()=>{if(list.children.length<labels.length){const r=makeRow(list.children.length);list.appendChild(r);attach(r.querySelector('.stop'));renumber();}};
   document.getElementById('route').onclick=()=>rebuildRoute();
   document.getElementById('opt').onclick  =()=>optimizeRoute();
 
-  /* routing fns */
-  const rebuildRoute=()=>{
+  /* routing */
+  function rebuildRoute(){
     const pts=addresses(),msg=document.getElementById('msg');
-    document.querySelectorAll('.leg-display').forEach(e=>e.remove());
     if(pts.length<2){msg.textContent='';dirRend.setDirections({});return;}
     dirSvc.route({origin:pts[0],destination:pts[pts.length-1],
       waypoints:pts.slice(1,-1).map(l=>({location:l,stopover:true})),travelMode:'DRIVING'},
-      (res,stat)=>{if(stat==='OK'){dirRend.setDirections(res);msg.textContent='';} });
-  };
-  const optimizeRoute=()=>{
+      (res,stat)=>{if(stat==='OK')dirRend.setDirections(res);});
+  }
+  function optimizeRoute(){
     const pts=addresses();if(pts.length<3){rebuildRoute();return;}
     dirSvc.route({origin:pts[0],destination:pts[0],
-      waypoints:pts.slice(1).map(l=>({location:l,stopover:true})),travelMode:'DRIVING',optimizeWaypoints:true},
-      (res,stat)=>{if(stat!=='OK'){alert('Optimize failed');return;}
-        const order=res.routes[0].waypoint_order,rows=[...list.querySelectorAll('.row')];
-        order.forEach(i=>list.appendChild(rows[i+1]));renumber();rebuildRoute();});
-  };
+      waypoints:pts.slice(1).map(l=>({location:l,stopover:true})),
+      travelMode:'DRIVING',optimizeWaypoints:true},
+      (res,s)=>{if(s==='OK'){const order=res.routes[0].waypoint_order,rows=[...list.children];order.forEach(i=>list.append(rows[i+1]));renumber();rebuildRoute();}});
+  }
 
-  /* prediction filter */
-  (function(){const forbid=/vancouver\b|victoria\b|island|nanaimo|campbell river|saanich/i,
-        notBC=/,\s?(AB|SK|MB|ON|QC|NB|NS|NL|PE|YT|NT|NU)\b/i;
-    new MutationObserver(muts=>{
-      muts.forEach(m=>m.addedNodes.forEach(node=>{
-        if(node.nodeType===1&&node.classList.contains('pac-item')){
-          const t=node.textContent;if(notBC.test(t)||forbid.test(t))node.style.display='none';}}));
-    }).observe(document.body,{childList:true,subtree:true});})();
-
-  /* ---------- seed drawer with existing KMZ ---------- */
+  /* drawer controls */
   addKmlLayer('Okanagan Areas','okanagan.kmz');
-  document.getElementById('layersBtn').onclick =()=>toggleDrawer(true);
-  document.querySelector('#layerDrawer .close').onclick=()=>toggleDrawer(false);
+  document.getElementById('layersBtn').onclick=()=>toggleDrawer(true);
+  drawer.querySelector('.close').onclick=()=>toggleDrawer(false);
   document.addEventListener('keydown',e=>{if(e.key==='F1'){e.preventDefault();toggleDrawer();}});
   document.getElementById('addKml').addEventListener('keydown',e=>{
     if(e.key!=='Enter')return;
     const url=e.target.value.trim();if(!url)return;
-    const nm=prompt('Layer name?',url.split('/').pop())||'Unnamed';
-    addKmlLayer(nm,url);e.target.value='';});
+    addKmlLayer(prompt('Layer name?',url.split('/').pop())||'Unnamed',url);
+    e.target.value='';});
 };
+</script>
+
+<!-- Google script LAST so init is defined before callback -->
+<script defer
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry">
 </script>
 </body>
 </html>
