@@ -8,23 +8,19 @@
       href="https://fonts.googleapis.com/icon?family=Material+Icons">
 
 <style>
-/* ---------- COLOR SYSTEM (easy theming) ---------- */
 :root{
   --clrA:#4285F4;
   --clrB:#0F9D58;
   --clrC:#F4B400;
   --clrD:#DB4437;
   --clrDefault:#607d8b;
-
   --clrPanelBg:#ffffff;
   --clrPanelStripe:#2196f3;
   --clrPanelBorder:#d7d7d7;
   --clrPanelShadow:0 2px 8px rgba(0,0,0,.25);
-
   --clrInputBorder:#c7c7c7;
   --clrInputBg:#fff;
   --clrInputBgAlt:#fafafa;
-
   --radiusSm:4px;
   --radiusMd:6px;
   --radiusLg:10px;
@@ -33,24 +29,19 @@
   --fontMain:Roboto,Arial,sans-serif;
 }
 html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
-
-/* Panel refresh ------------------------------------------------------------ */
 #panel{
   position:absolute;top:0;left:0;z-index:5;width:340px;max-height:100%;
-  background:var(--clrPanelBg);
-  padding:16px 14px 12px;
+  background:var(--clrPanelBg);padding:16px 14px 12px;
   border-right:1px solid var(--clrPanelBorder);
   box-shadow:var(--clrPanelShadow);
   overflow:auto;
   border-top-right-radius:var(--radiusLg);
   border-bottom-right-radius:var(--radiusLg);
 }
-#panel::before{/* accent stripe */
+#panel::before{
   content:"";position:absolute;top:0;left:0;right:0;height:4px;
   background:var(--clrPanelStripe);
 }
-
-/* Stop rows --------------------------------------------------------------- */
 .row{
   display:flex;align-items:center;margin:12px 0;padding:4px 6px 4px 0;
   border-radius:var(--radiusMd);
@@ -58,51 +49,36 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 }
 .row.focused{background:var(--clrInputBgAlt);box-shadow:0 0 0 2px rgba(33,150,243,.25);}
 .row:hover:not(.focused){background:rgba(0,0,0,.04);}
-
-/* Bullet circles (unchanged colors) -------------------------------------- */
 .bullet{
   width:24px;height:24px;border-radius:50%;line-height:24px;text-align:center;
-  font-weight:600;font-size:13px;color:#fff;margin-right:8px;
-  flex:none;
+  font-weight:600;font-size:13px;color:#fff;margin-right:8px;flex:none;
   box-shadow:0 0 0 2px rgba(255,255,255,.8),0 0 4px rgba(0,0,0,.35);
 }
 .A{background:var(--clrA)}.B{background:var(--clrB)}.C{background:var(--clrC)}.D{background:var(--clrD)}
 .defaultBullet{background:var(--clrDefault)}
-
-/* Input styling ----------------------------------------------------------- */
 input.stop{
-  flex:1;
-  height:38px;
-  border:1px solid var(--clrInputBorder);
-  border-radius:var(--radiusSm);
-  padding:4px 6px 4px 10px;
-  font-size:14px;
-  background:var(--clrInputBg);
+  flex:1;height:38px;border:1px solid var(--clrInputBorder);
+  border-radius:var(--radiusSm);padding:4px 6px 4px 10px;
+  font-size:14px;background:var(--clrInputBg);
   transition:border-color var(--transFast),box-shadow var(--transFast);
 }
 input.stop:focus{
-  outline:none;
-  border-color:var(--clrPanelStripe);
+  outline:none;border-color:var(--clrPanelStripe);
   box-shadow:0 0 0 3px rgba(33,150,243,.25);
 }
-
-/* Colored left stripes that match bullet letters -------------------------- */
-.row .A + input.stop{border-left:4px solid var(--clrA);padding-left:6px;}
-.row .B + input.stop{border-left:4px solid var(--clrB);padding-left:6px;}
-.row .C + input.stop{border-left:4px solid var(--clrC);padding-left:6px;}
-.row .D + input.stop{border-left:4px solid var(--clrD);padding-left:6px;}
-.row .defaultBullet + input.stop{border-left:4px solid var(--clrDefault);padding-left:6px;}
-
-/* Drag + remove icons ---------------------------------------------------- */
+/* Stripes */
+.row .bullet.A + input.stop{border-left:4px solid var(--clrA);padding-left:6px;}
+.row .bullet.B + input.stop{border-left:4px solid var(--clrB);padding-left:6px;}
+.row .bullet.C + input.stop{border-left:4px solid var(--clrC);padding-left:6px;}
+.row .bullet.D + input.stop{border-left:4px solid var(--clrD);padding-left:6px;}
+.row .bullet.defaultBullet + input.stop{border-left:4px solid var(--clrDefault);padding-left:6px;}
 .drag{
   cursor:grab;margin-left:6px;color:#666;
-  font-size:22px;line-height:22px;
-  padding:2px;border-radius:var(--radiusSm);
+  font-size:22px;line-height:22px;padding:2px;border-radius:var(--radiusSm);
   transition:background var(--transFast);
 }
 .drag:hover{background:rgba(0,0,0,.08);}
 .drag:active{cursor:grabbing;}
-
 .remove{
   cursor:pointer;margin-left:4px;font-size:20px;line-height:20px;color:#fff;
   width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;
@@ -111,59 +87,40 @@ input.stop:focus{
 }
 .remove:hover{background:#f75a4d;transform:scale(1.08);}
 .remove:active{transform:scale(.94);}
-
-/* Buttons ---------------------------------------------------------------- */
 #add,#route,#opt{
-  margin-top:8px;margin-bottom:14px;
-  padding:8px 14px;
-  font-size:14px;
-  border-radius:var(--radiusMd);
-  border:1px solid transparent;
-  cursor:pointer;
+  margin-top:8px;margin-bottom:14px;padding:8px 14px;
+  font-size:14px;border-radius:var(--radiusMd);
+  border:1px solid transparent;cursor:pointer;
   transition:background var(--transFast),box-shadow var(--transFast),transform var(--transFast);
 }
-#add{
-  margin-left:28px;
-  background:#e0e0e0;color:#000;border-color:#d0d0d0;
-}
+#add{margin-left:28px;background:#e0e0e0;color:#000;border-color:#d0d0d0;}
 #add:hover{background:#e7e7e7;}
 #add:active{transform:scale(.96);}
-
-#route{
-  margin-left:8px;
-  background:var(--clrA);color:#fff;border-color:var(--clrA);
-}
+#route{margin-left:8px;background:var(--clrA);color:#fff;border-color:var(--clrA);}
 #route:hover{background:#5b9bff;}
 #route:active{transform:scale(.96);}
-
-#opt{
-  margin-left:8px;
-  background:var(--clrB);color:#fff;border-color:var(--clrB);
-}
+#opt{margin-left:8px;background:var(--clrB);color:#fff;border-color:var(--clrB);}
 #opt:hover{background:#26c36c;}
 #opt:active{transform:scale(.96);}
-
-/* Distance readouts ------------------------------------------------------ */
+/* LEG RESULT BARS */
 .leg-display{
-  margin:4px 0 0 28px;
-  font-size:15px;color:#444;
+  margin:6px 0 0 28px;
+  font-size:16px;font-weight:600;color:#1b1b1b;
+  padding:4px 10px;border-radius:6px;
   background:rgba(0,0,0,.06);
-  padding:2px 8px;
-  border-radius:var(--radiusSm);
-  display:inline-block;
+  display:inline-block;line-height:1.25;white-space:nowrap;
 }
-
-/* Message total ---------------------------------------------------------- */
+.leg-A{background:rgba(66,133,244,.15);border-left:4px solid var(--clrA);}
+.leg-B{background:rgba(15,157,88,.18); border-left:4px solid var(--clrB);}
+.leg-C{background:rgba(244,180,0,.20);  border-left:4px solid var(--clrC);}
+.leg-D{background:rgba(219,68,55,.20);  border-left:4px solid var(--clrD);}
+.leg-default{background:rgba(96,125,139,.18);border-left:4px solid var(--clrDefault);}
 #msg{
-  margin:10px 0;color:#0066cc;font-weight:600;
+  margin:12px 0;color:#0066cc;font-weight:700;font-size:17px;
   padding:4px 0 0 28px;
 }
-
-/* Small tip --------------------------------------------------------------- */
-#panel small{display:block;margin-top:8px;font-size:12px;color:#555;line-height:1.35;}
 </style>
 
-<!-- Google Maps & Places -->
 <script async defer
   src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry">
 </script>
@@ -179,7 +136,6 @@ input.stop:focus{
   <button id="route">Route</button>
   <button id="opt">Optimize</button>
   <div id="msg"></div>
-  <small>Hold <b>Ctrl</b> and click the map to add way‑points interactively.</small>
 </div>
 <div id="map"></div>
 
@@ -188,38 +144,22 @@ import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 
 const labels='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 let map, dirSvc, dirRend;
+let geocoder, previewMarker=null, autoTimer=null;
 
-/* ★ NEW GUI: highlight focused row */
+/* GUI row focus */
 function markRowFocus(input,focused){
   const row=input.closest('.row');
   if(!row) return;
   focused?row.classList.add('focused'):row.classList.remove('focused');
 }
 
-/* ★ NEW globals for auto‑compute & preview marker */
-let geocoder;                 
-let previewMarker=null;       
-let autoTimer=null;           
-
-/* ── Interior‑Health polygon (unchanged) ── */
+/* Interior‑Health polygon */
 const IHA_POLY=[
  {lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
  {lat:51.00,lng:-123.00},{lat:50.10,lng:-123.20},{lat:49.80,lng:-122.40},
  {lat:49.00,lng:-120.00},{lat:49.00,lng:-114.00},{lat:51.20,lng:-114.00},
  {lat:53.00,lng:-116.00}
 ];
-
-/* ★ NEW FILTER REGION: Central Okanagan bounds + whitelist regex
-   These bounds are intentionally generous; tweak as needed. */
-const CENTRAL_OK_BOUNDS={
-  south:49.60,  // Peachland-ish
-  north:50.30,  // Oyama north lake
-  west:-120.20, // west side of Okanagan Lake / Hwy 97C area
-  east:-118.90  // east ridgeline past Joe Rich
-};
-/* communities we want to prefer */
-const CENTRAL_OK_RX=/kelowna|west kelowna|lake country|oyama|peachland|fintry|joe rich|ellison|rutland|glenmore|glenrosa/i;
-
 function insidePoly(pt,poly){
   let c=false,j=poly.length-1;
   for(let i=0;i<poly.length;i++){
@@ -231,19 +171,21 @@ function insidePoly(pt,poly){
   return c;
 }
 
-/* ── helpers ── */
+/* Central Okanagan bias */
+const CENTRAL_OK_BOUNDS={south:49.60,north:50.30,west:-120.20,east:-118.90};
+const CENTRAL_OK_RX=/kelowna|west kelowna|lake country|oyama|peachland|fintry|joe rich|ellison|rutland|glenmore|glenrosa/i;
+
+/* helpers */
 function makeRow(i){
   const d=document.createElement('div'); d.className='row';
   d.innerHTML=`<div class="bullet ${labels[i]}">${labels[i]}</div>
     <input class="stop" placeholder="Enter stop">
     <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
     <span class="remove" title="Remove stop">×</span>`;
-  /* ★ CHG: autoCompute() on remove */
   d.querySelector('.remove').onclick=()=>{d.remove();renumber();autoCompute();};
   return d;
 }
-const addresses=()=>[...document.querySelectorAll('input.stop')]
-                   .map(e=>e.value.trim()).filter(Boolean);
+const addresses=()=>[...document.querySelectorAll('input.stop')].map(e=>e.value.trim()).filter(Boolean);
 function renumber(){
   [...document.querySelectorAll('.row')].forEach((r,i)=>{
     const b=r.querySelector('.bullet');
@@ -251,60 +193,39 @@ function renumber(){
     b.className='bullet '+(i<4?labels[i]:'defaultBullet');
   });
 }
-
-/* ★ NEW: clear the single preview marker */
-function clearPreviewMarker(){
-  if(previewMarker){previewMarker.setMap(null);previewMarker=null;}
-}
-
-/* ★ NEW: drop (or move) the preview marker */
+function clearPreviewMarker(){if(previewMarker){previewMarker.setMap(null);previewMarker=null;}}
 function showPreviewMarker(pos,label=''){
   clearPreviewMarker();
-  previewMarker=new google.maps.Marker({
-    map,position:pos,
-    label:label?{text:label,color:'#fff',fontWeight:'bold'}:undefined
-  });
-  map.panTo(pos);
-  if(map.getZoom()<14) map.setZoom(14);
+  previewMarker=new google.maps.Marker({map,position:pos,label:label?{text:label,color:'#fff',fontWeight:'bold'}:undefined});
+  map.panTo(pos);if(map.getZoom()<14) map.setZoom(14);
 }
-
-/* ★ NEW: geocode free‑typed address & show marker (1 stop case) */
 function geocodeAndPreview(addr,label=''){
   geocoder.geocode({address:addr,componentRestrictions:{country:'ca'}},(res,stat)=>{
     if(stat!=='OK'||!res[0]) return;
     const g=res[0].geometry.location;
     const pt={lat:g.lat(),lng:g.lng()};
-    if(!insidePoly(pt,IHA_POLY)) return; // keep broad guard
+    if(!insidePoly(pt,IHA_POLY)) return;
     showPreviewMarker(g,label);
   });
 }
 
-/* ── prediction filter (Central Okanagan bias) ──
-   We *hide* suggestions not matching our community whitelist *unless*
-   all suggestions would hide (safety to avoid empty list). */
+/* Prediction filter */
 function installPredictionFilter(){
   new MutationObserver(muts=>{
     muts.forEach(m=>m.addedNodes.forEach(node=>{
-      if(node.nodeType!==1 || !node.classList.contains('pac-item')) return;
+      if(node.nodeType!==1||!node.classList.contains('pac-item'))return;
       const txt=node.textContent;
-      // basic "BC but not central" screen
-      const allowed=CENTRAL_OK_RX.test(txt);
-      // we delay to next frame so we can count siblings
       requestAnimationFrame(()=>{
-        const container=node.parentElement;
-        if(!container) return;
+        const container=node.parentElement; if(!container) return;
+        const allowed=CENTRAL_OK_RX.test(txt);
         if(allowed){
-          node.style.display='';
-          node.classList.add('pac-central-ok');
+          node.style.display='';node.classList.add('pac-central-ok');
         }else{
-          // check whether at least one allowed item exists in the list
           const hasAllowed=[...container.children].some(ch=>CENTRAL_OK_RX.test(ch.textContent));
           if(hasAllowed){
-            node.style.display='none'; // hide non‑central when at least one central exists
+            node.style.display='none';
           }else{
-            // fall back: dim but show (user typed something clearly out‑of‑region)
-            node.style.display='';
-            node.style.opacity=.45;
+            node.style.display='';node.style.opacity=.45;
           }
         }
       });
@@ -312,85 +233,61 @@ function installPredictionFilter(){
   }).observe(document.body,{childList:true,subtree:true});
 }
 
-/* ── init ── */
+/* init */
 window.init=()=>{
   installPredictionFilter();
-
-  map=new google.maps.Map(document.getElementById('map'),{
-    center:{lat:49.8879,lng:-119.4960}, /* Kelowna City Hall-ish home base */
-    zoom:10
-  });
+  map=new google.maps.Map(document.getElementById('map'),{center:{lat:49.8879,lng:-119.4960},zoom:10});
   new google.maps.KmlLayer({
     url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',
     map,preserveViewport:true
   });
-
   dirSvc=new google.maps.DirectionsService();
   dirRend=new google.maps.DirectionsRenderer({map});
-  geocoder=new google.maps.Geocoder();              
+  geocoder=new google.maps.Geocoder();
 
   const list=document.getElementById('stops');
   list.appendChild(makeRow(0)); list.appendChild(makeRow(1));
+  Sortable.create(list,{handle:'.drag',animation:150,onEnd:()=>{renumber();autoCompute();}});
 
-  Sortable.create(list,{handle:'.drag',animation:150,
-    onEnd:()=>{renumber();autoCompute();}
-  });
-
-  /* ★ CHG: Central Okanagan bias */
   const acOpts={
     fields:['formatted_address','geometry','place_id'],
-    types:['address'], /* tighter -> street addresses */
+    types:['address'],
     componentRestrictions:{country:'ca'},
     bounds:CENTRAL_OK_BOUNDS,
     strictBounds:true
   };
 
   const attach=input=>{
-    const normalPH='Enter stop';
-    input.placeholder=normalPH;
-
-    /* select‑all on first focus */
+    const normalPH='Enter stop'; input.placeholder=normalPH;
     input.addEventListener('focus',e=>{
-      markRowFocus(input,true);                           /* ★ NEW GUI */
+      markRowFocus(input,true);
       input.placeholder=normalPH;
       setTimeout(()=>e.target.select(),0);
       const mu=ev=>{ev.preventDefault();input.removeEventListener('mouseup',mu);};
       input.addEventListener('mouseup',mu);
     });
-    input.addEventListener('blur',()=>{markRowFocus(input,false);scheduleAutoCompute();}); /* ★ NEW GUI */
-
-    /* react to manual edits (change) */
+    input.addEventListener('blur',()=>{markRowFocus(input,false);scheduleAutoCompute();});
     input.addEventListener('change',()=>scheduleAutoCompute());
 
-    /* ── smart‑paste multiple addresses ── */
     input.addEventListener('paste',e=>{
       const clip=(e.clipboardData||window.clipboardData).getData('text');
       const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-      if(lines.length<=1) return;               
+      if(lines.length<=1) return;
       e.preventDefault();
-
       const list=document.getElementById('stops');
       const rows=[...list.querySelectorAll('.row')];
       const start=rows.indexOf(input.closest('.row'));
-
       while(list.children.length<start+lines.length && list.children.length<labels.length){
-        const r=makeRow(list.children.length);
-        list.appendChild(r);
-        attach(r.querySelector('.stop'));
+        const r=makeRow(list.children.length);list.appendChild(r);attach(r.querySelector('.stop'));
       }
-
       lines.forEach((addr,i)=>{
-        if(start+i>=labels.length) return;      
+        if(start+i>=labels.length) return;
         const el=list.children[start+i].querySelector('.stop');
-        el.value=addr;
-        el.dataset.lat='';el.dataset.lng='';
+        el.value=addr;el.dataset.lat='';el.dataset.lng='';
       });
-
-      renumber();
-      autoCompute();                            
+      renumber();autoCompute();
     });
 
-    /* autocomplete */
     const ac=new google.maps.places.Autocomplete(input,acOpts);
     ac.addListener('place_changed',()=>{
       const plc=ac.getPlace();
@@ -402,20 +299,12 @@ window.init=()=>{
         setTimeout(()=>{if(!input.value)input.placeholder=normalPH;},3000);
         return;
       }
-      /* normalize + store coords */
       if(plc.formatted_address) input.value=plc.formatted_address;
-      input.dataset.lat=pt.lat;
-      input.dataset.lng=pt.lng;
-
-      /* immediate preview if only this stop currently filled */
-      const pts=addresses();
-      const rows=[...document.querySelectorAll('.row')];
+      input.dataset.lat=pt.lat;input.dataset.lng=pt.lng;
+      const pts=addresses();const rows=[...document.querySelectorAll('.row')];
       const idx=rows.indexOf(input.closest('.row'));
-      if(pts.length===1){
-        showPreviewMarker(plc.geometry.location,labels[idx]||'');
-      }
-
-      autoCompute();  
+      if(pts.length===1){showPreviewMarker(plc.geometry.location,labels[idx]||'');}
+      autoCompute();
     });
   };
   [...list.querySelectorAll('input.stop')].forEach(attach);
@@ -426,50 +315,33 @@ window.init=()=>{
       attach(r.querySelector('.stop'));renumber();
     }
   };
-  document.getElementById('route').onclick=rebuildRoute;  // manual override
-  document.getElementById('opt').onclick  =optimizeRoute;
+  document.getElementById('route').onclick=rebuildRoute;
+  document.getElementById('opt').onclick=optimizeRoute;
 };
 
-/* debounce helper */
-function scheduleAutoCompute(ms=250){
-  clearTimeout(autoTimer);
-  autoTimer=setTimeout(autoCompute,ms);
-}
+/* debounce */
+function scheduleAutoCompute(ms=250){clearTimeout(autoTimer);autoTimer=setTimeout(autoCompute,ms);}
 
-/* decide whether to show preview pin or full route */
+/* autoCompute */
 function autoCompute(){
-  const pts=addresses();
-  const msg=document.getElementById('msg');
-
-  if(pts.length===0){
-    clearPreviewMarker();
-    msg.textContent='';
-    dirRend.setDirections({});
-    return;
-  }
-
+  const pts=addresses(),msg=document.getElementById('msg');
+  if(pts.length===0){clearPreviewMarker();msg.textContent='';dirRend.setDirections({});return;}
   if(pts.length===1){
-    dirRend.setDirections({});
-    msg.textContent='';
+    dirRend.setDirections({});msg.textContent='';
     const rows=[...document.querySelectorAll('.row')];
     const row=rows.find(r=>r.querySelector('.stop').value.trim());
     if(row){
       const inp=row.querySelector('.stop');
-      const lat=+inp.dataset.lat, lng=+inp.dataset.lng;
-      if(!isNaN(lat)&&!isNaN(lng)){
-        showPreviewMarker({lat,lng},labels[rows.indexOf(row)]||'');
-      }else{
-        geocodeAndPreview(inp.value.trim(),labels[rows.indexOf(row)]||'');
-      }
+      const lat=+inp.dataset.lat,lng=+inp.dataset.lng;
+      if(!isNaN(lat)&&!isNaN(lng)){showPreviewMarker({lat,lng},labels[rows.indexOf(row)]||'');}
+      else{geocodeAndPreview(inp.value.trim(),labels[rows.indexOf(row)]||'');}
     }
     return;
   }
-
-  clearPreviewMarker();
-  rebuildRoute();
+  clearPreviewMarker();rebuildRoute();
 }
 
-/* routing logic ---------------------------------------------------------- */
+/* routing */
 function rebuildRoute(){
   const pts=addresses(),msg=document.getElementById('msg');
   document.querySelectorAll('.leg-display').forEach(e=>e.remove());
@@ -497,14 +369,14 @@ function optimizeRoute(){
     const rot=[];for(let n=1;n<loop.length;n++)rot.push(loop[(longest+1+n)%loop.length]);
     rot.forEach(i=>list.appendChild(rows[i]));
     list.prepend(rows[loop[(longest+1)%loop.length]]);
-    renumber();
-    autoCompute();
+    renumber();autoCompute();
   });
 }
 function displayLegs(res,stat){
   const msg=document.getElementById('msg');
   if(stat!=='OK'){msg.textContent='Route error: '+stat;dirRend.setDirections({});return;}
   dirRend.setDirections(res);
+  const SHOW_LEG_LABELS=false; // toggle
   const list=document.getElementById('stops');
   const rows=[...list.querySelectorAll('.row')];
   let kmTot=0,minTot=0;
@@ -512,9 +384,14 @@ function displayLegs(res,stat){
   res.routes[0].legs.forEach((leg,i)=>{
     const km=leg.distance.value/1000,min=Math.round(leg.duration.value/60);
     kmTot+=km;minTot+=min;
+    const startLetter=rows[i]?.querySelector('.bullet')?.textContent.trim()||'';
+    const endLetter=rows[i+1]?.querySelector('.bullet')?.textContent.trim()||'';
+    const cls=['A','B','C','D'].includes(startLetter)?('leg-'+startLetter):'leg-default';
     const div=document.createElement('div');
-    div.className='leg-display';
-    div.textContent=`Distance ${km.toFixed(1)} km | ≈ ${min} min`;
+    div.className='leg-display '+cls;
+    div.textContent=SHOW_LEG_LABELS && startLetter&&endLetter
+      ?`${startLetter}→${endLetter}  ${km.toFixed(1)} km | ≈ ${min} min`
+      :`Distance ${km.toFixed(1)} km | ≈ ${min} min`;
     rows[i].after(div);
   });
   msg.textContent=`Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
