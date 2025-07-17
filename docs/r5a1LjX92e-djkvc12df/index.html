@@ -51,6 +51,11 @@ import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 const labels='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 let map, dirSvc, dirRend;
 
+/* ★ NEW globals for auto‑compute & preview marker */
+let geocoder;                 // google.maps.Geocoder
+let previewMarker=null;       // single marker when only 1 stop
+let autoTimer=null;           // debounce timer
+
 /* ── Interior‑Health polygon ── */
 const IHA_POLY=[
  {lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
@@ -76,7 +81,8 @@ function makeRow(i){
     <input class="stop" placeholder="Enter stop">
     <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
     <span class="remove" title="Remove stop">×</span>`;
-  d.querySelector('.remove').onclick=()=>{d.remove();renumber();rebuildRoute();};
+  /* ★ CHG: call autoCompute() instead of rebuildRoute() on remove */
+  d.querySelector('.remove').onclick=()=>{d.remove();renumber();autoCompute();};
   return d;
 }
 const addresses=()=>[...document.querySelectorAll('input.stop')]
@@ -86,6 +92,33 @@ function renumber(){
     const b=r.querySelector('.bullet');
     b.textContent=labels[i]||'?';
     b.className='bullet '+(i<4?labels[i]:'defaultBullet');
+  });
+}
+
+/* ★ NEW: clear the single preview marker */
+function clearPreviewMarker(){
+  if(previewMarker){previewMarker.setMap(null);previewMarker=null;}
+}
+
+/* ★ NEW: drop (or move) the preview marker */
+function showPreviewMarker(pos,label=''){
+  clearPreviewMarker();
+  previewMarker=new google.maps.Marker({
+    map,position:pos,
+    label:label?{text:label,color:'#fff',fontWeight:'bold'}:undefined
+  });
+  map.panTo(pos);
+  if(map.getZoom()<14) map.setZoom(14);
+}
+
+/* ★ NEW: geocode free‑typed address & show marker (1 stop case) */
+function geocodeAndPreview(addr,label=''){
+  geocoder.geocode({address:addr,componentRestrictions:{country:'ca'}},(res,stat)=>{
+    if(stat!=='OK'||!res[0]) return;
+    const g=res[0].geometry.location;
+    const pt={lat:g.lat(),lng:g.lng()};
+    if(!insidePoly(pt,IHA_POLY)) return; // silently ignore out‑of‑area
+    showPreviewMarker(g,label);
   });
 }
 
@@ -117,12 +150,14 @@ window.init=()=>{
 
   dirSvc=new google.maps.DirectionsService();
   dirRend=new google.maps.DirectionsRenderer({map});
+  geocoder=new google.maps.Geocoder();              /* ★ NEW */
 
   const list=document.getElementById('stops');
   list.appendChild(makeRow(0)); list.appendChild(makeRow(1));
 
   Sortable.create(list,{handle:'.drag',animation:150,
-    onEnd:()=>{renumber();rebuildRoute();}});
+    onEnd:()=>{renumber();autoCompute();}  /* ★ CHG */
+  });
 
   const bcInterior={south:49.2,north:53.5,west:-124.0,east:-114.0};
   const acOpts={fields:['formatted_address','geometry'],
@@ -140,6 +175,10 @@ window.init=()=>{
       const mu=ev=>{ev.preventDefault();input.removeEventListener('mouseup',mu);};
       input.addEventListener('mouseup',mu);
     });
+
+    /* react to manual edits (blur/change) */
+    input.addEventListener('change',()=>scheduleAutoCompute());   /* ★ NEW */
+    input.addEventListener('blur',()=>scheduleAutoCompute());     /* ★ NEW */
 
     /* ── NEW : smart‑paste multiple addresses ── */
     input.addEventListener('paste',e=>{
@@ -161,11 +200,13 @@ window.init=()=>{
 
       lines.forEach((addr,i)=>{
         if(start+i>=labels.length) return;      // out of letters
-        list.children[start+i].querySelector('.stop').value=addr;
+        const el=list.children[start+i].querySelector('.stop');
+        el.value=addr;
+        el.dataset.lat='';el.dataset.lng='';    /* ★ NEW reset */
       });
 
       renumber();
-      rebuildRoute();
+      autoCompute();                            /* ★ CHG */
     });
 
     /* autocomplete */
@@ -174,10 +215,26 @@ window.init=()=>{
       const plc=ac.getPlace();
       if(!plc.geometry){input.value='';return;}
       const {lat,lng}=plc.geometry.location;
-      if(!insidePoly({lat:lat(),lng:lng()},IHA_POLY)){
+      const pt={lat:lat(),lng:lng()};
+      if(!insidePoly(pt,IHA_POLY)){
         input.value='';input.placeholder='Outside Interior Health';
         setTimeout(()=>{if(!input.value)input.placeholder=normalPH;},3000);
+        return;
       }
+      /* ★ NEW: normalize to full address & store coords */
+      if(plc.formatted_address) input.value=plc.formatted_address;
+      input.dataset.lat=pt.lat;
+      input.dataset.lng=pt.lng;
+
+      /* ★ NEW: immediate preview if only this stop currently filled */
+      const pts=addresses();
+      const rows=[...document.querySelectorAll('.row')];
+      const idx=rows.indexOf(input.closest('.row'));
+      if(pts.length===1){
+        showPreviewMarker(plc.geometry.location,labels[idx]||'');
+      }
+
+      autoCompute();  /* ★ NEW: trigger auto route/preview */
     });
   };
   [...list.querySelectorAll('input.stop')].forEach(attach);
@@ -188,11 +245,53 @@ window.init=()=>{
       attach(r.querySelector('.stop'));renumber();
     }
   };
-  document.getElementById('route').onclick=rebuildRoute;
+  document.getElementById('route').onclick=rebuildRoute;  // still available
   document.getElementById('opt').onclick  =optimizeRoute;
 };
 
-/* ── routing logic (unchanged) ── */
+/* ★ NEW: debounce helper */
+function scheduleAutoCompute(ms=250){
+  clearTimeout(autoTimer);
+  autoTimer=setTimeout(autoCompute,ms);
+}
+
+/* ★ NEW: decide whether to show preview pin or full route */
+function autoCompute(){
+  const pts=addresses();
+  const msg=document.getElementById('msg');
+
+  if(pts.length===0){
+    clearPreviewMarker();
+    msg.textContent='';
+    dirRend.setDirections({});
+    return;
+  }
+
+  if(pts.length===1){
+    // show single pin
+    dirRend.setDirections({});  // clear any prior route
+    msg.textContent='';
+    // find the row holding the address so we can use stored coords if we have them
+    const rows=[...document.querySelectorAll('.row')];
+    const row=rows.find(r=>r.querySelector('.stop').value.trim());
+    if(row){
+      const inp=row.querySelector('.stop');
+      const lat=+inp.dataset.lat, lng=+inp.dataset.lng;
+      if(!isNaN(lat)&&!isNaN(lng)){
+        showPreviewMarker({lat,lng},labels[rows.indexOf(row)]||'');
+      }else{
+        geocodeAndPreview(inp.value.trim(),labels[rows.indexOf(row)]||'');
+      }
+    }
+    return;
+  }
+
+  // 2+ stops -> clear preview & build full route (auto)
+  clearPreviewMarker();
+  rebuildRoute();
+}
+
+/* ── routing logic (unchanged except small guard) ── */
 function rebuildRoute(){
   const pts=addresses(),msg=document.getElementById('msg');
   document.querySelectorAll('.leg-display').forEach(e=>e.remove());
@@ -220,7 +319,8 @@ function optimizeRoute(){
     const rot=[];for(let n=1;n<loop.length;n++)rot.push(loop[(longest+1+n)%loop.length]);
     rot.forEach(i=>list.appendChild(rows[i]));
     list.prepend(rows[loop[(longest+1)%loop.length]]);
-    renumber();rebuildRoute();
+    renumber();
+    autoCompute(); /* ★ CHG */
   });
 }
 function displayLegs(res,stat){
