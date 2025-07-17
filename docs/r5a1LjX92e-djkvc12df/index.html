@@ -146,6 +146,9 @@ const labels='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 let map, dirSvc, dirRend;
 let geocoder, previewMarker=null, autoTimer=null;
 
+/* ★TAB NEW services */
+let acService, placeSvc;
+
 /* GUI row focus */
 function markRowFocus(input,focused){
   const row=input.closest('.row');
@@ -233,6 +236,72 @@ function installPredictionFilter(){
   }).observe(document.body,{childList:true,subtree:true});
 }
 
+/* ★TAB: focus next stop (or auto‑add) */
+function focusNextStop(curInput){
+  const stops=[...document.querySelectorAll('input.stop')];
+  const i=stops.indexOf(curInput);
+  if(i>-1 && stops[i+1]){stops[i+1].focus();return;}
+  const addBtn=document.getElementById('add');
+  if(addBtn && document.getElementById('stops').children.length<labels.length){
+    addBtn.click();
+    requestAnimationFrame(()=>{
+      const newStops=[...document.querySelectorAll('input.stop')];
+      newStops[newStops.length-1]?.focus();
+    });
+  }
+}
+
+/* ★TAB: accept top prediction using Places services */
+function acceptTopPrediction(inputEl){
+  const q=inputEl.value.trim();
+  if(!q){focusNextStop(inputEl);return;}
+
+  acService.getPlacePredictions({
+    input:q,
+    bounds:CENTRAL_OK_BOUNDS,
+    componentRestrictions:{country:'ca'},
+    types:['address']
+  },(preds,status)=>{
+    if(status!==google.maps.places.PlacesServiceStatus.OK || !preds?.length){
+      focusNextStop(inputEl);
+      return;
+    }
+    // prefer Central OK; fallback to first
+    let pred=preds.find(p=>CENTRAL_OK_RX.test(p.description))||preds[0];
+
+    placeSvc.getDetails({
+      placeId:pred.place_id,
+      fields:['formatted_address','geometry']
+    },(plc,stat2)=>{
+      if(stat2!==google.maps.places.PlacesServiceStatus.OK || !plc?.geometry){
+        focusNextStop(inputEl);
+        return;
+      }
+      const loc=plc.geometry.location;
+      const pt={lat:loc.lat(),lng:loc.lng()};
+      if(!insidePoly(pt,IHA_POLY)){
+        inputEl.value='';
+        inputEl.placeholder='Outside Interior Health';
+        setTimeout(()=>{if(!inputEl.value)inputEl.placeholder='Enter stop';},3000);
+        focusNextStop(inputEl);
+        return;
+      }
+      inputEl.value=plc.formatted_address||pred.description;
+      inputEl.dataset.lat=pt.lat;
+      inputEl.dataset.lng=pt.lng;
+
+      // preview if single stop
+      const pts=addresses();
+      const rows=[...document.querySelectorAll('.row')];
+      const idx=rows.indexOf(inputEl.closest('.row'));
+      if(pts.length===1) showPreviewMarker(loc,labels[idx]||'');
+
+      autoCompute();
+      focusNextStop(inputEl);
+    });
+  });
+}
+
 /* init */
 window.init=()=>{
   installPredictionFilter();
@@ -244,6 +313,10 @@ window.init=()=>{
   dirSvc=new google.maps.DirectionsService();
   dirRend=new google.maps.DirectionsRenderer({map});
   geocoder=new google.maps.Geocoder();
+
+  /* ★TAB: init services */
+  acService=new google.maps.places.AutocompleteService();
+  placeSvc =new google.maps.places.PlacesService(map);
 
   const list=document.getElementById('stops');
   list.appendChild(makeRow(0)); list.appendChild(makeRow(1));
@@ -268,6 +341,22 @@ window.init=()=>{
     });
     input.addEventListener('blur',()=>{markRowFocus(input,false);scheduleAutoCompute();});
     input.addEventListener('change',()=>scheduleAutoCompute());
+
+    /* ★TAB: clear stored coords when user types */
+    input.addEventListener('input',()=>{
+      input.dataset.lat='';
+      input.dataset.lng='';
+    });
+
+    /* ★TAB: Tab to accept top suggestion (only forward Tab) */
+    input.addEventListener('keydown',e=>{
+      if(e.key==='Tab' && !e.shiftKey){
+        // if coords already present, allow native tab behaviour
+        if(input.dataset.lat && input.dataset.lng) return;
+        e.preventDefault();
+        acceptTopPrediction(input);
+      }
+    });
 
     input.addEventListener('paste',e=>{
       const clip=(e.clipboardData||window.clipboardData).getData('text');
