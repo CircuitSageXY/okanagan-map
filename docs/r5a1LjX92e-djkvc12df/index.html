@@ -6,23 +6,161 @@
 
 <link rel="stylesheet"
       href="https://fonts.googleapis.com/icon?family=Material+Icons">
+
 <style>
-html,body,#map{height:100%;margin:0;font-family:Roboto,Arial,sans-serif}
-#panel{position:absolute;top:0;left:0;z-index:5;width:340px;max-height:100%;
-       background:#fff;padding:16px 14px 12px;border-right:1px solid #ddd;
-       box-shadow:0 0 6px rgba(0,0,0,.25);overflow:auto}
-.row{display:flex;align-items:center;margin:10px 0}
-.leg-display{margin:4px 0 0 28px;font-size:16px;color:#444}
-.bullet{width:20px;height:20px;border-radius:50%;line-height:20px;text-align:center;
-        font-weight:600;font-size:12px;color:#fff;margin-right:8px}
-.A{background:#4285F4}.B{background:#0F9D58}.C{background:#F4B400}.D{background:#DB4437}
-.defaultBullet{background:#607d8b}
-input.stop{flex:1;height:38px;border:1px solid #ccc;border-radius:4px;padding:4px 6px;font-size:14px}
-.drag{cursor:grab;margin-left:6px;color:#666}
-.remove{cursor:pointer;margin-left:4px;font-size:20px;line-height:20px;color:#c00}
-#add{margin:8px 0 14px 28px;padding:6px 10px}
-#route,#opt{margin-left:8px;padding:8px 14px}
-#msg{margin:10px 0;color:#0066cc;font-weight:500}
+/* ---------- COLOR SYSTEM (easy theming) ---------- */
+:root{
+  --clrA:#4285F4;
+  --clrB:#0F9D58;
+  --clrC:#F4B400;
+  --clrD:#DB4437;
+  --clrDefault:#607d8b;
+
+  --clrPanelBg:#ffffff;
+  --clrPanelStripe:#2196f3;
+  --clrPanelBorder:#d7d7d7;
+  --clrPanelShadow:0 2px 8px rgba(0,0,0,.25);
+
+  --clrInputBorder:#c7c7c7;
+  --clrInputBg:#fff;
+  --clrInputBgAlt:#fafafa;
+
+  --radiusSm:4px;
+  --radiusMd:6px;
+  --radiusLg:10px;
+  --transFast:.12s;
+  --transMed:.18s;
+  --fontMain:Roboto,Arial,sans-serif;
+}
+html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
+
+/* Panel refresh ------------------------------------------------------------ */
+#panel{
+  position:absolute;top:0;left:0;z-index:5;width:340px;max-height:100%;
+  background:var(--clrPanelBg);
+  padding:16px 14px 12px;
+  border-right:1px solid var(--clrPanelBorder);
+  box-shadow:var(--clrPanelShadow);
+  overflow:auto;
+  border-top-right-radius:var(--radiusLg);
+  border-bottom-right-radius:var(--radiusLg);
+}
+#panel::before{/* accent stripe */
+  content:"";position:absolute;top:0;left:0;right:0;height:4px;
+  background:var(--clrPanelStripe);
+}
+
+/* Stop rows --------------------------------------------------------------- */
+.row{
+  display:flex;align-items:center;margin:12px 0;padding:4px 6px 4px 0;
+  border-radius:var(--radiusMd);
+  transition:background var(--transFast),box-shadow var(--transFast);
+}
+.row.focused{background:var(--clrInputBgAlt);box-shadow:0 0 0 2px rgba(33,150,243,.25);}
+.row:hover:not(.focused){background:rgba(0,0,0,.04);}
+
+/* Bullet circles (unchanged colors) -------------------------------------- */
+.bullet{
+  width:24px;height:24px;border-radius:50%;line-height:24px;text-align:center;
+  font-weight:600;font-size:13px;color:#fff;margin-right:8px;
+  flex:none;
+  box-shadow:0 0 0 2px rgba(255,255,255,.8),0 0 4px rgba(0,0,0,.35);
+}
+.A{background:var(--clrA)}.B{background:var(--clrB)}.C{background:var(--clrC)}.D{background:var(--clrD)}
+.defaultBullet{background:var(--clrDefault)}
+
+/* Input styling ----------------------------------------------------------- */
+input.stop{
+  flex:1;
+  height:38px;
+  border:1px solid var(--clrInputBorder);
+  border-radius:var(--radiusSm);
+  padding:4px 6px 4px 10px;
+  font-size:14px;
+  background:var(--clrInputBg);
+  transition:border-color var(--transFast),box-shadow var(--transFast);
+}
+input.stop:focus{
+  outline:none;
+  border-color:var(--clrPanelStripe);
+  box-shadow:0 0 0 3px rgba(33,150,243,.25);
+}
+
+/* Colored left stripes that match bullet letters -------------------------- */
+.row .A + input.stop{border-left:4px solid var(--clrA);padding-left:6px;}
+.row .B + input.stop{border-left:4px solid var(--clrB);padding-left:6px;}
+.row .C + input.stop{border-left:4px solid var(--clrC);padding-left:6px;}
+.row .D + input.stop{border-left:4px solid var(--clrD);padding-left:6px;}
+.row .defaultBullet + input.stop{border-left:4px solid var(--clrDefault);padding-left:6px;}
+
+/* Drag + remove icons ---------------------------------------------------- */
+.drag{
+  cursor:grab;margin-left:6px;color:#666;
+  font-size:22px;line-height:22px;
+  padding:2px;border-radius:var(--radiusSm);
+  transition:background var(--transFast);
+}
+.drag:hover{background:rgba(0,0,0,.08);}
+.drag:active{cursor:grabbing;}
+
+.remove{
+  cursor:pointer;margin-left:4px;font-size:20px;line-height:20px;color:#fff;
+  width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;
+  background:var(--clrD);border-radius:var(--radiusSm);
+  transition:transform var(--transFast),background var(--transFast);
+}
+.remove:hover{background:#f75a4d;transform:scale(1.08);}
+.remove:active{transform:scale(.94);}
+
+/* Buttons ---------------------------------------------------------------- */
+#add,#route,#opt{
+  margin-top:8px;margin-bottom:14px;
+  padding:8px 14px;
+  font-size:14px;
+  border-radius:var(--radiusMd);
+  border:1px solid transparent;
+  cursor:pointer;
+  transition:background var(--transFast),box-shadow var(--transFast),transform var(--transFast);
+}
+#add{
+  margin-left:28px;
+  background:#e0e0e0;color:#000;border-color:#d0d0d0;
+}
+#add:hover{background:#e7e7e7;}
+#add:active{transform:scale(.96);}
+
+#route{
+  margin-left:8px;
+  background:var(--clrA);color:#fff;border-color:var(--clrA);
+}
+#route:hover{background:#5b9bff;}
+#route:active{transform:scale(.96);}
+
+#opt{
+  margin-left:8px;
+  background:var(--clrB);color:#fff;border-color:var(--clrB);
+}
+#opt:hover{background:#26c36c;}
+#opt:active{transform:scale(.96);}
+
+/* Distance readouts ------------------------------------------------------ */
+.leg-display{
+  margin:4px 0 0 28px;
+  font-size:15px;color:#444;
+  background:rgba(0,0,0,.06);
+  padding:2px 8px;
+  border-radius:var(--radiusSm);
+  display:inline-block;
+}
+
+/* Message total ---------------------------------------------------------- */
+#msg{
+  margin:10px 0;color:#0066cc;font-weight:600;
+  padding:4px 0 0 28px;
+}
+
+/* Small tip --------------------------------------------------------------- */
+#panel small{display:block;margin-top:8px;font-size:12px;color:#555;line-height:1.35;}
 </style>
 
 <!-- Google Maps & Places -->
@@ -51,18 +189,37 @@ import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 const labels='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 let map, dirSvc, dirRend;
 
-/* ★ NEW globals for auto‑compute & preview marker */
-let geocoder;                 // google.maps.Geocoder
-let previewMarker=null;       // single marker when only 1 stop
-let autoTimer=null;           // debounce timer
+/* ★ NEW GUI: highlight focused row */
+function markRowFocus(input,focused){
+  const row=input.closest('.row');
+  if(!row) return;
+  focused?row.classList.add('focused'):row.classList.remove('focused');
+}
 
-/* ── Interior‑Health polygon ── */
+/* ★ NEW globals for auto‑compute & preview marker */
+let geocoder;                 
+let previewMarker=null;       
+let autoTimer=null;           
+
+/* ── Interior‑Health polygon (unchanged) ── */
 const IHA_POLY=[
  {lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
  {lat:51.00,lng:-123.00},{lat:50.10,lng:-123.20},{lat:49.80,lng:-122.40},
  {lat:49.00,lng:-120.00},{lat:49.00,lng:-114.00},{lat:51.20,lng:-114.00},
  {lat:53.00,lng:-116.00}
 ];
+
+/* ★ NEW FILTER REGION: Central Okanagan bounds + whitelist regex
+   These bounds are intentionally generous; tweak as needed. */
+const CENTRAL_OK_BOUNDS={
+  south:49.60,  // Peachland-ish
+  north:50.30,  // Oyama north lake
+  west:-120.20, // west side of Okanagan Lake / Hwy 97C area
+  east:-118.90  // east ridgeline past Joe Rich
+};
+/* communities we want to prefer */
+const CENTRAL_OK_RX=/kelowna|west kelowna|lake country|oyama|peachland|fintry|joe rich|ellison|rutland|glenmore|glenrosa/i;
+
 function insidePoly(pt,poly){
   let c=false,j=poly.length-1;
   for(let i=0;i<poly.length;i++){
@@ -81,7 +238,7 @@ function makeRow(i){
     <input class="stop" placeholder="Enter stop">
     <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
     <span class="remove" title="Remove stop">×</span>`;
-  /* ★ CHG: call autoCompute() instead of rebuildRoute() on remove */
+  /* ★ CHG: autoCompute() on remove */
   d.querySelector('.remove').onclick=()=>{d.remove();renumber();autoCompute();};
   return d;
 }
@@ -117,21 +274,40 @@ function geocodeAndPreview(addr,label=''){
     if(stat!=='OK'||!res[0]) return;
     const g=res[0].geometry.location;
     const pt={lat:g.lat(),lng:g.lng()};
-    if(!insidePoly(pt,IHA_POLY)) return; // silently ignore out‑of‑area
+    if(!insidePoly(pt,IHA_POLY)) return; // keep broad guard
     showPreviewMarker(g,label);
   });
 }
 
-/* ── prediction filter ── */
+/* ── prediction filter (Central Okanagan bias) ──
+   We *hide* suggestions not matching our community whitelist *unless*
+   all suggestions would hide (safety to avoid empty list). */
 function installPredictionFilter(){
-  const forbid=/vancouver\b|victoria\b|island|nanaimo|campbell river|saanich/i;
-  const notBC=/,\s?(AB|SK|MB|ON|QC|NB|NS|NL|PE|YT|NT|NU)\b/i;
   new MutationObserver(muts=>{
     muts.forEach(m=>m.addedNodes.forEach(node=>{
-      if(node.nodeType===1 && node.classList.contains('pac-item')){
-        const txt=node.textContent;
-        if(notBC.test(txt) || forbid.test(txt)) node.style.display='none';
-      }
+      if(node.nodeType!==1 || !node.classList.contains('pac-item')) return;
+      const txt=node.textContent;
+      // basic "BC but not central" screen
+      const allowed=CENTRAL_OK_RX.test(txt);
+      // we delay to next frame so we can count siblings
+      requestAnimationFrame(()=>{
+        const container=node.parentElement;
+        if(!container) return;
+        if(allowed){
+          node.style.display='';
+          node.classList.add('pac-central-ok');
+        }else{
+          // check whether at least one allowed item exists in the list
+          const hasAllowed=[...container.children].some(ch=>CENTRAL_OK_RX.test(ch.textContent));
+          if(hasAllowed){
+            node.style.display='none'; // hide non‑central when at least one central exists
+          }else{
+            // fall back: dim but show (user typed something clearly out‑of‑region)
+            node.style.display='';
+            node.style.opacity=.45;
+          }
+        }
+      });
     }));
   }).observe(document.body,{childList:true,subtree:true});
 }
@@ -141,7 +317,8 @@ window.init=()=>{
   installPredictionFilter();
 
   map=new google.maps.Map(document.getElementById('map'),{
-    center:{lat:49.9,lng:-119.5},zoom:9
+    center:{lat:49.8879,lng:-119.4960}, /* Kelowna City Hall-ish home base */
+    zoom:10
   });
   new google.maps.KmlLayer({
     url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',
@@ -150,19 +327,23 @@ window.init=()=>{
 
   dirSvc=new google.maps.DirectionsService();
   dirRend=new google.maps.DirectionsRenderer({map});
-  geocoder=new google.maps.Geocoder();              /* ★ NEW */
+  geocoder=new google.maps.Geocoder();              
 
   const list=document.getElementById('stops');
   list.appendChild(makeRow(0)); list.appendChild(makeRow(1));
 
   Sortable.create(list,{handle:'.drag',animation:150,
-    onEnd:()=>{renumber();autoCompute();}  /* ★ CHG */
+    onEnd:()=>{renumber();autoCompute();}
   });
 
-  const bcInterior={south:49.2,north:53.5,west:-124.0,east:-114.0};
-  const acOpts={fields:['formatted_address','geometry'],
-                componentRestrictions:{country:'ca'},
-                bounds:bcInterior,strictBounds:true};
+  /* ★ CHG: Central Okanagan bias */
+  const acOpts={
+    fields:['formatted_address','geometry','place_id'],
+    types:['address'], /* tighter -> street addresses */
+    componentRestrictions:{country:'ca'},
+    bounds:CENTRAL_OK_BOUNDS,
+    strictBounds:true
+  };
 
   const attach=input=>{
     const normalPH='Enter stop';
@@ -170,28 +351,28 @@ window.init=()=>{
 
     /* select‑all on first focus */
     input.addEventListener('focus',e=>{
+      markRowFocus(input,true);                           /* ★ NEW GUI */
       input.placeholder=normalPH;
       setTimeout(()=>e.target.select(),0);
       const mu=ev=>{ev.preventDefault();input.removeEventListener('mouseup',mu);};
       input.addEventListener('mouseup',mu);
     });
+    input.addEventListener('blur',()=>{markRowFocus(input,false);scheduleAutoCompute();}); /* ★ NEW GUI */
 
-    /* react to manual edits (blur/change) */
-    input.addEventListener('change',()=>scheduleAutoCompute());   /* ★ NEW */
-    input.addEventListener('blur',()=>scheduleAutoCompute());     /* ★ NEW */
+    /* react to manual edits (change) */
+    input.addEventListener('change',()=>scheduleAutoCompute());
 
-    /* ── NEW : smart‑paste multiple addresses ── */
+    /* ── smart‑paste multiple addresses ── */
     input.addEventListener('paste',e=>{
       const clip=(e.clipboardData||window.clipboardData).getData('text');
       const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-      if(lines.length<=1) return;               // single‑line paste behaves normally
+      if(lines.length<=1) return;               
       e.preventDefault();
 
       const list=document.getElementById('stops');
       const rows=[...list.querySelectorAll('.row')];
       const start=rows.indexOf(input.closest('.row'));
 
-      // add rows until we can fit everything (or hit Z)
       while(list.children.length<start+lines.length && list.children.length<labels.length){
         const r=makeRow(list.children.length);
         list.appendChild(r);
@@ -199,14 +380,14 @@ window.init=()=>{
       }
 
       lines.forEach((addr,i)=>{
-        if(start+i>=labels.length) return;      // out of letters
+        if(start+i>=labels.length) return;      
         const el=list.children[start+i].querySelector('.stop');
         el.value=addr;
-        el.dataset.lat='';el.dataset.lng='';    /* ★ NEW reset */
+        el.dataset.lat='';el.dataset.lng='';
       });
 
       renumber();
-      autoCompute();                            /* ★ CHG */
+      autoCompute();                            
     });
 
     /* autocomplete */
@@ -221,12 +402,12 @@ window.init=()=>{
         setTimeout(()=>{if(!input.value)input.placeholder=normalPH;},3000);
         return;
       }
-      /* ★ NEW: normalize to full address & store coords */
+      /* normalize + store coords */
       if(plc.formatted_address) input.value=plc.formatted_address;
       input.dataset.lat=pt.lat;
       input.dataset.lng=pt.lng;
 
-      /* ★ NEW: immediate preview if only this stop currently filled */
+      /* immediate preview if only this stop currently filled */
       const pts=addresses();
       const rows=[...document.querySelectorAll('.row')];
       const idx=rows.indexOf(input.closest('.row'));
@@ -234,7 +415,7 @@ window.init=()=>{
         showPreviewMarker(plc.geometry.location,labels[idx]||'');
       }
 
-      autoCompute();  /* ★ NEW: trigger auto route/preview */
+      autoCompute();  
     });
   };
   [...list.querySelectorAll('input.stop')].forEach(attach);
@@ -245,17 +426,17 @@ window.init=()=>{
       attach(r.querySelector('.stop'));renumber();
     }
   };
-  document.getElementById('route').onclick=rebuildRoute;  // still available
+  document.getElementById('route').onclick=rebuildRoute;  // manual override
   document.getElementById('opt').onclick  =optimizeRoute;
 };
 
-/* ★ NEW: debounce helper */
+/* debounce helper */
 function scheduleAutoCompute(ms=250){
   clearTimeout(autoTimer);
   autoTimer=setTimeout(autoCompute,ms);
 }
 
-/* ★ NEW: decide whether to show preview pin or full route */
+/* decide whether to show preview pin or full route */
 function autoCompute(){
   const pts=addresses();
   const msg=document.getElementById('msg');
@@ -268,10 +449,8 @@ function autoCompute(){
   }
 
   if(pts.length===1){
-    // show single pin
-    dirRend.setDirections({});  // clear any prior route
+    dirRend.setDirections({});
     msg.textContent='';
-    // find the row holding the address so we can use stored coords if we have them
     const rows=[...document.querySelectorAll('.row')];
     const row=rows.find(r=>r.querySelector('.stop').value.trim());
     if(row){
@@ -286,12 +465,11 @@ function autoCompute(){
     return;
   }
 
-  // 2+ stops -> clear preview & build full route (auto)
   clearPreviewMarker();
   rebuildRoute();
 }
 
-/* ── routing logic (unchanged except small guard) ── */
+/* routing logic ---------------------------------------------------------- */
 function rebuildRoute(){
   const pts=addresses(),msg=document.getElementById('msg');
   document.querySelectorAll('.leg-display').forEach(e=>e.remove());
@@ -320,7 +498,7 @@ function optimizeRoute(){
     rot.forEach(i=>list.appendChild(rows[i]));
     list.prepend(rows[loop[(longest+1)%loop.length]]);
     renumber();
-    autoCompute(); /* ★ CHG */
+    autoCompute();
   });
 }
 function displayLegs(res,stat){
