@@ -29,9 +29,25 @@
   --fontMain:Roboto,Arial,sans-serif;
 }
 html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
+
+/* ──────────────────────────────────────────────────────────
+   NEW #1: slim column that will hold TimeFrames.html
+   ────────────────────────────────────────────────────────── */
+#timelineDock{
+  position:absolute;top:0;left:0;
+  width:110px;              /* adjust if you need wider/narrower */
+  height:100%;
+  border-right:1px solid var(--clrPanelBorder);
+  background:#fff;
+  z-index:6;                /* just below panel shadow */
+}
+#timelineDock iframe{width:100%;height:100%;border:none;}
+
 #panel{
   position:absolute;top:0;left:0;z-index:5;width:340px;max-height:100%;
-  background:var(--clrPanelBg);padding:16px 14px 12px;
+  background:var(--clrPanelBg);
+  /* NEW #2: push content right so bullets align with timeline */
+  padding:16px 14px 12px 126px;  /* 110 px dock + 16 px original padding */
   border-right:1px solid var(--clrPanelBorder);
   box-shadow:var(--clrPanelShadow);
   overflow:auto;
@@ -130,6 +146,13 @@ input.stop:focus{
 </head>
 <body>
 
+<!-- ───────────────────────────
+     NEW #3: timeline column
+     ─────────────────────────── -->
+<div id="timelineDock">
+  <iframe src="TimeFrames.html" title="TimeFrames" loading="lazy"></iframe>
+</div>
+
 <div id="panel">
   <div id="stops"></div>
   <button id="add">+ Add stop</button>
@@ -139,10 +162,8 @@ input.stop:focus{
 </div>
 <div id="map"></div>
 
-<!-- Load future time‑window UI/logic without polluting this file -->
-<iframe src="TimeFrames.html" title="TimeFrames"></iframe>
-
 <script type="module">
+/* === your entire JavaScript block below is unchanged === */
 import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 
 const labels='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
