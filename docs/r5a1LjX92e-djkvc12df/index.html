@@ -173,6 +173,24 @@ let geocoder, previewMarker=null, autoTimer=null;
 /* ★TAB NEW services */
 let acService, placeSvc;
 
+      /* -------------- NEW helper ------------------- */
+function ensureCoords(rows){
+  const geocode=(addr)=>new Promise(res=>{
+    geocoder.geocode({address:addr,componentRestrictions:{country:'ca'}},
+      (r,s)=>s==='OK'&&r[0]
+        ?res({lat:r[0].geometry.location.lat(),lng:r[0].geometry.location.lng()})
+        :res(null));
+  });
+  const tasks=[...rows].map(async row=>{
+    const input=row.querySelector('.stop');
+    if(input.value && !input.dataset.lat){
+      const loc=await geocode(input.value);
+      if(loc){input.dataset.lat=loc.lat;input.dataset.lng=loc.lng;}
+    }
+  });
+  return Promise.all(tasks);
+}
+
 /* ---------- helper to wipe all segment banners ---------- */
 function clearLegDisplays(){
   document.querySelectorAll('.leg-display').forEach(e=>e.remove());
