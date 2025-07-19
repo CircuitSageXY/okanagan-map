@@ -16,14 +16,12 @@
   --clr-supper:       #FF9800;
   --clr-evening:      #BA68C8;
   --clr-late-evening: #F44336;
-  --line-width:4px;
+  --line-width:90px;               /* WIDER so colour bars are visible */
 }
 
-/* reset */
 *{box-sizing:border-box;margin:0;padding:0;}
-html,body{margin:0;font-family:Roboto,Arial,sans-serif;background:#fff;} /* height:auto keeps timeline visible */
+html,body{margin:0;font-family:Roboto,Arial,sans-serif;background:#fff;overflow:hidden;}
 
-/* buttons */
 #controls{display:flex;gap:8px;padding:10px 8px;}
 .shiftToggle{
   padding:6px 14px;border:none;border-radius:4px;
@@ -32,26 +30,29 @@ html,body{margin:0;font-family:Roboto,Arial,sans-serif;background:#fff;} /* heig
 .shiftToggle:hover{background:#f1f1f1;}
 .shiftToggle.active{background:#90CAF9;font-weight:500;}
 
-/* drawers */
-.drawer{max-height:0;overflow:hidden;transition:max-height .3s ease;padding-left:28px;}
-.drawer.open{padding-top:12px;padding-bottom:12px;max-height:none;} /* unlimited height */
+.drawer{
+  max-height:0;overflow:hidden;transition:max-height .3s ease;padding-left:10px;
+}
+.drawer.open{padding-top:12px;padding-bottom:12px;max-height:none;}
 
-/* timeline */
 .timeline{
   position:relative;width:var(--line-width);height:500px;   /* fixed height */
-  background:#616161;margin-left:10px;border-radius:2px;
-}
-.segment{position:absolute;left:0;width:var(--line-width);}
-.segment span{
-  position:absolute;left:10px;top:50%;transform:translateY(-50%);
-  font-size:11px;white-space:nowrap;pointer-events:none;    /* smaller font */
+  background:#616161;border-radius:2px;
 }
 
-/* now marker */
+.segment{
+  position:absolute;left:0;width:100%;
+}
+.segment span{
+  position:absolute;left:4px;top:50%;
+  transform:translateY(-50%);
+  font-size:11px;color:#000;white-space:nowrap;pointer-events:none;
+}
+
 .nowMarker{
-  position:absolute;left:-6px;width:12px;height:12px;
-  border:2px solid #000;background:#fff;border-radius:50%;
-  transform:translateX(-50%) translateY(-50%);box-shadow:0 0 4px rgba(0,0,0,.4);
+  position:absolute;left:calc(var(--line-width) + 6px);
+  width:12px;height:12px;border:2px solid #000;background:#fff;
+  border-radius:50%;transform:translateY(-50%);box-shadow:0 0 4px rgba(0,0,0,.4);
 }
 </style>
 </head>
@@ -66,11 +67,9 @@ html,body{margin:0;font-family:Roboto,Arial,sans-serif;background:#fff;} /* heig
 <div id="night" class="drawer"></div>
 
 <script>
-/* helpers */
 const mins=(h,m)=>h*60+m;
 const parseHM=hm=>{const [h,m]=hm.split(':').map(Number);return mins(h,m);};
 
-/* frames & shifts */
 const FRAMES=[
   {name:'AM Early',     start:'07:00', end:'09:00',  color:'var(--clr-early)'},
   {name:'AM Late',      start:'09:00', end:'11:00',  color:'var(--clr-late)'},
@@ -85,7 +84,6 @@ const SHIFTS={
   night:{start:'13:30', end:'22:00'}
 };
 
-/* timeline builder */
 function buildTimeline(drawer,key){
   const {start,end}=SHIFTS[key];
   const s=parseHM(start), e=parseHM(end), span=e-s;
@@ -124,19 +122,12 @@ function buildTimeline(drawer,key){
   tick(); setInterval(tick,60_000);
 }
 
-/* init */
-function openDay(){           /* helper so day drawer is open before we build */
-  const btn=document.querySelector('.shiftToggle[data-shift="day"]');
-  const drawer=document.getElementById('day');
-  drawer.classList.add('open');
-  btn.classList.add('active');
-}
-
 function init(){
-  openDay();                                  // open first
-  buildTimeline(document.getElementById('day')  ,'day');
+  // Build timelines
+  buildTimeline(document.getElementById('day'),'day');
   buildTimeline(document.getElementById('night'),'night');
 
+  // toggle logic
   document.querySelectorAll('.shiftToggle').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const drawer=document.getElementById(btn.dataset.shift);
@@ -144,6 +135,9 @@ function init(){
       btn.classList.toggle('active',open);
     });
   });
+
+  // open day shift by default
+  document.querySelector('.shiftToggle[data-shift="day"]').click();
 }
 document.addEventListener('DOMContentLoaded',init);
 </script>
