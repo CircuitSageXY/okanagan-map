@@ -139,6 +139,9 @@ input.stop:focus{
 </div>
 <div id="map"></div>
 
+<!-- Load future time‑window UI/logic without polluting this file -->
+<iframe src="TimeFrames.html" style="display:none;" title="TimeFrames"></iframe>
+
 <script type="module">
 import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 
@@ -148,6 +151,11 @@ let geocoder, previewMarker=null, autoTimer=null;
 
 /* ★TAB NEW services */
 let acService, placeSvc;
+
+/* ---------- helper to wipe all segment banners ---------- */
+function clearLegDisplays(){
+  document.querySelectorAll('.leg-display').forEach(e=>e.remove());
+}
 
 /* GUI row focus */
 function markRowFocus(input,focused){
@@ -414,9 +422,17 @@ function scheduleAutoCompute(ms=250){clearTimeout(autoTimer);autoTimer=setTimeou
 /* autoCompute */
 function autoCompute(){
   const pts=addresses(),msg=document.getElementById('msg');
-  if(pts.length===0){clearPreviewMarker();msg.textContent='';dirRend.setDirections({});return;}
+  if(pts.length===0){
+    clearPreviewMarker();
+    clearLegDisplays();        // NEW wipe bars
+    msg.textContent='';
+    dirRend.setDirections({});
+    return;
+  }
   if(pts.length===1){
-    dirRend.setDirections({});msg.textContent='';
+    clearLegDisplays();        // NEW wipe bars
+    dirRend.setDirections({});
+    msg.textContent='';
     const rows=[...document.querySelectorAll('.row')];
     const row=rows.find(r=>r.querySelector('.stop').value.trim());
     if(row){
@@ -433,7 +449,7 @@ function autoCompute(){
 /* routing */
 function rebuildRoute(){
   const pts=addresses(),msg=document.getElementById('msg');
-  document.querySelectorAll('.leg-display').forEach(e=>e.remove());
+  clearLegDisplays();            // NEW reset before rebuild
   if(pts.length<2){msg.textContent='';dirRend.setDirections({});return;}
   dirSvc.route({
     origin:pts[0],destination:pts[pts.length-1],
@@ -465,11 +481,10 @@ function displayLegs(res,stat){
   const msg=document.getElementById('msg');
   if(stat!=='OK'){msg.textContent='Route error: '+stat;dirRend.setDirections({});return;}
   dirRend.setDirections(res);
-  const SHOW_LEG_LABELS=false; // toggle
+  const SHOW_LEG_LABELS=false; // toggle if you want A→B labels
   const list=document.getElementById('stops');
   const rows=[...list.querySelectorAll('.row')];
   let kmTot=0,minTot=0;
-  document.querySelectorAll('.leg-display').forEach(e=>e.remove());
   res.routes[0].legs.forEach((leg,i)=>{
     const km=leg.distance.value/1000,min=Math.round(leg.duration.value/60);
     kmTot+=km;minTot+=min;
