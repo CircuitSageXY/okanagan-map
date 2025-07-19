@@ -24,12 +24,10 @@
 
 /* ---------- basic page reset ---------- */
 *{box-sizing:border-box;margin:0;padding:0;}
-body{
-  font-family:Roboto,Arial,sans-serif;
-  background:#fff;
-}
 
-/* ---------- drawer toggles ---------- */
+/* NEW #1: make iframe content stretch full column */
+html,body{height:100%;overflow:hidden;font-family:Roboto,Arial,sans-serif;background:#fff;}
+
 #controls{
   display:flex;
   gap:8px;
@@ -70,6 +68,9 @@ body{
   background:#616161;
   margin-left:10px;
   border-radius:2px;
+
+  /* NEW #2: take full drawer height instead of fixed 500 px */
+  height:100%;
 }
 
 /* colour blocks */
@@ -143,13 +144,10 @@ function buildTimeline(drawer,shiftKey){
   const eMin=parseHM(end);
   const total=eMin-sMin;
 
-  /* create skeleton line (full height = 100%) */
   const line=document.createElement('div');
   line.className='timeline';
-  line.style.height='500px';   /* fixed height; iframe can be taller if you like */
   drawer.appendChild(line);
 
-  /* add coloured segments that overlap this shift */
   FRAME_DEF.forEach(fr=>{
     const segStart=Math.max(parseHM(fr.start), sMin);
     const segEnd  =Math.min(parseHM(fr.end)  , eMin);
@@ -168,7 +166,6 @@ function buildTimeline(drawer,shiftKey){
     line.appendChild(seg);
   });
 
-  /* live “now” marker */
   const mark=document.createElement('div');
   mark.className='nowMarker';
   line.appendChild(mark);
@@ -186,11 +183,9 @@ function buildTimeline(drawer,shiftKey){
 
 /* ---------- initialisation ---------- */
 function init(){
-  /* construct both drawers just once */
   buildTimeline(document.getElementById('day')  , 'day');
   buildTimeline(document.getElementById('night'), 'night');
 
-  /* toggle logic */
   document.querySelectorAll('.shiftToggle').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const drawer=document.getElementById(btn.dataset.shift);
@@ -198,6 +193,9 @@ function init(){
       btn.classList.toggle('active',open);
     });
   });
+
+  /* NEW #3: auto‑open Day Shift so users see a timeline immediately */
+  document.querySelector('.shiftToggle[data-shift="day"]').click();
 }
 
 document.addEventListener('DOMContentLoaded',init);
