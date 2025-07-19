@@ -4,124 +4,74 @@
 <meta charset="utf-8">
 <title>Route‑Planner Time Frames</title>
 
-<!-- Roboto for visual consistency with index.html -->
 <link rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap">
 
 <style>
-/* ---------- root palette ---------- */
 :root{
-  --clr-early:        #8BC34A;  /* AM Early 07‑09 */
-  --clr-late:         #4CAF50;  /* AM Late  09‑11 */
-  --clr-lunch:        #FFEB3B;  /* Lunch    11‑13 */
-  --clr-afternoon:    #03A9F4;  /* Afternoon13‑16 */
-  --clr-supper:       #FF9800;  /* Supper   16‑18:30 */
-  --clr-evening:      #BA68C8;  /* Evening  18:30‑21 */
-  --clr-late-evening: #F44336;  /* Late Even21‑22:30 */
-
+  --clr-early:        #8BC34A;
+  --clr-late:         #4CAF50;
+  --clr-lunch:        #FFEB3B;
+  --clr-afternoon:    #03A9F4;
+  --clr-supper:       #FF9800;
+  --clr-evening:      #BA68C8;
+  --clr-late-evening: #F44336;
   --line-width:4px;
 }
 
-/* ---------- basic page reset ---------- */
+/* reset */
 *{box-sizing:border-box;margin:0;padding:0;}
+html,body{margin:0;font-family:Roboto,Arial,sans-serif;background:#fff;} /* height:auto keeps timeline visible */
 
-/* NEW #1: make iframe content stretch full column */
-html,body{height:100%;overflow:hidden;font-family:Roboto,Arial,sans-serif;background:#fff;}
-
-#controls{
-  display:flex;
-  gap:8px;
-  padding:10px 8px;
-}
+/* buttons */
+#controls{display:flex;gap:8px;padding:10px 8px;}
 .shiftToggle{
-  padding:6px 14px;
-  border:none;
-  border-radius:4px;
-  background:#e0e0e0;
-  cursor:pointer;
-  font-size:14px;
-  transition:background .15s;
+  padding:6px 14px;border:none;border-radius:4px;
+  background:#e0e0e0;cursor:pointer;font-size:14px;transition:background .15s;
 }
 .shiftToggle:hover{background:#f1f1f1;}
-.shiftToggle.active{
-  background:#90CAF9;
-  font-weight:500;
-}
+.shiftToggle.active{background:#90CAF9;font-weight:500;}
 
-/* ---------- collapsible drawers ---------- */
-.drawer{
-  max-height:0;
-  overflow:hidden;
-  transition:max-height .3s ease;
-  padding-left:28px;      /* keeps timeline roughly under the bullets in index.html */
-}
-.drawer.open{
-  padding-top:12px;
-  padding-bottom:12px;
-  max-height:1200px;      /* more than enough to show full bar */
-}
+/* drawers */
+.drawer{max-height:0;overflow:hidden;transition:max-height .3s ease;padding-left:28px;}
+.drawer.open{padding-top:12px;padding-bottom:12px;max-height:none;} /* unlimited height */
 
-/* ---------- timeline skeleton ---------- */
+/* timeline */
 .timeline{
-  position:relative;
-  width:var(--line-width);
-  background:#616161;
-  margin-left:10px;
-  border-radius:2px;
-
-  /* NEW #2: take full drawer height instead of fixed 500 px */
-  height:100%;
+  position:relative;width:var(--line-width);height:500px;   /* fixed height */
+  background:#616161;margin-left:10px;border-radius:2px;
+}
+.segment{position:absolute;left:0;width:var(--line-width);}
+.segment span{
+  position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  font-size:11px;white-space:nowrap;pointer-events:none;    /* smaller font */
 }
 
-/* colour blocks */
-.segment{
-  position:absolute;
-  left:0;
-  width:var(--line-width);
-}
-.segment span{           /* inline label */
-  position:absolute;
-  left:10px;
-  top:50%;
-  transform:translateY(-50%);
-  font-size:12px;
-  white-space:nowrap;
-  pointer-events:none;
-}
-
-/* live “now” marker */
+/* now marker */
 .nowMarker{
-  position:absolute;
-  left:calc(-6px);       /* centred on the bar */
-  width:12px;
-  height:12px;
-  border:2px solid #000;
-  background:#fff;
-  border-radius:50%;
-  transform:translateX(-50%) translateY(-50%);
-  box-shadow:0 0 4px rgba(0,0,0,.4);
+  position:absolute;left:-6px;width:12px;height:12px;
+  border:2px solid #000;background:#fff;border-radius:50%;
+  transform:translateX(-50%) translateY(-50%);box-shadow:0 0 4px rgba(0,0,0,.4);
 }
 </style>
 </head>
 <body>
 
-<!-- shift selectors -->
 <div id="controls">
   <button class="shiftToggle" data-shift="day">Day&nbsp;Shift</button>
   <button class="shiftToggle" data-shift="night">Night&nbsp;Shift</button>
 </div>
 
-<!-- drawers (filled dynamically) -->
 <div id="day"   class="drawer"></div>
 <div id="night" class="drawer"></div>
 
 <script>
-/* ---------- helper: minutes since midnight ---------- */
-function toMins(h,m){return h*60+m;}
-function parseHM(str){const [h,m]=str.split(':').map(Number);return toMins(h,m);}
+/* helpers */
+const mins=(h,m)=>h*60+m;
+const parseHM=hm=>{const [h,m]=hm.split(':').map(Number);return mins(h,m);};
 
-/* ---------- canonical frame data ---------- */
-const FRAME_DEF=[
+/* frames & shifts */
+const FRAMES=[
   {name:'AM Early',     start:'07:00', end:'09:00',  color:'var(--clr-early)'},
   {name:'AM Late',      start:'09:00', end:'11:00',  color:'var(--clr-late)'},
   {name:'Lunch',        start:'11:00', end:'13:00',  color:'var(--clr-lunch)'},
@@ -130,39 +80,34 @@ const FRAME_DEF=[
   {name:'Evening',      start:'18:30', end:'21:00',  color:'var(--clr-evening)'},
   {name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--clr-late-evening)'}
 ];
-
-/* ---------- shift ranges ---------- */
 const SHIFTS={
-  day:  {label:'Day Shift',   start:'07:00', end:'15:30'},
-  night:{label:'Night Shift', start:'13:30', end:'22:00'}
+  day:  {start:'07:00', end:'15:30'},
+  night:{start:'13:30', end:'22:00'}
 };
 
-/* ---------- build a timeline inside a drawer ---------- */
-function buildTimeline(drawer,shiftKey){
-  const {start,end}=SHIFTS[shiftKey];
-  const sMin=parseHM(start);
-  const eMin=parseHM(end);
-  const total=eMin-sMin;
+/* timeline builder */
+function buildTimeline(drawer,key){
+  const {start,end}=SHIFTS[key];
+  const s=parseHM(start), e=parseHM(end), span=e-s;
 
   const line=document.createElement('div');
   line.className='timeline';
   drawer.appendChild(line);
 
-  FRAME_DEF.forEach(fr=>{
-    const segStart=Math.max(parseHM(fr.start), sMin);
-    const segEnd  =Math.min(parseHM(fr.end)  , eMin);
-    if(segEnd<=segStart) return;   // no overlap
+  FRAMES.forEach(fr=>{
+    const segStart=Math.max(parseHM(fr.start),s);
+    const segEnd  =Math.min(parseHM(fr.end)  ,e);
+    if(segEnd<=segStart) return;
 
     const seg=document.createElement('div');
     seg.className='segment';
-    seg.style.top   =((segStart-sMin)/total)*100+'%';
-    seg.style.height=((segEnd-segStart)/total)*100+'%';
+    seg.style.top   =((segStart-s)/span)*100+'%';
+    seg.style.height=((segEnd-segStart)/span)*100+'%';
     seg.style.background=fr.color;
 
     const lbl=document.createElement('span');
     lbl.textContent=fr.name;
     seg.appendChild(lbl);
-
     line.appendChild(seg);
   });
 
@@ -170,21 +115,27 @@ function buildTimeline(drawer,shiftKey){
   mark.className='nowMarker';
   line.appendChild(mark);
 
-  function positionMarker(){
-    const now=new Date();
-    const mins=now.getHours()*60+now.getMinutes();
-    const pct=((mins-sMin)/total)*100;
+  const tick=()=>{
+    const m=new Date().getHours()*60+new Date().getMinutes();
+    const pct=((m-s)/span)*100;
     mark.style.top=pct+'%';
-    mark.style.display=(mins<sMin||mins>eMin)?'none':'block';
-  }
-  positionMarker();
-  setInterval(positionMarker,60_000); // refresh each minute
+    mark.style.display=(m<s||m>e)?'none':'block';
+  };
+  tick(); setInterval(tick,60_000);
 }
 
-/* ---------- initialisation ---------- */
+/* init */
+function openDay(){           /* helper so day drawer is open before we build */
+  const btn=document.querySelector('.shiftToggle[data-shift="day"]');
+  const drawer=document.getElementById('day');
+  drawer.classList.add('open');
+  btn.classList.add('active');
+}
+
 function init(){
-  buildTimeline(document.getElementById('day')  , 'day');
-  buildTimeline(document.getElementById('night'), 'night');
+  openDay();                                  // open first
+  buildTimeline(document.getElementById('day')  ,'day');
+  buildTimeline(document.getElementById('night'),'night');
 
   document.querySelectorAll('.shiftToggle').forEach(btn=>{
     btn.addEventListener('click',()=>{
@@ -193,11 +144,7 @@ function init(){
       btn.classList.toggle('active',open);
     });
   });
-
-  /* NEW #3: auto‑open Day Shift so users see a timeline immediately */
-  document.querySelector('.shiftToggle[data-shift="day"]').click();
 }
-
 document.addEventListener('DOMContentLoaded',init);
 </script>
 </body>
