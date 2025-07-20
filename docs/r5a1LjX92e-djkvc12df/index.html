@@ -117,10 +117,25 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 #msg{margin:12px 0;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 28px;}
 </style>
 
-<!-- Google Maps JS -->
-<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry"></script>
+<!-- -----------------------------------------------------------------
+     ❶  Callback stub: this ALWAYS exists before Maps loads
+-------------------------------------------------------------------->
+<script>
+  function init(){               /* Google Maps API calls this */
+    if(typeof window.routePlannerInit==='function'){
+      window.routePlannerInit();
+    } else {                     /* module not ready yet */
+      window.__mapsApiReady=true;
+    }
+  }
+</script>
 
-<!-- SortableJS -->
+<!-- Google Maps JS -->
+<script async defer
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry">
+</script>
+
+<!-- SortableJS (esm build) -->
 <script type="module" src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/modular/sortable.core.esm.js"></script>
 </head>
 <body>
@@ -141,17 +156,20 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 
 <div id="map"></div>
 
+<!-- -----------------------------------------------------------------
+     ❷  Main planner – attaches itself to ‘routePlannerInit’
+-------------------------------------------------------------------->
 <script type="module">
 import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 
 const labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-const colourCycle = ['A','B','C','D','E','F','G','H'];         // ★★ 8‑colour loop
+const colourCycle = ['A','B','C','D','E','F','G','H'];   // 8‑colour loop
 
 let map, dirSvc, dirRend, geocoder;
 let acService, placeSvc;
 let autoTimer=null;
-let routeVersion = 0;                                         // ★★ duplicate‑response guard
-let previewPins=[];                                           // ★★ many preview markers
+let routeVersion = 0;                                     // duplicate‑response guard
+let previewPins=[];                                       // preview markers
 
 /* ──────────────────────────────────────────────────────────
    Geometry helpers
@@ -177,15 +195,14 @@ const CENTRAL_OK_BOUNDS={south:49.60,north:50.30,west:-120.20,east:-118.90};
 const CENTRAL_OK_RX=/kelowna|west kelowna|lake country|oyama|peachland|fintry|joe rich|ellison|rutland|glenmore|glenrosa/i;
 
 /* ------------------------------------------------------------------
-   ★★ NEW: smart geocoder that favours Places API but falls back to
-           Geocoding API.  Returns {lat,lng,formatted} or null.
+   Smart geocoder: Places first, Geocoding API fallback
 ------------------------------------------------------------------- */
 function geocodeSmart(text){
   const cleaned=text.replace(/\s+/g,' ').trim();
   if(!cleaned) return Promise.resolve(null);
 
   return new Promise(res=>{
-    /* 1️⃣  Try Places Autocomplete → Place Details */
+    /* 1️⃣  Places Autocomplete → Details */
     acService.getPlacePredictions({
       input:cleaned,
       bounds:CENTRAL_OK_BOUNDS,
@@ -205,7 +222,6 @@ function geocodeSmart(text){
                 formatted:plc.formatted_address
               });
             }
-            /* fall‑through to geocoder if details failed */
             geoFallback();
           });
       }else{
@@ -237,7 +253,7 @@ function geocodeSmart(text){
 }
 
 /* ------------------------------------------------------------------
-   ★★ UPDATED: batch‑geocode helper (used after bulk paste)
+   Batch‑geocode helper (used after bulk paste)
 ------------------------------------------------------------------- */
 function ensureCoords(rows){
   const tasks=rows.map(row=>{
@@ -258,7 +274,7 @@ function ensureCoords(rows){
       }
     });
   });
-  return Promise.all(tasks);   // caller waits until every lookup is done
+  return Promise.all(tasks);
 }
 
 /* ──────────────────────────────────────────────────────────
@@ -266,7 +282,7 @@ function ensureCoords(rows){
    ────────────────────────────────────────────────────────── */
 function makeRow(i){
   const d=document.createElement('div'); d.className='row';
-  const clrClass = colourCycle[i % colourCycle.length] || 'defaultBullet';  // ★★ cycle colours
+  const clrClass = colourCycle[i % colourCycle.length] || 'defaultBullet';
   d.innerHTML=`
     <div class="bullet ${clrClass}">${labels[i]}</div>
     <input class="stop" placeholder="Enter stop">
@@ -379,7 +395,7 @@ function acceptTopPrediction(inputEl){
 /* ──────────────────────────────────────────────────────────
    Initialise everything
    ────────────────────────────────────────────────────────── */
-window.init = () => {
+window.routePlannerInit = () => {
   installPredictionFilter();
 
   map = new google.maps.Map(document.getElementById('map'),
@@ -389,11 +405,11 @@ window.init = () => {
     map,preserveViewport:true
   });
 
-  dirSvc = new google.maps.DirectionsService();
-  dirRend= new google.maps.DirectionsRenderer({map});
+  dirSvc  = new google.maps.DirectionsService();
+  dirRend = new google.maps.DirectionsRenderer({map});
   geocoder = new google.maps.Geocoder();
-  acService= new google.maps.places.AutocompleteService();
-  placeSvc = new google.maps.places.PlacesService(map);
+  acService = new google.maps.places.AutocompleteService();
+  placeSvc  = new google.maps.places.PlacesService(map);
 
   const list=document.getElementById('stops');
   list.appendChild(makeRow(0));
@@ -408,107 +424,88 @@ window.init = () => {
   };
 
   const attach = input => {
-  const normalPH = 'Enter stop';
-  input.placeholder = normalPH;
-
-  /* focus: highlight row & select text */
-  input.addEventListener('focus', e => {
-    markRowFocus(input, true);
+    const normalPH = 'Enter stop';
     input.placeholder = normalPH;
-    setTimeout(() => e.target.select(), 0);
-    const mu = ev => { ev.preventDefault(); input.removeEventListener('mouseup', mu); };
-    input.addEventListener('mouseup', mu);
-  });
 
-  /* blur / change still debounce‑recompute */
-  input.addEventListener('blur', () => {
-    markRowFocus(input, false);
-    scheduleAutoCompute();
-  });
-  input.addEventListener('change', () => scheduleAutoCompute());
-
-    /* ★★ live‑refresh when user edits the text */
-  input.addEventListener('input', () => {
-    input.dataset.lat = '';
-    input.dataset.lng = '';
-    scheduleAutoCompute();          // update pins & route immediately
-  });
-
-  /* TAB ⇒ accept top prediction, then advance */
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Tab' && !e.shiftKey) {
-      if (input.dataset.lat && input.dataset.lng) return; // already a picked place
-      e.preventDefault();
-      acceptTopPrediction(input);
-    }
-  });
-
-  /* Bulk‑paste: split clipboard lines into successive rows */
-  input.addEventListener('paste', e => {
-    const clip  = (e.clipboardData || window.clipboardData).getData('text');
-    const lines = clip.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-    if (lines.length <= 1) return;        // normal paste if only one line
-    e.preventDefault();
-
-    const list  = document.getElementById('stops');
-    const rows  = [...list.querySelectorAll('.row')];
-    const start = rows.indexOf(input.closest('.row'));
-
-    // ensure enough rows exist
-    while (list.children.length < start + lines.length && list.children.length < labels.length) {
-      const r = makeRow(list.children.length);
-      list.appendChild(r);
-      attach(r.querySelector('.stop'));
-    }
-
-    // drop each pasted address into successive rows
-    lines.forEach((addr, i) => {
-      if (start + i >= labels.length) return;
-      const el = list.children[start + i].querySelector('.stop');
-      el.value = addr;
-      el.dataset.lat = '';
-      el.dataset.lng = '';
+    /* focus: highlight row & select text */
+    input.addEventListener('focus', e => {
+      markRowFocus(input, true);
+      input.placeholder = normalPH;
+      setTimeout(() => e.target.select(), 0);
+      const mu = ev => { ev.preventDefault(); input.removeEventListener('mouseup', mu); };
+      input.addEventListener('mouseup', mu);
     });
 
-    renumber();
-    autoCompute();    // kick off batch‑geocode & preview
-  });
+    /* blur / change still debounce‑recompute */
+    input.addEventListener('blur', () => { markRowFocus(input,false); scheduleAutoCompute(); });
+    input.addEventListener('change', () => scheduleAutoCompute());
 
-  /* Google Places autocomplete for this input */
-  const ac = new google.maps.places.Autocomplete(input, acOpts);
-  ac.addListener('place_changed', () => {
-    const plc = ac.getPlace();
-    if (!plc.geometry) { input.value = ''; return; }
+    /* live‑refresh when user edits the text */
+    input.addEventListener('input', () => {
+      input.dataset.lat = '';
+      input.dataset.lng = '';
+      scheduleAutoCompute();
+    });
 
-    const loc = plc.geometry.location;
-    const pt  = { lat: loc.lat(), lng: loc.lng() };
-
-    if (!insidePoly(pt, IHA_POLY)) {
-      input.value = '';
-      input.placeholder = 'Outside Interior Health';
-      setTimeout(() => { if (!input.value) input.placeholder = normalPH; }, 3000);
-      return;
-    }
-
-    input.value       = plc.formatted_address || plc.name;
-    input.dataset.lat = pt.lat;
-    input.dataset.lng = pt.lng;
-    autoCompute();
-  });
-}   // ← end of attach()
-
-    const ac = new google.maps.places.Autocomplete(input, acOpts);
-    ac.addListener('place_changed',()=>{
-      const plc = ac.getPlace();
-      if(!plc.geometry){input.value='';return;}
-      const {lat,lng} = plc.geometry.location;
-      const pt={lat:lat(),lng:lng()};
-      if(!insidePoly(pt,IHA_POLY)){
-        input.value=''; input.placeholder='Outside Interior Health';
-        setTimeout(()=>{if(!input.value)input.placeholder=normalPH;},3000); return;
+    /* TAB ⇒ accept top prediction, then advance */
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Tab' && !e.shiftKey) {
+        if (input.dataset.lat && input.dataset.lng) return;
+        e.preventDefault();
+        acceptTopPrediction(input);
       }
-      if(plc.formatted_address) input.value=plc.formatted_address;
-      input.dataset.lat=pt.lat; input.dataset.lng=pt.lng;
+    });
+
+    /* Bulk‑paste: split clipboard lines into successive rows */
+    input.addEventListener('paste', e => {
+      const clip  = (e.clipboardData || window.clipboardData).getData('text');
+      const lines = clip.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      if (lines.length <= 1) return;
+      e.preventDefault();
+
+      const list  = document.getElementById('stops');
+      const rows  = [...list.querySelectorAll('.row')];
+      const start = rows.indexOf(input.closest('.row'));
+
+      /* ensure enough rows exist */
+      while (list.children.length < start + lines.length && list.children.length < labels.length) {
+        const r = makeRow(list.children.length);
+        list.appendChild(r);
+        attach(r.querySelector('.stop'));
+      }
+
+      /* drop each pasted address into successive rows */
+      lines.forEach((addr, i) => {
+        if (start + i >= labels.length) return;
+        const el = list.children[start + i].querySelector('.stop');
+        el.value = addr;
+        el.dataset.lat = '';
+        el.dataset.lng = '';
+      });
+
+      renumber();
+      autoCompute();
+    });
+
+    /* Google Places autocomplete for this input */
+    const ac = new google.maps.places.Autocomplete(input, acOpts);
+    ac.addListener('place_changed', () => {
+      const plc = ac.getPlace();
+      if (!plc.geometry) { input.value = ''; return; }
+
+      const loc = plc.geometry.location;
+      const pt  = { lat: loc.lat(), lng: loc.lng() };
+
+      if (!insidePoly(pt, IHA_POLY)) {
+        input.value = '';
+        input.placeholder = 'Outside Interior Health';
+        setTimeout(() => { if (!input.value) input.placeholder = normalPH; }, 3000);
+        return;
+      }
+
+      input.value       = plc.formatted_address || plc.name;
+      input.dataset.lat = pt.lat;
+      input.dataset.lng = pt.lng;
       autoCompute();
     });
   };
@@ -525,6 +522,9 @@ window.init = () => {
   document.getElementById('route').onclick = rebuildRoute;
   document.getElementById('opt').onclick   = globalOptimizeRoute;
 };
+
+/* if Maps loaded first, fire immediately */
+if(window.__mapsApiReady){ window.routePlannerInit(); }
 
 /* ──────────────────────────────────────────────────────────
    Debounce wrapper
@@ -546,7 +546,6 @@ function autoCompute(){
     return;
   }
 
-  /* ensure all coords first, then preview pins and route */
   ensureCoords(filled).then(()=>{
     clearPreviewPins();
     filled.forEach((r,i)=>{
@@ -568,7 +567,7 @@ function autoCompute(){
 }
 
 /* ──────────────────────────────────────────────────────────
-   Routing helpers (LatLng‑first)
+   Routing helpers
    ────────────────────────────────────────────────────────── */
 function rowToLocation(row){
   const inp=row.querySelector('.stop');
@@ -592,13 +591,13 @@ function rebuildRoute(){
     waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
     travelMode:'DRIVING'
   }, (res,stat)=>{
-      if(thisReq!==routeVersion) return;            // ignore stale reply
+      if(thisReq!==routeVersion) return;
       displayLegs(res,stat);
   });
 }
 
 /* ──────────────────────────────────────────────────────────
-   ★★ GLOBAL OPTIMISER – finds the cheapest start+end combo
+   GLOBAL OPTIMISER – finds the cheapest start+end combo
    ────────────────────────────────────────────────────────── */
 async function globalOptimizeRoute(){
   const msg=document.getElementById('msg');
@@ -606,15 +605,14 @@ async function globalOptimizeRoute(){
   const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
   if(rows.length<3){ rebuildRoute(); return; }
 
-  /* make sure every row has coordinates first */
   await ensureCoords(rows);
 
   const locs = rows.map(rowToLocation);
   const n    = locs.length;
-  routeVersion++;                    // invalidate any stale replies
+  routeVersion++;
   const thisRun = routeVersion;
 
-  msg.textContent='Optimising…';     // quick user feedback
+  msg.textContent='Optimising…';
 
   const tryRoute = (i,j) => new Promise(resolve=>{
     const wpIdx = [...Array(n).keys()].filter(k=>k!==i&&k!==j);
@@ -626,12 +624,11 @@ async function globalOptimizeRoute(){
       travelMode :'DRIVING'
     }, (res,stat)=>{
       if(stat!=='OK'){ return resolve(null); }
-      const dist = res.routes[0].legs.reduce((s,l)=>s+l.distance.value,0); // metres
+      const dist = res.routes[0].legs.reduce((s,l)=>s+l.distance.value,0);
       resolve({i,j,wpIdx,res,dist});
     });
   });
 
-  /* brute‑force every (i,j) pair (except i===j) – sequential to stay in quota */
   let best=null;
   for(let i=0;i<n;i++){
     for(let j=0;j<n;j++){
@@ -644,19 +641,16 @@ async function globalOptimizeRoute(){
 
   if(!best || thisRun!==routeVersion){ msg.textContent='Optimise failed'; return; }
 
-  /* translate Google’s waypoint_order back to original indices */
   const fullOrder = [
     best.i,
     ...best.res.routes[0].waypoint_order.map(k=>best.wpIdx[k]),
     best.j
   ];
 
-  /* reorder DOM to match */
-  const rowNodes=[...list.querySelectorAll('.row')]; // snapshot before moving
+  const rowNodes=[...list.querySelectorAll('.row')];
   fullOrder.forEach(idx=>list.appendChild(rowNodes[idx]));
   renumber();
 
-  /* show the picked itinerary */
   dirRend.setDirections(best.res);
   displayLegs(best.res,'OK');
 
@@ -667,7 +661,6 @@ async function globalOptimizeRoute(){
 
 /* ------------------------------------------------------------------
    Optimise‑waypoint (return to start)  >>> retained for fallback use
-   (but the Opt button now calls globalOptimizeRoute instead)
 ------------------------------------------------------------------- */
 function optimizeRoute(){ /* … unchanged from previous file … */ }
   
@@ -681,7 +674,7 @@ function displayLegs(res,stat){
   const rows=[...list.querySelectorAll('.row')];
   let kmTot=0,minTot=0;
 
-  clearLegDisplays();                                                // ensure fresh
+  clearLegDisplays();
 
   res.routes[0].legs.forEach((leg,i)=>{
     const km=leg.distance.value/1000, min=Math.round(leg.duration.value/60);
