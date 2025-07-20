@@ -177,34 +177,88 @@ const CENTRAL_OK_BOUNDS={south:49.60,north:50.30,west:-120.20,east:-118.90};
 const CENTRAL_OK_RX=/kelowna|west kelowna|lake country|oyama|peachland|fintry|joe rich|ellison|rutland|glenmore|glenrosa/i;
 
 /* ------------------------------------------------------------------
-   ★★ NEW: batch‑geocode helper (used after bulk paste)
+   ★★ NEW: smart geocoder that favours Places API but falls back to
+           Geocoding API.  Returns {lat,lng,formatted} or null.
+------------------------------------------------------------------- */
+function geocodeSmart(text){
+  const cleaned=text.replace(/\s+/g,' ').trim();
+  if(!cleaned) return Promise.resolve(null);
+
+  return new Promise(res=>{
+    /* 1️⃣  Try Places Autocomplete → Place Details */
+    acService.getPlacePredictions({
+      input:cleaned,
+      bounds:CENTRAL_OK_BOUNDS,
+      componentRestrictions:{country:'ca'},
+      types:['address']
+    },(preds,status)=>{
+      if(status===google.maps.places.PlacesServiceStatus.OK && preds?.length){
+        const pred=preds.find(p=>CENTRAL_OK_RX.test(p.description))||preds[0];
+        placeSvc.getDetails(
+          {placeId:pred.place_id,fields:['formatted_address','geometry']},
+          (plc,stat2)=>{
+            if(stat2===google.maps.places.PlacesServiceStatus.OK && plc?.geometry){
+              const loc=plc.geometry.location;
+              return res({
+                lat:loc.lat(),
+                lng:loc.lng(),
+                formatted:plc.formatted_address
+              });
+            }
+            /* fall‑through to geocoder if details failed */
+            geoFallback();
+          });
+      }else{
+        geoFallback();
+      }
+    });
+
+    /* 2️⃣  Classic Geocoding API */
+    function geoFallback(){
+      geocoder.geocode(
+        {
+          address:`${cleaned}, BC, Canada`,
+          componentRestrictions:{country:'ca'}
+        },
+        (r,s)=>{
+          if(s==='OK' && r[0]){
+            const loc=r[0].geometry.location;
+            res({
+              lat:loc.lat(),
+              lng:loc.lng(),
+              formatted:r[0].formatted_address
+            });
+          }else{
+            res(null);
+          }
+        });
+    }
+  });
+}
+
+/* ------------------------------------------------------------------
+   ★★ UPDATED: batch‑geocode helper (used after bulk paste)
 ------------------------------------------------------------------- */
 function ensureCoords(rows){
   const tasks=rows.map(row=>{
     const input=row.querySelector('.stop');
     row.classList.remove('invalid');           // clear flag
-    if(!input.value || (input.dataset.lat && input.dataset.lng)) return Promise.resolve();
-    return new Promise(res=>{
-      geocoder.geocode(
-        {
-          address:`${input.value}, BC, Canada`,              // ensure local context
-          componentRestrictions:{country:'ca'}
-        },
-        (r,s)=>{
-          if(s==='OK'&&r[0]){
-            input.dataset.lat=r[0].geometry.location.lat();
-            input.dataset.lng=r[0].geometry.location.lng();
-            // overwrite with formatted address so the user sees the full line
-            input.value=r[0].formatted_address;
-          }else{
-            row.classList.add('invalid');                    // highlight
-            input.placeholder='Unrecognised – edit me';
-          }
-          res();
-        });
+
+    if(!input.value || (input.dataset.lat && input.dataset.lng)){
+      return Promise.resolve();
+    }
+    return geocodeSmart(input.value).then(out=>{
+      if(out){
+        input.dataset.lat=out.lat;
+        input.dataset.lng=out.lng;
+        input.value=out.formatted;
+      }else{
+        row.classList.add('invalid');
+        input.placeholder='Unrecognised – edit me';
+      }
     });
   });
-  return Promise.all(tasks);
+  return Promise.all(tasks);   // caller waits until every lookup is done
 }
 
 /* ──────────────────────────────────────────────────────────
@@ -393,7 +447,7 @@ window.init = () => {
         const el=list.children[start+i].querySelector('.stop');
         el.value=addr; el.dataset.lat=''; el.dataset.lng='';
       });
-      renumber(); autoCompute();
+      renumber(); autoCompute();    // first compute kicks off geocoding
     });
 
     const ac = new google.maps.places.Autocomplete(input, acOpts);
@@ -433,7 +487,7 @@ function scheduleAutoCompute(ms=250){
 }
 
 /* ------------------------------------------------------------------
-   AUTO‑COMPUTE  (bulk geocode + preview pins)
+   AUTO‑COMPUTE  (batch geocode + preview pins)
 ------------------------------------------------------------------- */
 function autoCompute(){
   const rows=[...document.querySelectorAll('.row')];
