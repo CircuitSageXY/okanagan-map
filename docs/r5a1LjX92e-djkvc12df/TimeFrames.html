@@ -9,6 +9,7 @@
 
 <style>
 :root{
+  /* colour palette -------------------------------------------------- */
   --clr-early:        #8BC34A;
   --clr-late:         #4CAF50;
   --clr-lunch:        #FFEB3B;
@@ -17,84 +18,73 @@
   --clr-evening:      #BA68C8;
   --clr-late-evening: #F44336;
 
-  --axis-w:4px;                  /* width of the black timeline line   */
-  --dock-w:88px;                /* overall width of the coloured bar  */
-  --timeline-h:520px;            /* max drawer height                  */
+  /* layout ---------------------------------------------------------- */
+  --gutter:28px;                /* full width of axis + ticks + labels */
+  --axis-w:4px;                 /* black vertical line                 */
+  --drawer-w:106px;             /* total width shown inside map pane   */
+  --bar-w:calc(var(--drawer-w) - var(--gutter));
+  --timeline-h:520px;
 
-  --tick-color:#9e9e9e;
-  --tick-bold:#424242;
+  /* ticks ----------------------------------------------------------- */
+  --tick-minor:#9e9e9e;
+  --tick-major:#424242;
 }
 
-/* reset & layout */
+/* reset & container layout */
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{margin:0;font-family:Roboto,Arial,sans-serif;background:#fff;overflow:hidden;}
 
-#controls{
-  display:flex;flex-direction:column;gap:6px;padding:8px 8px 6px;
-}
+#controls{display:flex;flex-direction:column;gap:6px;padding:8px 8px 6px;}
 .shiftToggle{
-  padding:6px 14px;border:none;border-radius:4px;
-  background:#e0e0e0;cursor:pointer;font-size:14px;transition:background .15s;
+  padding:6px 14px;border:none;border-radius:4px;background:#e0e0e0;
+  cursor:pointer;font-size:14px;transition:background .15s;
 }
 .shiftToggle:hover{background:#f1f1f1;}
 .shiftToggle.active{background:#90CAF9;font-weight:500;}
 
-.drawer{max-height:0;overflow:hidden;transition:max-height .3s ease;padding-left:8px;}
+.drawer{max-height:0;overflow:hidden;transition:max-height .30s ease;padding-left:8px;}
 .drawer.open{padding-top:10px;padding-bottom:10px;max-height:none;}
 
 .timeline{
-  position:relative;
-  width:var(--dock-w);
-  height:var(--timeline-h);
-  background:#fafafa;
-  border-radius:2px;
-  box-shadow:inset 0 0 0 1px #e0e0e0;
+  position:relative;width:var(--drawer-w);height:var(--timeline-h);
+  background:#fafafa;border-radius:2px;box-shadow:inset 0 0 0 1px #e0e0e0;
 }
 
-/* black vertical axis */
+/* ─── axis (z‑5) ─── */
 .timeline::before{
-  content:"";
-  position:absolute;top:0;left:calc(var(--axis-w)/2);
-  width:var(--axis-w);height:100%;
-  background:#000;border-radius:2px;
-  z-index:5;
+  content:"";position:absolute;top:0;left:calc(var(--gutter)/2 - var(--axis-w)/2);
+  width:var(--axis-w);height:100%;background:#000;border-radius:2px;z-index:5;
 }
 
-/* tick marks */
+/* ─── ticks (z‑4) ─── */
 .tick{
-  position:absolute;left:0;width:100%;pointer-events:none;
-  z-index:4;
+  position:absolute;left:0;width:100%;pointer-events:none;z-index:4;
 }
 .tick::before{
-  content:"";position:absolute;left:calc(var(--axis-w) + 2px);
-  width:6px;height:1px;background:var(--tick-color);
+  content:"";position:absolute;
+  left:calc(var(--gutter)/2 + var(--axis-w)/2); /* flush with axis right edge */
+  width:6px;height:1px;background:var(--tick-minor);
 }
-.tick.bold::before{width:10px;background:var(--tick-bold);}
+.tick.bold::before{width:10px;background:var(--tick-major);}
 .tick span{
-  position:absolute;left:calc(var(--axis-w) + 12px);
-  font-size:10px;line-height:1;color:#424242;
+  position:absolute;left:calc(var(--gutter)/2 + var(--axis-w)/2 + 4px);
+  font-size:11px;line-height:1;color:#424242;
 }
 
-/* coloured segments */
+/* ─── coloured bars (z‑1) ─── */
 .segment{
-  position:absolute;
-    left:calc(var(--axis-w) + 14px);                       /* start just right of axis   */
-    width:calc(100% - var(--axis-w) - 18px);   /* leave breathing room right */
-    z-index:1;                                /* behind ticks + axis        */
+  position:absolute;left:var(--gutter);width:var(--bar-w);z-index:1;
 }
 .segment span{
-  position:absolute;left:calc(var(--axis-w) + 18px);
-  top:50%;transform:translateY(-50%);
-  font-size:14px;font-weight:400;color:#000;white-space:nowrap;pointer-events:none;
+  position:absolute;left:6px;top:50%;transform:translateY(-50%);
+  font-size:15px;font-weight:400;color:#000;white-space:nowrap;pointer-events:none;
 }
 
-/* live “now” marker */
+/* ─── “now” marker (z‑6) ─── */
 .nowMarker{
-  position:absolute;left:calc(var(--axis-w)/2);
-  width:12px;height:12px;
-  border:2px solid #000;background:#fff;border-radius:50%;
-  transform:translateX(-50%) translateY(-50%);
-  box-shadow:0 0 4px rgba(0,0,0,.4);
+  position:absolute;left:calc(var(--gutter)/2);z-index:6;
+  width:12px;height:12px;border:2px solid #000;background:#fff;border-radius:50%;
+  transform:translateX(-50%) translateY(-50%);box-shadow:0 0 4px rgba(0,0,0,.4);
   animation:pulse 2s infinite;
 }
 @keyframes pulse{
@@ -106,7 +96,7 @@ html,body{margin:0;font-family:Roboto,Arial,sans-serif;background:#fff;overflow:
 </head>
 <body>
 
-<!-- vertical buttons -->
+<!-- toggle buttons -->
 <div id="controls">
   <button class="shiftToggle" data-shift="day">Day&nbsp;Shift</button>
   <button class="shiftToggle" data-shift="night">Night&nbsp;Shift</button>
@@ -122,7 +112,7 @@ const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);}
 const pad=n=>n.toString().padStart(2,'0');
 
-/* definitions */
+/* frame + shift definitions */
 const FRAMES=[
   {name:'AM Early',     start:'07:00', end:'09:00',  color:'var(--clr-early)'},
   {name:'AM Late',      start:'09:00', end:'11:00',  color:'var(--clr-late)'},
@@ -137,23 +127,24 @@ const SHIFTS={
   night:{start:'13:30', end:'22:30'}
 };
 
-/* timeline builder */
+/* build a timeline */
 function buildTimeline(drawer,key){
   const {start,end}=SHIFTS[key];
   const s=parseHM(start), e=parseHM(end), span=e-s;
 
+  /* container */
   const line=document.createElement('div');
   line.className='timeline';
   drawer.appendChild(line);
 
-  /* ticks every 15 min */
+  /* 15‑minute ticks */
   for(let t=s;t<=e;t+=15){
     const pct=((t-s)/span)*100;
     const tick=document.createElement('div');
     tick.className='tick'+(t%60===0?' bold':'');
     tick.style.top=pct+'%';
 
-    if(t%60===0){                 /* label on full hour */
+    if(t%60===0){           /* label every full hour */
       const lbl=document.createElement('span');
       lbl.textContent=`${pad(Math.floor(t/60))}:${pad(t%60)}`;
       tick.appendChild(lbl);
@@ -161,7 +152,7 @@ function buildTimeline(drawer,key){
     line.appendChild(tick);
   }
 
-  /* coloured segments with labels */
+  /* coloured bars */
   FRAMES.forEach(fr=>{
     const segStart=Math.max(parseHM(fr.start),s);
     const segEnd  =Math.min(parseHM(fr.end)  ,e);
@@ -179,22 +170,21 @@ function buildTimeline(drawer,key){
     line.appendChild(seg);
   });
 
-  /* now‑marker */
+  /* live “now” marker */
   const mark=document.createElement('div');
   mark.className='nowMarker';
   line.appendChild(mark);
 
   const tickNow=()=>{
-    const d=new Date();
-    const m=d.getHours()*60+d.getMinutes();
+    const d=new Date(), m=d.getHours()*60+d.getMinutes();
     const pct=((m-s)/span)*100;
     mark.style.top=pct+'%';
     mark.style.display=(m<s||m>e)?'none':'block';
   };
-  tickNow();setInterval(tickNow,60_000);
+  tickNow(); setInterval(tickNow,60_000);
 }
 
-/* init */
+/* initialise */
 function init(){
   buildTimeline(document.getElementById('day'),'day');
   buildTimeline(document.getElementById('night'),'night');
@@ -207,7 +197,7 @@ function init(){
     });
   });
 
-  /* open day shift by default */
+  /* open day by default */
   document.querySelector('.shiftToggle[data-shift="day"]').click();
 }
 document.addEventListener('DOMContentLoaded',init);
