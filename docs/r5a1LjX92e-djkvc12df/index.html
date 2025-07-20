@@ -117,61 +117,60 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 #msg{margin:12px 0;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 28px;}
 </style>
 
-  <script type="module">
-import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
-    
-<!-- Google Maps JS -->
-<script defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry"></script>
+<!-- ①  Your application code in a single ES‑module -->
+<script type="module">
+  import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 
-<!-- SortableJS -->
-<script type="module" src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/modular/sortable.core.esm.js"></script>
-</head>
-<body>
+  // ───────────────────────────────
+  // Global constants & state
+  // ───────────────────────────────
+  const labels      = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const colourCycle = ['A','B','C','D','E','F','G','H'];   // 8‑colour loop
 
-<!-- Time‑frame column -->
-<div id="timelineDock">
-  <iframe src="TimeFrames.html" title="TimeFrames" loading="lazy"></iframe>
-</div>
+  let map, dirSvc, dirRend, geocoder;
+  let acService, placeSvc;
+  let autoTimer   = null;
+  let routeVersion = 0;          // duplicate‑response guard
+  let previewPins  = [];         // preview markers
 
-<!-- Control panel -->
-<div id="panel">
-  <div id="stops"></div>
-  <button id="add">+ Add stop</button>
-  <button id="route">Route</button>
-  <button id="opt">Optimize</button>
-  <div id="msg"></div>
-</div>
+  // ───────────────────────────────
+  // Geometry helpers
+  // ───────────────────────────────
+  const IHA_POLY = [
+    {lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
+    {lat:51.00,lng:-123.00},{lat:50.10,lng:-123.20},{lat:49.80,lng:-122.40},
+    {lat:49.00,lng:-120.00},{lat:49.00,lng:-114.00},{lat:51.20,lng:-114.00},
+    {lat:53.00,lng:-116.00}
+  ];
 
-<div id="map"></div>
-
-const labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-const colourCycle = ['A','B','C','D','E','F','G','H'];         // ★★ 8‑colour loop
-
-let map, dirSvc, dirRend, geocoder;
-let acService, placeSvc;
-let autoTimer=null;
-let routeVersion = 0;                                         // ★★ duplicate‑response guard
-let previewPins=[];                                           // ★★ many preview markers
-
-/* ──────────────────────────────────────────────────────────
-   Geometry helpers
-   ────────────────────────────────────────────────────────── */
-const IHA_POLY=[
- {lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
- {lat:51.00,lng:-123.00},{lat:50.10,lng:-123.20},{lat:49.80,lng:-122.40},
- {lat:49.00,lng:-120.00},{lat:49.00,lng:-114.00},{lat:51.20,lng:-114.00},
- {lat:53.00,lng:-116.00}
-];
-function insidePoly(pt,poly){
-  let c=false,j=poly.length-1;
-  for(let i=0;i<poly.length;i++){
-    const pi=poly[i],pj=poly[j];
-    if(((pi.lng>pt.lng)!=(pj.lng>pt.lng)) &&
-        pt.lat<(pj.lat-pi.lat)*(pt.lng-pi.lng)/(pj.lng-pi.lng)+pi.lat) c=!c;
-    j=i;
+  function insidePoly(pt, poly) {
+    let c = false, j = poly.length - 1;
+    for (let i = 0; i < poly.length; i++) {
+      const pi = poly[i], pj = poly[j];
+      if (((pi.lng > pt.lng) !== (pj.lng > pt.lng)) &&
+          pt.lat < (pj.lat - pi.lat) * (pt.lng - pi.lng) / (pj.lng - pi.lng) + pi.lat) {
+        c = !c;
+      }
+      j = i;
+    }
+    return c;
   }
-  return c;
-}
+
+  // … keep everything else (geocoder helpers, DOM helpers, routing,
+  //    optimise logic, etc.) exactly as you had it …
+
+  // ───────────────────────────────
+  // Bootstrap – called by Google loader
+  // ───────────────────────────────
+  window.init = () => {
+    // entire init body unchanged …
+  };
+</script>
+
+<!-- ②  Google Maps loader – runs after the module, finds window.init -->
+<script defer
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry">
+</script>
 
 const CENTRAL_OK_BOUNDS={south:49.60,north:50.30,west:-120.20,east:-118.90};
 const CENTRAL_OK_RX=/kelowna|west kelowna|lake country|oyama|peachland|fintry|joe rich|ellison|rutland|glenmore|glenrosa/i;
