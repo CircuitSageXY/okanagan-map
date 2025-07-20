@@ -118,7 +118,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 </style>
 
 <!-- Google Maps JS -->
-<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry"></script>
+<script defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry"></script>
 
 <!-- SortableJS -->
 <script type="module" src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/modular/sortable.core.esm.js"></script>
@@ -496,22 +496,6 @@ window.init = () => {
     autoCompute();
   });
 }   // ← end of attach()
-
-    const ac = new google.maps.places.Autocomplete(input, acOpts);
-    ac.addListener('place_changed',()=>{
-      const plc = ac.getPlace();
-      if(!plc.geometry){input.value='';return;}
-      const {lat,lng} = plc.geometry.location;
-      const pt={lat:lat(),lng:lng()};
-      if(!insidePoly(pt,IHA_POLY)){
-        input.value=''; input.placeholder='Outside Interior Health';
-        setTimeout(()=>{if(!input.value)input.placeholder=normalPH;},3000); return;
-      }
-      if(plc.formatted_address) input.value=plc.formatted_address;
-      input.dataset.lat=pt.lat; input.dataset.lng=pt.lng;
-      autoCompute();
-    });
-  };
 
   [...list.querySelectorAll('input.stop')].forEach(attach);
 
