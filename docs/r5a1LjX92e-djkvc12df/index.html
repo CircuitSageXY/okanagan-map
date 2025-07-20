@@ -481,11 +481,14 @@ function autoCompute(){
       }
     });
 
-    if(filled.length===1){
+     if(filled.length===1){                      /* only ONE stop ⇒ show preview */
+      clearPreviewPins();
+      const inp=filled[0].querySelector('.stop');
+      addPreviewPin({lat:+inp.dataset.lat,lng:+inp.dataset.lng},labels[0]);
       clearLegDisplays(); clearDirections(); msg.textContent='';
-      map.panTo({lat:+filled[0].querySelector('.stop').dataset.lat,
-                 lng:+filled[0].querySelector('.stop').dataset.lng});
-    }else{
+      map.panTo({lat:+inp.dataset.lat,lng:+inp.dataset.lng});
+    }else{                                      /* 2+ stops ⇒ no preview pins  */
+      clearPreviewPins();                       /* make *sure* none survive    */
       rebuildRoute();
     }
   });
