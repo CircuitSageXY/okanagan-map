@@ -383,9 +383,11 @@ window.routePlannerInit = () => {
       const mu=ev=>{ev.preventDefault();input.removeEventListener('mouseup',mu);};
       input.addEventListener('mouseup',mu);
     });
-    input.addEventListener('blur',()=>{markRowFocus(input,false);scheduleAutoCompute();});
-    input.addEventListener('change',()=>scheduleAutoCompute());
-    input.addEventListener('input',()=>{input.dataset.lat='';input.dataset.lng='';scheduleAutoCompute();});
+   input.addEventListener('blur',()=>{markRowFocus(input,false);} );  /* ← no auto‑compute */
+   input.addEventListener('change',()=>{/* no auto‑compute here */}); /* ← keep silent      */
+   input.addEventListener('input',()=>{                             /* just clear coords   */
+   input.dataset.lat='';input.dataset.lng='';
+});
 
     /* TAB accept */
     input.addEventListener('keydown',e=>{
