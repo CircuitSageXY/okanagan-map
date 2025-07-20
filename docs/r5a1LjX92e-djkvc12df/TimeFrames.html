@@ -21,8 +21,8 @@
   --dock-w:90px;                /* overall width of the coloured bar  */
   --timeline-h:520px;            /* max drawer height                  */
 
-  --tick-color:#bdbdbd;
-  --tick-bold:#616161;
+  --tick-color:#9e9e9e;
+  --tick-bold:#424242;
 }
 
 /* reset & layout */
@@ -57,11 +57,13 @@ html,body{margin:0;font-family:Roboto,Arial,sans-serif;background:#fff;overflow:
   position:absolute;top:0;left:calc(var(--axis-w)/2);
   width:var(--axis-w);height:100%;
   background:#000;border-radius:2px;
+  z-index:5;
 }
 
 /* tick marks */
 .tick{
   position:absolute;left:0;width:100%;pointer-events:none;
+  z-index:4;
 }
 .tick::before{
   content:"";position:absolute;left:calc(var(--axis-w) + 2px);
@@ -83,7 +85,7 @@ html,body{margin:0;font-family:Roboto,Arial,sans-serif;background:#fff;overflow:
 .segment span{
   position:absolute;left:calc(var(--axis-w) + 10px);
   top:50%;transform:translateY(-50%);
-  font-size:13px;font-weight:600;color:#000;white-space:nowrap;pointer-events:none;
+  font-size:14px;font-weight:400;color:#000;white-space:nowrap;pointer-events:none;
 }
 
 /* live “now” marker */
