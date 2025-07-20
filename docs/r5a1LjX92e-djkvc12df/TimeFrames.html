@@ -17,9 +17,12 @@
   --clr-evening:      #BA68C8;
   --clr-late-evening: #F44336;
 
-  --axis-w:4px;                 /* width of the black timeline line   */
-  --dock-w:90px;                /* overall width of the coloured bar  */
-  --timeline-h:500px;           /* height of the drawer when open     */
+  --axis-w:4px;                  /* width of the black timeline line   */
+  --dock-w:110px;                /* overall width of the coloured bar  */
+  --timeline-h:520px;            /* max drawer height                  */
+
+  --tick-color:#bdbdbd;
+  --tick-bold:#616161;
 }
 
 /* reset & layout */
@@ -27,10 +30,7 @@
 html,body{margin:0;font-family:Roboto,Arial,sans-serif;background:#fff;overflow:hidden;}
 
 #controls{
-  display:flex;                 /* vertical stack */
-  flex-direction:column;
-  gap:6px;
-  padding:8px 8px 6px;
+  display:flex;flex-direction:column;gap:6px;padding:8px 8px 6px;
 }
 .shiftToggle{
   padding:6px 14px;border:none;border-radius:4px;
@@ -39,28 +39,38 @@ html,body{margin:0;font-family:Roboto,Arial,sans-serif;background:#fff;overflow:
 .shiftToggle:hover{background:#f1f1f1;}
 .shiftToggle.active{background:#90CAF9;font-weight:500;}
 
-.drawer{
-  max-height:0;overflow:hidden;transition:max-height .3s ease;padding-left:8px;
-}
+.drawer{max-height:0;overflow:hidden;transition:max-height .3s ease;padding-left:8px;}
 .drawer.open{padding-top:10px;padding-bottom:10px;max-height:none;}
 
 .timeline{
   position:relative;
   width:var(--dock-w);
   height:var(--timeline-h);
-  background:#616161;
+  background:#fafafa;
   border-radius:2px;
-  /* centre children text slightly right of axis */
+  box-shadow:inset 0 0 0 1px #e0e0e0;
 }
 
 /* black vertical axis */
 .timeline::before{
   content:"";
-  position:absolute;
-  top:0;left:calc(var(--axis-w)/2);
+  position:absolute;top:0;left:calc(var(--axis-w)/2);
   width:var(--axis-w);height:100%;
-  background:#000;
-  border-radius:2px;
+  background:#000;border-radius:2px;
+}
+
+/* tick marks */
+.tick{
+  position:absolute;left:0;width:100%;pointer-events:none;
+}
+.tick::before{
+  content:"";position:absolute;left:calc(var(--axis-w) + 2px);
+  width:6px;height:1px;background:var(--tick-color);
+}
+.tick.bold::before{width:10px;background:var(--tick-bold);}
+.tick span{
+  position:absolute;left:calc(var(--axis-w) + 12px);
+  font-size:10px;line-height:1;color:#424242;
 }
 
 /* coloured segments */
@@ -68,18 +78,10 @@ html,body{margin:0;font-family:Roboto,Arial,sans-serif;background:#fff;overflow:
   position:absolute;left:0;width:100%;
 }
 .segment span{
-  position:absolute;left:calc(var(--axis-w) + 6px);
+  position:absolute;left:calc(var(--axis-w) + 12px);
   top:50%;transform:translateY(-50%);
-  font-size:11px;color:#000;white-space:nowrap;pointer-events:none;
+  font-size:11px;font-weight:500;color:#000;white-space:nowrap;pointer-events:none;
 }
-
-/* time labels 07:00 & 22:30 */
-.label{
-  position:absolute;left:calc(var(--axis-w) + 6px);
-  font-size:10px;color:#000;white-space:nowrap;
-}
-.label.top{top:-10px;}   /* 07:00 */
-.label.bot{bottom:-10px;}/* 22:30 */
 
 /* live “now” marker */
 .nowMarker{
@@ -88,6 +90,12 @@ html,body{margin:0;font-family:Roboto,Arial,sans-serif;background:#fff;overflow:
   border:2px solid #000;background:#fff;border-radius:50%;
   transform:translateX(-50%) translateY(-50%);
   box-shadow:0 0 4px rgba(0,0,0,.4);
+  animation:pulse 2s infinite;
+}
+@keyframes pulse{
+  0%{box-shadow:0 0 0 0 rgba(0,0,0,.35);}
+  70%{box-shadow:0 0 0 6px rgba(0,0,0,0);}
+  100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}
 }
 </style>
 </head>
@@ -106,7 +114,8 @@ html,body{margin:0;font-family:Roboto,Arial,sans-serif;background:#fff;overflow:
 <script>
 /* helpers */
 const mins=(h,m)=>h*60+m;
-const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);};
+const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);}
+const pad=n=>n.toString().padStart(2,'0');
 
 /* definitions */
 const FRAMES=[
@@ -120,7 +129,7 @@ const FRAMES=[
 ];
 const SHIFTS={
   day:  {start:'07:00', end:'15:30'},
-  night:{start:'13:30', end:'22:00'}
+  night:{start:'13:30', end:'22:30'}
 };
 
 /* timeline builder */
@@ -132,17 +141,22 @@ function buildTimeline(drawer,key){
   line.className='timeline';
   drawer.appendChild(line);
 
-  /* top/bottom labels */
-  const lblTop=document.createElement('div');
-  lblTop.className='label top';
-  lblTop.textContent=start;
-  line.appendChild(lblTop);
+  /* ticks every 15 min */
+  for(let t=s;t<=e;t+=15){
+    const pct=((t-s)/span)*100;
+    const tick=document.createElement('div');
+    tick.className='tick'+(t%60===0?' bold':'');
+    tick.style.top=pct+'%';
 
-  const lblBot=document.createElement('div');
-  lblBot.className='label bot';
-  lblBot.textContent=end;
-  line.appendChild(lblBot);
+    if(t%60===0){                 /* label on full hour */
+      const lbl=document.createElement('span');
+      lbl.textContent=`${pad(Math.floor(t/60))}:${pad(t%60)}`;
+      tick.appendChild(lbl);
+    }
+    line.appendChild(tick);
+  }
 
+  /* coloured segments with labels */
   FRAMES.forEach(fr=>{
     const segStart=Math.max(parseHM(fr.start),s);
     const segEnd  =Math.min(parseHM(fr.end)  ,e);
@@ -160,17 +174,19 @@ function buildTimeline(drawer,key){
     line.appendChild(seg);
   });
 
+  /* now‑marker */
   const mark=document.createElement('div');
   mark.className='nowMarker';
   line.appendChild(mark);
 
-  const tick=()=>{
-    const m=new Date().getHours()*60+new Date().getMinutes();
+  const tickNow=()=>{
+    const d=new Date();
+    const m=d.getHours()*60+d.getMinutes();
     const pct=((m-s)/span)*100;
     mark.style.top=pct+'%';
     mark.style.display=(m<s||m>e)?'none':'block';
   };
-  tick();setInterval(tick,60_000);
+  tickNow();setInterval(tickNow,60_000);
 }
 
 /* init */
