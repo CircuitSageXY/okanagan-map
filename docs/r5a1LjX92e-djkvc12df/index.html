@@ -117,33 +117,31 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 #msg{margin:12px 0;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 28px;}
 </style>
 
-<!-- ①  Your application code in a single ES‑module -->
+<!-- ①  SINGLE ES‑module with ALL your application code -->
 <script type="module">
   import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 
-  // Global constants & state
+  /* ---------- Global constants ---------- */
   const labels      = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
   const colourCycle = ['A','B','C','D','E','F','G','H'];
 
-  const CENTRAL_OK_BOUNDS={south:49.60,north:50.30,west:-120.20,east:-118.90};
-  const CENTRAL_OK_RX=/kelowna|west kelowna|lake country|oyama|peachland|fintry|joe rich|ellison|rutland|glenmore|glenrosa/i;
+  const CENTRAL_OK_BOUNDS = { south:49.60, north:50.30, west:-120.20, east:-118.90 };
+  const CENTRAL_OK_RX = /kelowna|west kelowna|lake country|oyama|peachland|fintry|joe rich|ellison|rutland|glenmore|glenrosa/i;
 
+  /* ---------- State ---------- */
   let map, dirSvc, dirRend, geocoder;
   let acService, placeSvc;
-  let autoTimer   = null;
-  let routeVersion = 0;          // duplicate‑response guard
-  let previewPins  = [];         // preview markers
+  let autoTimer = null;
+  let routeVersion = 0;
+  let previewPins  = [];
 
-  // ───────────────────────────────
-  // Geometry helpers
-  // ───────────────────────────────
+  /* ---------- Geometry helpers ---------- */
   const IHA_POLY = [
     {lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
     {lat:51.00,lng:-123.00},{lat:50.10,lng:-123.20},{lat:49.80,lng:-122.40},
     {lat:49.00,lng:-120.00},{lat:49.00,lng:-114.00},{lat:51.20,lng:-114.00},
     {lat:53.00,lng:-116.00}
   ];
-
   function insidePoly(pt, poly) {
     let c = false, j = poly.length - 1;
     for (let i = 0; i < poly.length; i++) {
@@ -157,21 +155,21 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
     return c;
   }
 
-  // … keep everything else (geocoder helpers, DOM helpers, routing,
-  //    optimise logic, etc.) exactly as you had it …
+  /* ---------- ALL the rest of your helpers & logic ----------
+     geocodeSmart, ensureCoords, DOM helpers, autoCompute,
+     rebuildRoute, globalOptimizeRoute, displayLegs, etc.
+     (unchanged – just keep them inside this module)            */
 
-  // ───────────────────────────────
-  // Bootstrap – called by Google loader
-  // ───────────────────────────────
+  /* ---------- Bootstrap – called by Google loader ---------- */
   window.init = () => {
-    // entire init body unchanged …
+    // full init() body unchanged …
   };
 </script>
 
-<!-- ②  Google Maps loader – runs after the module, finds window.init -->
+<!-- ②  Google Maps loader – runs after the module -->
 <script defer
-  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry">
-  </script>
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry,directions">
+</script>
 </body>
 </html>
 
