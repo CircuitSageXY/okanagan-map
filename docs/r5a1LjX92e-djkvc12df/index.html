@@ -24,7 +24,7 @@
 html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 
 /* ───────────────────────────────────────────────
-   Time‑frame column
+   Time-frame column
    ─────────────────────────────────────────────── */
 #timelineDock{
   position:absolute;top:0;left:0;width:110px;height:100%;
@@ -47,7 +47,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   border-radius:var(--radiusMd);transition:background var(--transFast),box-shadow var(--transFast);}
 .row.focused{background:var(--clrInputBgAlt);box-shadow:0 0 0 2px rgba(33,150,243,.25);}
 .row:hover:not(.focused){background:rgba(0,0,0,.04);}
-.row.invalid input.stop{border-color:#e53935;background:#ffebee;}
+.row.invalid input.stop{border-color:#e53935;background:#fff7f7;}
 
 .bullet{
   width:24px;height:24px;border-radius:50%;line-height:24px;text-align:center;
@@ -116,22 +116,25 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 <!-- ── 1. stub so Google always finds a callback ── -->
 <script>
   function init(){
+    /* defer to real init once module has loaded */
     if(typeof window.routePlannerInit==='function'){ window.routePlannerInit(); }
     else{ window.__mapsApiReady=true; }
   }
 </script>
 
-<!-- Google Maps -->
+<!-- Google Maps (JS v3) -->
 <script async defer
   src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry">
 </script>
 
-<!-- SortableJS -->
+<!-- SortableJS (ESM build) -->
 <script type="module" src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/modular/sortable.core.esm.js"></script>
 </head>
 <body>
 
-<div id="timelineDock"><iframe src="TimeFrames.html" title="TimeFrames" loading="lazy"></iframe></div>
+<div id="timelineDock">
+  <iframe src="TimeFrames.html" title="TimeFrames" loading="lazy"></iframe>
+</div>
 
 <div id="panel">
   <div id="stops"></div>
@@ -147,17 +150,19 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 <script type="module">
 import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 
-const labels='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-const colourCycle=['A','B','C','D','E','F','G','H'];
+const labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+const colourCycle = ['A','B','C','D','E','F','G','H'];
 
-let map,dirSvc,dirRend,geocoder,acService,placeSvc;
-let autoTimer=null,routeVersion=0,previewPins=[];
+let map, dirSvc, dirRend, geocoder, acService, placeSvc;
+let autoTimer = null, routeVersion = 0, previewPins = [];
 
-/* ── geometry helpers (unchanged) ── */
-const IHA_POLY=[{lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
- {lat:51.00,lng:-123.00},{lat:50.10,lng:-123.20},{lat:49.80,lng:-122.40},
- {lat:49.00,lng:-120.00},{lat:49.00,lng:-114.00},{lat:51.20,lng:-114.00},
- {lat:53.00,lng:-116.00}];
+/* ───────────────────────── geometry helpers ───────────────────────── */
+const IHA_POLY = [
+  {lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
+  {lat:51.00,lng:-123.00},{lat:50.10,lng:-123.20},{lat:49.80,lng:-122.40},
+  {lat:49.00,lng:-120.00},{lat:49.00,lng:-114.00},{lat:51.20,lng:-114.00},
+  {lat:53.00,lng:-116.00}
+];
 function insidePoly(pt,poly){
   let c=false,j=poly.length-1;
   for(let i=0;i<poly.length;i++){
@@ -168,28 +173,32 @@ function insidePoly(pt,poly){
   }
   return c;
 }
-const CENTRAL_OK_BOUNDS={south:49.60,north:50.30,west:-120.20,east:-118.90};
-const CENTRAL_OK_RX=/kelowna|west kelowna|lake country|oyama|peachland|fintry|joe rich|ellison|rutland|glenmore|glenrosa/i;
+const CENTRAL_OK_BOUNDS = {south:49.60,north:50.30,west:-120.20,east:-118.90};
+const CENTRAL_OK_RX = /kelowna|west kelowna|lake country|oyama|peachland|fintry|joe rich|ellison|rutland|glenmore|glenrosa/i;
 
-/* smart geocoder (unchanged) */
+/* ───────────────────────── smart geocoder ───────────────────────── */
 function geocodeSmart(text){
-  const cleaned=text.replace(/\s+/g,' ').trim();
+  const cleaned = text.replace(/\s+/g,' ').trim();
   if(!cleaned) return Promise.resolve(null);
   return new Promise(res=>{
     acService.getPlacePredictions({
-      input:cleaned,bounds:CENTRAL_OK_BOUNDS,
-      componentRestrictions:{country:'ca'},types:['address']
+      input: cleaned,
+      bounds: CENTRAL_OK_BOUNDS,
+      componentRestrictions:{country:'ca'},
+      types:['address']
     },(preds,status)=>{
       if(status===google.maps.places.PlacesServiceStatus.OK && preds?.length){
-        const pred=preds.find(p=>CENTRAL_OK_RX.test(p.description))||preds[0];
-        placeSvc.getDetails({placeId:pred.place_id,fields:['formatted_address','geometry']},
-          (plc,stat2)=>{
-            if(stat2===google.maps.places.PlacesServiceStatus.OK && plc?.geometry){
-              const loc=plc.geometry.location;
-              return res({lat:loc.lat(),lng:loc.lng(),formatted:plc.formatted_address});
-            }
-            geoFallback();
-          });
+        const pred = preds.find(p=>CENTRAL_OK_RX.test(p.description)) || preds[0];
+        placeSvc.getDetails({
+          placeId: pred.place_id,
+          fields:['formatted_address','geometry']
+        },(plc,stat2)=>{
+          if(stat2===google.maps.places.PlacesServiceStatus.OK && plc?.geometry){
+            const loc = plc.geometry.location;
+            return res({lat:loc.lat(),lng:loc.lng(),formatted:plc.formatted_address});
+          }
+          geoFallback();
+        });
       }else{ geoFallback(); }
     });
     function geoFallback(){
@@ -205,50 +214,56 @@ function geocodeSmart(text){
   });
 }
 
-/* batch geocode */
-const ensureCoords=rows=>{
-  const tasks=rows.map(row=>{
-    const inp=row.querySelector('.stop');
+/* ─────────────────────── batch geocode + validator ─────────────────────── */
+function ensureCoords(rows){
+  const tasks = rows.map(row=>{
+    const inp = row.querySelector('.stop');
     row.classList.remove('invalid');
-    if(!inp.value || (inp.dataset.lat && inp.dataset.lng)) return;
+    if(!inp.value || (inp.dataset.lat && inp.dataset.lng)) return true;
     return geocodeSmart(inp.value).then(out=>{
       if(out){
-        inp.dataset.lat=out.lat; inp.dataset.lng=out.lng; inp.value=out.formatted;
-      }else{ row.classList.add('invalid'); inp.placeholder='Unrecognised – edit me'; }
+        inp.dataset.lat = out.lat;
+        inp.dataset.lng = out.lng;
+        inp.value       = out.formatted;
+        return true;
+      }
+      row.classList.add('invalid');
+      inp.placeholder = 'Unrecognised – edit me';
+      return false;
     });
   });
-  return Promise.all(tasks);
-};
+  return Promise.all(tasks).then(arr=>arr.every(Boolean));   // true if all rows good
+}
 
-/* DOM helpers */
+/* ───────────────────────── DOM helpers ───────────────────────── */
 function makeRow(i){
-  const d=document.createElement('div'); d.className='row';
-  const clr=colourCycle[i%colourCycle.length]||'defaultBullet';
-  d.innerHTML=`
+  const d = document.createElement('div'); d.className='row';
+  const clr = colourCycle[i%colourCycle.length] || 'defaultBullet';
+  d.innerHTML = `
     <div class="bullet ${clr}">${labels[i]}</div>
     <input class="stop" placeholder="Enter stop">
     <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
     <span class="remove" title="Remove stop">×</span>`;
-  d.querySelector('.remove').onclick=()=>{d.remove();renumber();autoCompute();};
+  d.querySelector('.remove').onclick = () => { d.remove(); renumber(); autoCompute(); };
   return d;
 }
 function renumber(){
   [...document.querySelectorAll('.row')].forEach((r,i)=>{
-    const b=r.querySelector('.bullet');
-    b.textContent=labels[i]||'?';
-    b.className='bullet '+(colourCycle[i%colourCycle.length]||'defaultBullet');
+    const b = r.querySelector('.bullet');
+    b.textContent = labels[i] || '?';
+    b.className   = 'bullet '+(colourCycle[i%colourCycle.length] || 'defaultBullet');
   });
 }
-const clearPreviewPins=()=>{previewPins.forEach(m=>m.setMap(null));previewPins=[];};
-const addPreviewPin=(pos,label)=>previewPins.push(new google.maps.Marker(
+const clearPreviewPins = () => { previewPins.forEach(m=>m.setMap(null)); previewPins=[]; };
+const addPreviewPin   = (pos,label) => previewPins.push(new google.maps.Marker(
   {map,position:pos,label:{text:label,color:'#fff'}}));
-const clearLegDisplays=()=>document.querySelectorAll('.leg-display').forEach(e=>e.remove());
-const markRowFocus=(input,focus)=>{
-  const row=input.closest('.row'); if(!row) return;
+const clearLegDisplays = () => document.querySelectorAll('.leg-display').forEach(e=>e.remove());
+const markRowFocus = (input,focus) => {
+  const row = input.closest('.row'); if(!row) return;
   row.classList.toggle('focused',focus);
 };
 
-/* prediction filter (unchanged) */
+/* ───────────────────────── prediction filter ───────────────────────── */
 function installPredictionFilter(){
   new MutationObserver(muts=>{
     muts.forEach(m=>m.addedNodes.forEach(node=>{
@@ -268,7 +283,7 @@ function installPredictionFilter(){
   }).observe(document.body,{childList:true,subtree:true});
 }
 
-/* TAB helper */
+/* ───────────────────────── TAB helper ───────────────────────── */
 function focusNextStop(curInput){
   const stops=[...document.querySelectorAll('input.stop')];
   const i=stops.indexOf(curInput);
@@ -280,17 +295,23 @@ function focusNextStop(curInput){
   }
 }
 
-/* accept top prediction */
+/* ───────────────────────── accept top prediction ───────────────────────── */
 function acceptTopPrediction(inp){
   const q=inp.value.trim(); if(!q){focusNextStop(inp);return;}
   acService.getPlacePredictions({
-    input:q,bounds:CENTRAL_OK_BOUNDS,componentRestrictions:{country:'ca'},types:['address']
+    input:q,bounds:CENTRAL_OK_BOUNDS,
+    componentRestrictions:{country:'ca'},
+    types:['address']
   },(preds,status)=>{
-    if(status!==google.maps.places.PlacesServiceStatus.OK||!preds?.length){focusNextStop(inp);return;}
+    if(status!==google.maps.places.PlacesServiceStatus.OK||!preds?.length){
+      focusNextStop(inp);return;
+    }
     const pred=preds.find(p=>CENTRAL_OK_RX.test(p.description))||preds[0];
     placeSvc.getDetails({placeId:pred.place_id,fields:['formatted_address','geometry']},
       (plc,stat2)=>{
-        if(stat2!==google.maps.places.PlacesServiceStatus.OK||!plc?.geometry){focusNextStop(inp);return;}
+        if(stat2!==google.maps.places.PlacesServiceStatus.OK||!plc?.geometry){
+          focusNextStop(inp);return;
+        }
         const loc=plc.geometry.location,pt={lat:loc.lat(),lng:loc.lng()};
         if(!insidePoly(pt,IHA_POLY)){
           inp.value='';inp.placeholder='Outside Interior Health';
@@ -304,31 +325,55 @@ function acceptTopPrediction(inp){
   });
 }
 
-/* ── initialiser ── */
-window.routePlannerInit=()=>{
+/* ───────────────────────── helper: row => location ───────────────────────── */
+const rowToLocation = row => {
+  const inp=row.querySelector('.stop');
+  return (inp.dataset.lat && inp.dataset.lng)
+    ? new google.maps.LatLng(+inp.dataset.lat,+inp.dataset.lng)
+    : inp.value.trim();
+};
+
+/* ───────────────────────── initialise everything ───────────────────────── */
+window.routePlannerInit = () => {
   installPredictionFilter();
 
-  map=new google.maps.Map(document.getElementById('map'),{center:{lat:49.8879,lng:-119.4960},zoom:10});
+  map = new google.maps.Map(
+    document.getElementById('map'),
+    {center:{lat:49.8879,lng:-119.4960},zoom:10}
+  );
   new google.maps.KmlLayer({
     url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',
-    map,preserveViewport:true
+    map,
+    preserveViewport:true
   });
 
-  dirSvc=new google.maps.DirectionsService();
-  dirRend=new google.maps.DirectionsRenderer({map});
-  geocoder=new google.maps.Geocoder();
-  acService=new google.maps.places.AutocompleteService();
-  placeSvc=new google.maps.places.PlacesService(map);
+  dirSvc  = new google.maps.DirectionsService();
+  dirRend = new google.maps.DirectionsRenderer({map});
+  geocoder = new google.maps.Geocoder();
+  acService = new google.maps.places.AutocompleteService();
+  placeSvc  = new google.maps.places.PlacesService(map);
 
+  /* build initial two rows */
   const list=document.getElementById('stops');
   list.appendChild(makeRow(0)); list.appendChild(makeRow(1));
-  Sortable.create(list,{handle:'.drag',animation:150,onEnd:()=>{renumber();autoCompute();}});
 
+  /* enable drag-reorder */
+  Sortable.create(list,{
+    handle:'.drag',
+    animation:150,
+    onEnd:()=>{renumber();autoCompute();}
+  });
+
+  /* shared autocomplete opts */
   const acOpts={
-    fields:['formatted_address','geometry','place_id'],types:['address'],
-    componentRestrictions:{country:'ca'},bounds:CENTRAL_OK_BOUNDS,strictBounds:true
+    fields:['formatted_address','geometry','place_id'],
+    types:['address'],
+    componentRestrictions:{country:'ca'},
+    bounds:CENTRAL_OK_BOUNDS,
+    strictBounds:true
   };
 
+  /* attach events to each input */
   const attach=input=>{
     const ph='Enter stop'; input.placeholder=ph;
 
@@ -342,33 +387,34 @@ window.routePlannerInit=()=>{
     input.addEventListener('change',()=>scheduleAutoCompute());
     input.addEventListener('input',()=>{input.dataset.lat='';input.dataset.lng='';scheduleAutoCompute();});
 
-    /* Tab */
+    /* TAB accept */
     input.addEventListener('keydown',e=>{
-      if(e.key==='Tab'&&!e.shiftKey){
-        if(input.dataset.lat&&input.dataset.lng)return;
-        e.preventDefault();acceptTopPrediction(input);
+      if(e.key==='Tab' && !e.shiftKey){
+        if(input.dataset.lat && input.dataset.lng) return;
+        e.preventDefault(); acceptTopPrediction(input);
       }
     });
 
-    /* bulk paste */
+    /* bulk-paste list */
     input.addEventListener('paste',e=>{
       const clip=(e.clipboardData||window.clipboardData).getData('text');
       const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-      if(lines.length<=1)return; e.preventDefault();
+      if(lines.length<=1) return; e.preventDefault();
+
       const rows=[...list.querySelectorAll('.row')];
       const start=rows.indexOf(input.closest('.row'));
-      while(list.children.length<start+lines.length&&list.children.length<labels.length){
-        const r=makeRow(list.children.length);list.appendChild(r);attach(r.querySelector('.stop'));
+      while(list.children.length<start+lines.length && list.children.length<labels.length){
+        const r=makeRow(list.children.length); list.appendChild(r); attach(r.querySelector('.stop'));
       }
       lines.forEach((addr,i)=>{
-        if(start+i>=labels.length)return;
+        if(start+i>=labels.length) return;
         const el=list.children[start+i].querySelector('.stop');
-        el.value=addr;el.dataset.lat='';el.dataset.lng='';
+        el.value=addr; el.dataset.lat=''; el.dataset.lng='';
       });
-      renumber();autoCompute();
+      renumber(); autoCompute();
     });
 
-    /* Google Places autocomplete */
+    /* Google Places autocomplete instance */
     const ac=new google.maps.places.Autocomplete(input,acOpts);
     ac.addListener('place_changed',()=>{
       const plc=ac.getPlace();
@@ -387,74 +433,85 @@ window.routePlannerInit=()=>{
   [...list.querySelectorAll('input.stop')].forEach(attach);
 
   /* buttons */
-  document.getElementById('add').onclick=()=>{
+  document.getElementById('add').onclick = () => {
     if(list.children.length<labels.length){
-      const r=makeRow(list.children.length);list.appendChild(r);
-      attach(r.querySelector('.stop'));renumber();
+      const r=makeRow(list.children.length); list.appendChild(r);
+      attach(r.querySelector('.stop')); renumber();
     }
   };
-  document.getElementById('route').onclick=rebuildRoute;
-  document.getElementById('opt').onclick=globalOptimizeRoute;
+  document.getElementById('route').onclick = rebuildRoute;
+  document.getElementById('opt').onclick   = globalOptimizeRoute;
 };
-if(window.__mapsApiReady)window.routePlannerInit();
 
-/* ── debounce ── */
-const scheduleAutoCompute=(ms=250)=>{clearTimeout(autoTimer);autoTimer=setTimeout(autoCompute,ms);};
+/* run init immediately if Maps already loaded */
+if(window.__mapsApiReady) window.routePlannerInit();
 
-/* ── auto‑compute (batch geocode + preview pins) ── */
+/* ───────────────────────── debounce helper ───────────────────────── */
+const scheduleAutoCompute = (ms=250) => { clearTimeout(autoTimer); autoTimer=setTimeout(autoCompute,ms); };
+
+/* ───────────────────────── REAL renderer reset ───────────────────────── */
+function clearDirections(){
+  dirRend.set('directions',null);  // wipe polyline + pins
+  dirRend.setMap(null);            // detach
+  dirRend.setMap(map);             // re-attach ready for next draw
+}
+
+/* ───────────────────────── auto-compute (preview or route) ───────────────────────── */
 function autoCompute(){
   const rows=[...document.querySelectorAll('.row')];
   const filled=rows.filter(r=>r.querySelector('.stop').value.trim());
   const msg=document.getElementById('msg');
 
   if(filled.length===0){
-    clearPreviewPins();clearLegDisplays();msg.textContent='';
-    dirRend.setDirections(null);                                /* ← clears A/B & path */
-    return;
+    clearPreviewPins(); clearLegDisplays(); msg.textContent='';
+    clearDirections(); return;
   }
 
-  ensureCoords(filled).then(()=>{
+  ensureCoords(filled).then(allOK=>{
+    if(!allOK){ clearPreviewPins(); clearLegDisplays(); clearDirections();
+      msg.textContent='One or more stops can’t be located – please edit.'; return; }
+
     clearPreviewPins();
     filled.forEach((r,i)=>{
       const inp=r.querySelector('.stop');
-      if(inp.dataset.lat&&inp.dataset.lng){
+      if(inp.dataset.lat && inp.dataset.lng){
         addPreviewPin({lat:+inp.dataset.lat,lng:+inp.dataset.lng},labels[i]);
       }
     });
+
     if(filled.length===1){
-      clearLegDisplays();dirRend.setDirections(null);
+      clearLegDisplays(); clearDirections(); msg.textContent='';
       map.panTo({lat:+filled[0].querySelector('.stop').dataset.lat,
                  lng:+filled[0].querySelector('.stop').dataset.lng});
-      msg.textContent='';
-    }else{ rebuildRoute(); }
+    }else{
+      rebuildRoute();
+    }
   });
 }
 
-/* ── routing helpers ── */
-const rowToLocation=row=>{
-  const inp=row.querySelector('.stop');
-  return (inp.dataset.lat&&inp.dataset.lng)
-    ? new google.maps.LatLng(+inp.dataset.lat,+inp.dataset.lng)
-    : inp.value.trim();
-};
-
+/* ───────────────────────── routing helpers ───────────────────────── */
 function rebuildRoute(){
   const rows=[...document.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
   const msg=document.getElementById('msg');
   clearLegDisplays();
-  if(rows.length<2){msg.textContent='';dirRend.setDirections(null);return;}
+  if(rows.length<2){ msg.textContent=''; clearDirections(); return; }
 
+  /* build request */
   const locs=rows.map(rowToLocation);
   const reqId=++routeVersion;
 
   dirSvc.route({
-    origin:locs[0],destination:locs[locs.length-1],
+    origin:locs[0],
+    destination:locs[locs.length-1],
     waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
     travelMode:'DRIVING'
-  },(res,stat)=>{ if(reqId===routeVersion)displayLegs(res,stat); });
+  },(res,stat)=>{
+    if(reqId!==routeVersion) return;   // ignore stale
+    displayLegs(res,stat);
+  });
 }
 
-/* ── NEW lightweight optimizer ── */
+/* ───────────────────────── light optimizer ───────────────────────── */
 async function globalOptimizeRoute(){
   const msg=document.getElementById('msg');
   const list=document.getElementById('stops');
@@ -462,7 +519,9 @@ async function globalOptimizeRoute(){
 
   if(rows.length<3){ rebuildRoute(); return; }
 
-  await ensureCoords(rows);
+  const allOK = await ensureCoords(rows);
+  if(!allOK){ msg.textContent='One or more stops can’t be located – please edit.'; return; }
+
   const locs=rows.map(rowToLocation);
   routeVersion++; const runId=routeVersion;
 
@@ -475,10 +534,10 @@ async function globalOptimizeRoute(){
     optimizeWaypoints:true,
     travelMode:'DRIVING'
   },(res,stat)=>{
-    if(runId!==routeVersion)return;
-    if(stat!=='OK'){msg.textContent='Optimize failed';return;}
+    if(runId!==routeVersion) return;
+    if(stat!=='OK'){ msg.textContent='Optimize failed'; return; }
 
-    /* re‑order DOM to Google’s waypoint order */
+    /* re-order DOM to Google’s waypoint order */
     const order=[0,...res.routes[0].waypoint_order.map(i=>i+1),locs.length-1];
     const rowNodes=[...list.querySelectorAll('.row')];
     order.forEach(idx=>list.appendChild(rowNodes[idx]));
@@ -489,26 +548,27 @@ async function globalOptimizeRoute(){
 
     const km=res.routes[0].legs.reduce((s,l)=>s+l.distance.value,0)/1000;
     const mins=Math.round(res.routes[0].legs.reduce((s,l)=>s+l.duration.value,0)/60);
-    msg.textContent=`Optimized distance ${km.toFixed(1)} km | ≈ ${mins} min`;
+    msg.textContent=`Optimized distance ${km.toFixed(1)} km | ≈ ${mins} min`;
   });
 }
 
-/* leg display (unchanged) */
+/* ───────────────────────── leg summaries ───────────────────────── */
 function displayLegs(res,stat){
   const msg=document.getElementById('msg');
-  if(stat!=='OK'){msg.textContent='Route error: '+stat;dirRend.setDirections(null);return;}
+  if(stat!=='OK'){ msg.textContent='Route error: '+stat; clearDirections(); return; }
 
   dirRend.setDirections(res);
-  const list=document.getElementById('stops');
-  const rows=[...list.querySelectorAll('.row')];
-  let kmTot=0,minTot=0;
-  clearLegDisplays();
+  const rows=[...document.getElementById('stops').querySelectorAll('.row')];
+
+  let kmTot=0,minTot=0; clearLegDisplays();
 
   res.routes[0].legs.forEach((leg,i)=>{
-    const km=leg.distance.value/1000,min=Math.round(leg.duration.value/60);
-    kmTot+=km;minTot+=min;
+    const km=leg.distance.value/1000, min=Math.round(leg.duration.value/60);
+    kmTot+=km; minTot+=min;
+
     const startLetter=rows[i]?.querySelector('.bullet')?.textContent.trim()||'';
     const cls=colourCycle.includes(startLetter)?('leg-'+startLetter):'leg-default';
+
     const div=document.createElement('div');
     div.className='leg-display '+cls;
     div.textContent=`Distance ${km.toFixed(1)} km | ≈ ${min} min`;
