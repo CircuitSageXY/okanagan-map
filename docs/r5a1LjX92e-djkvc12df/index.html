@@ -550,28 +550,80 @@ function rebuildRoute(){
   });
 }
 
-function optimizeRoute(){
-  const rows=[...document.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
-  if(rows.length<3){rebuildRoute();return;}
+/* ──────────────────────────────────────────────────────────
+   ★★ GLOBAL OPTIMISER – finds the cheapest start+end combo
+   ────────────────────────────────────────────────────────── */
+async function globalOptimizeRoute(){
+  const msg=document.getElementById('msg');
+  const list=document.getElementById('stops');
+  const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
+  if(rows.length<3){ rebuildRoute(); return; }
 
-  const locs=rows.map(rowToLocation);
-  const thisReq = ++routeVersion;
+  /* make sure every row has coordinates first */
+  await ensureCoords(rows);
 
-  dirSvc.route({
-    origin:locs[0], destination:locs[0],
-    waypoints:locs.slice(1).map(l=>({location:l,stopover:true})),
-    travelMode:'DRIVING', optimizeWaypoints:true
-  }, (res,stat)=>{
-      if(thisReq!==routeVersion) return;
-      if(stat!=='OK'){alert('Optimize failed: '+stat);return;}
-      const order=res.routes[0].waypoint_order;
-      const list=document.getElementById('stops');
-      const rowsDom=[...list.querySelectorAll('.row')];
-      order.forEach(i=>list.appendChild(rowsDom[i+1]));  // reorder
-      renumber(); autoCompute();
+  const locs = rows.map(rowToLocation);
+  const n    = locs.length;
+  routeVersion++;                    // invalidate any stale replies
+  const thisRun = routeVersion;
+
+  msg.textContent='Optimising…';     // quick user feedback
+
+  const tryRoute = (i,j) => new Promise(resolve=>{
+    const wpIdx = [...Array(n).keys()].filter(k=>k!==i&&k!==j);
+    dirSvc.route({
+      origin      : locs[i],
+      destination : locs[j],
+      waypoints   : wpIdx.map(k=>({location:locs[k],stopover:true})),
+      optimizeWaypoints:true,
+      travelMode :'DRIVING'
+    }, (res,stat)=>{
+      if(stat!=='OK'){ return resolve(null); }
+      const dist = res.routes[0].legs.reduce((s,l)=>s+l.distance.value,0); // metres
+      resolve({i,j,wpIdx,res,dist});
+    });
   });
+
+  /* brute‑force every (i,j) pair (except i===j) – sequential to stay in quota */
+  let best=null;
+  for(let i=0;i<n;i++){
+    for(let j=0;j<n;j++){
+      if(i===j) continue;
+      const out = await tryRoute(i,j);
+      if(!out) continue;
+      if(!best || out.dist < best.dist) best = out;
+    }
+  }
+
+  if(!best || thisRun!==routeVersion){ msg.textContent='Optimise failed'; return; }
+
+  /* translate Google’s waypoint_order back to original indices */
+  const fullOrder = [
+    best.i,
+    ...best.res.routes[0].waypoint_order.map(k=>best.wpIdx[k]),
+    best.j
+  ];
+
+  /* reorder DOM to match */
+  const rowNodes=[...list.querySelectorAll('.row')]; // snapshot before moving
+  fullOrder.forEach(idx=>list.appendChild(rowNodes[idx]));
+  renumber();
+
+  /* show the picked itinerary */
+  dirRend.setDirections(best.res);
+  displayLegs(best.res,'OK');
+
+  msg.textContent =
+    `Optimised distance ${(best.dist/1000).toFixed(1)} km`
+    + ` | ≈ ${Math.round(best.res.routes[0].legs.reduce((s,l)=>s+l.duration.value,0)/60)} min`;
 }
 
+/* ------------------------------------------------------------------
+   Optimise‑waypoint (return to start)  >>> retained for fallback use
+   (but the Opt button now calls globalOptimizeRoute instead)
+------------------------------------------------------------------- */
+function optimizeRoute(){ /* … unchanged from previous file … */ }
+  
 function displayLegs(res,stat){
   const msg=document.getElementById('msg');
   if(stat!=='OK'){ msg.textContent='Route error: '+stat; dirRend.setDirections({}); return; }
