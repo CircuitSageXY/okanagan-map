@@ -427,45 +427,75 @@ window.init = () => {
   });
   input.addEventListener('change', () => scheduleAutoCompute());
 
-  /* ★★ live‑refresh when user edits the text */
+    /* ★★ live‑refresh when user edits the text */
   input.addEventListener('input', () => {
     input.dataset.lat = '';
     input.dataset.lng = '';
-    scheduleAutoCompute();
+    scheduleAutoCompute();          // update pins & route immediately
   });
 
-  /* … everything else in attach() stays exactly the same … */
-};
-
-    /* wipe stored coords if user edits */
-
-    /* TAB => accept top suggestion */
-    input.addEventListener('keydown',e=>{
-      if(e.key==='Tab' && !e.shiftKey){
-        if(input.dataset.lat && input.dataset.lng) return;   // already chosen
-        e.preventDefault(); acceptTopPrediction(input);
-      }
-    });
-
-    /* Bulk‑paste addresses */
-    input.addEventListener('paste',e=>{
-      const clip=(e.clipboardData||window.clipboardData).getData('text');
-      const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-      if(lines.length<=1) return;
+  /* TAB ⇒ accept top prediction, then advance */
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      if (input.dataset.lat && input.dataset.lng) return; // already a picked place
       e.preventDefault();
-      const rows=[...list.querySelectorAll('.row')];
-      const start=rows.indexOf(input.closest('.row'));
-      while(list.children.length<start+lines.length && list.children.length<labels.length){
-        const r=makeRow(list.children.length);
-        list.appendChild(r); attach(r.querySelector('.stop'));
-      }
-      lines.forEach((addr,i)=>{
-        if(start+i>=labels.length) return;
-        const el=list.children[start+i].querySelector('.stop');
-        el.value=addr; el.dataset.lat=''; el.dataset.lng='';
-      });
-      renumber(); autoCompute();    // first compute kicks off geocoding
+      acceptTopPrediction(input);
+    }
+  });
+
+  /* Bulk‑paste: split clipboard lines into successive rows */
+  input.addEventListener('paste', e => {
+    const clip  = (e.clipboardData || window.clipboardData).getData('text');
+    const lines = clip.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    if (lines.length <= 1) return;        // normal paste if only one line
+    e.preventDefault();
+
+    const list  = document.getElementById('stops');
+    const rows  = [...list.querySelectorAll('.row')];
+    const start = rows.indexOf(input.closest('.row'));
+
+    // ensure enough rows exist
+    while (list.children.length < start + lines.length && list.children.length < labels.length) {
+      const r = makeRow(list.children.length);
+      list.appendChild(r);
+      attach(r.querySelector('.stop'));
+    }
+
+    // drop each pasted address into successive rows
+    lines.forEach((addr, i) => {
+      if (start + i >= labels.length) return;
+      const el = list.children[start + i].querySelector('.stop');
+      el.value = addr;
+      el.dataset.lat = '';
+      el.dataset.lng = '';
     });
+
+    renumber();
+    autoCompute();    // kick off batch‑geocode & preview
+  });
+
+  /* Google Places autocomplete for this input */
+  const ac = new google.maps.places.Autocomplete(input, acOpts);
+  ac.addListener('place_changed', () => {
+    const plc = ac.getPlace();
+    if (!plc.geometry) { input.value = ''; return; }
+
+    const loc = plc.geometry.location;
+    const pt  = { lat: loc.lat(), lng: loc.lng() };
+
+    if (!insidePoly(pt, IHA_POLY)) {
+      input.value = '';
+      input.placeholder = 'Outside Interior Health';
+      setTimeout(() => { if (!input.value) input.placeholder = normalPH; }, 3000);
+      return;
+    }
+
+    input.value       = plc.formatted_address || plc.name;
+    input.dataset.lat = pt.lat;
+    input.dataset.lng = pt.lng;
+    autoCompute();
+  });
+}   // ← end of attach()
 
     const ac = new google.maps.places.Autocomplete(input, acOpts);
     ac.addListener('place_changed',()=>{
