@@ -408,16 +408,34 @@ window.init = () => {
   };
 
   const attach = input => {
-    const normalPH='Enter stop'; input.placeholder=normalPH;
+  const normalPH = 'Enter stop';
+  input.placeholder = normalPH;
 
-    input.addEventListener('focus',e=>{
-      markRowFocus(input,true); input.placeholder=normalPH;
-      setTimeout(()=>e.target.select(),0);
-      const mu=ev=>{ev.preventDefault();input.removeEventListener('mouseup',mu);};
-      input.addEventListener('mouseup',mu);
-    });
-    input.addEventListener('blur',()=>{markRowFocus(input,false);scheduleAutoCompute();});
-    input.addEventListener('change',()=>scheduleAutoCompute());
+  /* focus: highlight row & select text */
+  input.addEventListener('focus', e => {
+    markRowFocus(input, true);
+    input.placeholder = normalPH;
+    setTimeout(() => e.target.select(), 0);
+    const mu = ev => { ev.preventDefault(); input.removeEventListener('mouseup', mu); };
+    input.addEventListener('mouseup', mu);
+  });
+
+  /* blur / change still debounce‑recompute */
+  input.addEventListener('blur', () => {
+    markRowFocus(input, false);
+    scheduleAutoCompute();
+  });
+  input.addEventListener('change', () => scheduleAutoCompute());
+
+  /* ★★ live‑refresh when user edits the text */
+  input.addEventListener('input', () => {
+    input.dataset.lat = '';
+    input.dataset.lng = '';
+    scheduleAutoCompute();
+  });
+
+  /* … everything else in attach() stays exactly the same … */
+};
 
     /* wipe stored coords if user edits */
     input.addEventListener('input',()=>{input.dataset.lat='';input.dataset.lng='';});
@@ -476,7 +494,7 @@ window.init = () => {
     }
   };
   document.getElementById('route').onclick = rebuildRoute;
-  document.getElementById('opt').onclick   = optimizeRoute;
+  document.getElementById('opt').onclick   = globalOptimizeRoute;
 };
 
 /* ──────────────────────────────────────────────────────────
