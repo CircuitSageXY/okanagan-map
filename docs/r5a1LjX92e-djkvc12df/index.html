@@ -117,6 +117,9 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 #msg{margin:12px 0;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 28px;}
 </style>
 
+  <script type="module">
+import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
+    
 <!-- Google Maps JS -->
 <script defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry"></script>
 
@@ -140,9 +143,6 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 </div>
 
 <div id="map"></div>
-
-<script type="module">
-import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 
 const labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 const colourCycle = ['A','B','C','D','E','F','G','H'];         // ★★ 8‑colour loop
