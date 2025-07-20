@@ -47,6 +47,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   border-radius:var(--radiusMd);transition:background var(--transFast),box-shadow var(--transFast);}
 .row.focused{background:var(--clrInputBgAlt);box-shadow:0 0 0 2px rgba(33,150,243,.25);}
 .row:hover:not(.focused){background:rgba(0,0,0,.04);}
+.row.invalid input.stop{border-color:#e53935;background:#ffebee;} /* ★★ highlight bad lines */
 
 .bullet{
   width:24px;height:24px;border-radius:50%;line-height:24px;text-align:center;
@@ -146,10 +147,11 @@ import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 const labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 const colourCycle = ['A','B','C','D','E','F','G','H'];         // ★★ 8‑colour loop
 
-let map, dirSvc, dirRend, geocoder, previewMarker=null;
+let map, dirSvc, dirRend, geocoder;
 let acService, placeSvc;
 let autoTimer=null;
 let routeVersion = 0;                                         // ★★ duplicate‑response guard
+let previewPins=[];                                           // ★★ many preview markers
 
 /* ──────────────────────────────────────────────────────────
    Geometry helpers
@@ -180,6 +182,7 @@ const CENTRAL_OK_RX=/kelowna|west kelowna|lake country|oyama|peachland|fintry|jo
 function ensureCoords(rows){
   const tasks=rows.map(row=>{
     const input=row.querySelector('.stop');
+    row.classList.remove('invalid');           // clear flag
     if(!input.value || (input.dataset.lat && input.dataset.lng)) return Promise.resolve();
     return new Promise(res=>{
       geocoder.geocode(
@@ -193,6 +196,9 @@ function ensureCoords(rows){
             input.dataset.lng=r[0].geometry.location.lng();
             // overwrite with formatted address so the user sees the full line
             input.value=r[0].formatted_address;
+          }else{
+            row.classList.add('invalid');                    // highlight
+            input.placeholder='Unrecognised – edit me';
           }
           res();
         });
@@ -228,22 +234,10 @@ function renumber(){
 const addresses = () => [...document.querySelectorAll('input.stop')]
   .map(e=>e.value.trim()).filter(Boolean);
 
-/* preview marker helpers */
-function clearPreviewMarker(){ if(previewMarker){previewMarker.setMap(null);previewMarker=null;} }
-function showPreviewMarker(pos,label=''){
-  clearPreviewMarker();
-  previewMarker = new google.maps.Marker({map,position:pos,
-    label:label?{text:label,color:'#fff',fontWeight:'bold'}:undefined});
-  map.panTo(pos); if(map.getZoom()<14) map.setZoom(14);
-}
-function geocodeAndPreview(addr,label=''){
-  geocoder.geocode({address:addr,componentRestrictions:{country:'ca'}},(res,stat)=>{
-    if(stat!=='OK' || !res[0]) return;
-    const g = res[0].geometry.location;
-    const pt={lat:g.lat(),lng:g.lng()};
-    if(!insidePoly(pt,IHA_POLY)) return;
-    showPreviewMarker(g,label);
-  });
+/* preview helpers */
+function clearPreviewPins(){previewPins.forEach(m=>m.setMap(null));previewPins=[];}
+function addPreviewPin(pos,label){
+  previewPins.push(new google.maps.Marker({map,position:pos,label:{text:label,color:'#fff'}}));
 }
 
 /* strip all existing leg‑display DIVs */
@@ -321,12 +315,6 @@ function acceptTopPrediction(inputEl){
       }
       inputEl.value = plc.formatted_address || pred.description;
       inputEl.dataset.lat = pt.lat; inputEl.dataset.lng = pt.lng;
-
-      // preview if single stop
-      const pts=addresses();
-      const rows=[...document.querySelectorAll('.row')];
-      const idx=rows.indexOf(inputEl.closest('.row'));
-      if(pts.length===1) showPreviewMarker(loc, labels[idx]||'');
 
       autoCompute();
       focusNextStop(inputEl);
@@ -420,9 +408,6 @@ window.init = () => {
       }
       if(plc.formatted_address) input.value=plc.formatted_address;
       input.dataset.lat=pt.lat; input.dataset.lng=pt.lng;
-      const pts=addresses(); const rows=[...document.querySelectorAll('.row')];
-      const idx=rows.indexOf(input.closest('.row'));
-      if(pts.length===1) showPreviewMarker(plc.geometry.location,labels[idx]||'');
       autoCompute();
     });
   };
@@ -444,81 +429,91 @@ window.init = () => {
    Debounce wrapper
    ────────────────────────────────────────────────────────── */
 function scheduleAutoCompute(ms=250){
-  clearTimeout(autoTimer); autoTimer=setTimeout(autoCompute,ms);
+  clearTimeout(autoTimer);autoTimer=setTimeout(autoCompute,ms);
 }
 
 /* ------------------------------------------------------------------
-   AUTO‑COMPUTE  (★★ edited)
+   AUTO‑COMPUTE  (bulk geocode + preview pins)
 ------------------------------------------------------------------- */
 function autoCompute(){
-  const pts=addresses(),msg=document.getElementById('msg');
-  if(pts.length===0){
-    clearPreviewMarker();clearLegDisplays();msg.textContent='';dirRend.setDirections({});
-    return;
-  }
-  if(pts.length===1){
-    clearLegDisplays();dirRend.setDirections({});msg.textContent='';
-    const rows=[...document.querySelectorAll('.row')];
-    const row=rows.find(r=>r.querySelector('.stop').value.trim());
-    if(row){
-      const inp=row.querySelector('.stop');
-      const lat=+inp.dataset.lat,lng=+inp.dataset.lng;
-      if(!isNaN(lat)&&!isNaN(lng))
-        showPreviewMarker({lat,lng},labels[rows.indexOf(row)]||'');
-      else
-        geocodeAndPreview(inp.value.trim(),labels[rows.indexOf(row)]||'');
-    }
+  const rows=[...document.querySelectorAll('.row')];
+  const filled=rows.filter(r=>r.querySelector('.stop').value.trim());
+  const msg=document.getElementById('msg');
+
+  if(filled.length===0){
+    clearPreviewPins();clearLegDisplays();msg.textContent='';dirRend.setDirections({});
     return;
   }
 
-  /* ★★ NEW: make sure every address has coords first */
-  const rows=[...document.querySelectorAll('.row')];
-  clearPreviewMarker();
-  ensureCoords(rows).then(()=>rebuildRoute());
+  /* ensure all coords first, then preview pins and route */
+  ensureCoords(filled).then(()=>{
+    clearPreviewPins();
+    filled.forEach((r,i)=>{
+      const inp=r.querySelector('.stop');
+      if(inp.dataset.lat&&inp.dataset.lng){
+        addPreviewPin({lat:+inp.dataset.lat,lng:+inp.dataset.lng},labels[i]);
+      }
+    });
+    if(filled.length===1){
+      clearLegDisplays();
+      dirRend.setDirections({});
+      map.panTo({lat:+filled[0].querySelector('.stop').dataset.lat,
+                 lng:+filled[0].querySelector('.stop').dataset.lng});
+      msg.textContent='';
+    }else{
+      rebuildRoute();
+    }
+  });
 }
 
 /* ──────────────────────────────────────────────────────────
-   Routing helpers
+   Routing helpers (LatLng‑first)
    ────────────────────────────────────────────────────────── */
-function rebuildRoute(){
-  const pts=addresses(), msg=document.getElementById('msg');
-  clearLegDisplays();
-  if(pts.length<2){ msg.textContent=''; dirRend.setDirections({}); return;}
+function rowToLocation(row){
+  const inp=row.querySelector('.stop');
+  if(inp.dataset.lat && inp.dataset.lng){
+    return new google.maps.LatLng(+inp.dataset.lat,+inp.dataset.lng);
+  }
+  return inp.value.trim();
+}
 
-  const thisReq = ++routeVersion;                                      // ★★ track request
+function rebuildRoute(){
+  const rows=[...document.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
+  const msg=document.getElementById('msg');
+  clearLegDisplays();
+  if(rows.length<2){ msg.textContent=''; dirRend.setDirections({}); return;}
+
+  const locs=rows.map(rowToLocation);
+  const thisReq = ++routeVersion;
 
   dirSvc.route({
-    origin:pts[0], destination:pts[pts.length-1],
-    waypoints:pts.slice(1,-1).map(l=>({location:l,stopover:true})),
-    travelMode:'DRIVING', optimizeWaypoints:false
+    origin:locs[0], destination:locs[locs.length-1],
+    waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
+    travelMode:'DRIVING'
   }, (res,stat)=>{
-      if(thisReq!==routeVersion) return;                               // ★★ ignore stale reply
+      if(thisReq!==routeVersion) return;            // ignore stale reply
       displayLegs(res,stat);
   });
 }
 
 function optimizeRoute(){
-  const pts=addresses(); if(pts.length<3){ rebuildRoute(); return; }
+  const rows=[...document.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
+  if(rows.length<3){rebuildRoute();return;}
 
-  const thisReq = ++routeVersion;                                      // ★★
+  const locs=rows.map(rowToLocation);
+  const thisReq = ++routeVersion;
 
   dirSvc.route({
-    origin:pts[0], destination:pts[0],
-    waypoints:pts.slice(1).map(l=>({location:l,stopover:true})),
+    origin:locs[0], destination:locs[0],
+    waypoints:locs.slice(1).map(l=>({location:l,stopover:true})),
     travelMode:'DRIVING', optimizeWaypoints:true
   }, (res,stat)=>{
-      if(thisReq!==routeVersion) return;                               // ★★ ignore stale
-      if(stat!=='OK'){ alert('Optimize failed: '+stat); return; }
+      if(thisReq!==routeVersion) return;
+      if(stat!=='OK'){alert('Optimize failed: '+stat);return;}
       const order=res.routes[0].waypoint_order;
-      const loop=[0,...order.map(i=>i+1)];
-      const legs=res.routes[0].legs;
-      const longest=legs.reduce((mx,l,i)=>l.distance.value>mx.v?{i,v:l.distance.value}:mx,{i:-1,v:0}).i;
-
       const list=document.getElementById('stops');
-      const rows=[...list.querySelectorAll('.row')];
-      const rot=[]; for(let n=1;n<loop.length;n++) rot.push(loop[(longest+1+n)%loop.length]);
-      rot.forEach(i=>list.appendChild(rows[i]));
-      list.prepend(rows[loop[(longest+1)%loop.length]]);
+      const rowsDom=[...list.querySelectorAll('.row')];
+      order.forEach(i=>list.appendChild(rowsDom[i+1]));  // reorder
       renumber(); autoCompute();
   });
 }
@@ -526,13 +521,6 @@ function optimizeRoute(){
 function displayLegs(res,stat){
   const msg=document.getElementById('msg');
   if(stat!=='OK'){ msg.textContent='Route error: '+stat; dirRend.setDirections({}); return; }
-
-  /* reject any leg that wanders outside IHA_POLY */
-  const badLeg = res.routes[0].legs.find(l=>{
-    const midpt=l.steps[Math.floor(l.steps.length/2)].end_location;
-    return !insidePoly({lat:midpt.lat(),lng:midpt.lng()}, IHA_POLY);
-  });
-  if(badLeg){ msg.textContent='Route leaves Interior Health – please adjust stops.'; dirRend.setDirections({}); return; }
 
   dirRend.setDirections(res);
 
