@@ -121,11 +121,12 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 <script type="module">
   import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 
-  // ───────────────────────────────
   // Global constants & state
-  // ───────────────────────────────
   const labels      = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-  const colourCycle = ['A','B','C','D','E','F','G','H'];   // 8‑colour loop
+  const colourCycle = ['A','B','C','D','E','F','G','H'];
+
+  const CENTRAL_OK_BOUNDS={south:49.60,north:50.30,west:-120.20,east:-118.90};
+  const CENTRAL_OK_RX=/kelowna|west kelowna|lake country|oyama|peachland|fintry|joe rich|ellison|rutland|glenmore|glenrosa/i;
 
   let map, dirSvc, dirRend, geocoder;
   let acService, placeSvc;
@@ -170,10 +171,9 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 <!-- ②  Google Maps loader – runs after the module, finds window.init -->
 <script defer
   src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry">
-</script>
-
-const CENTRAL_OK_BOUNDS={south:49.60,north:50.30,west:-120.20,east:-118.90};
-const CENTRAL_OK_RX=/kelowna|west kelowna|lake country|oyama|peachland|fintry|joe rich|ellison|rutland|glenmore|glenrosa/i;
+  </script>
+</body>
+</html>
 
 /* ------------------------------------------------------------------
    ★★ NEW: smart geocoder that favours Places API but falls back to
