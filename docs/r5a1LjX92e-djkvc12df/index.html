@@ -41,21 +41,23 @@ body.timeline-hidden #timelineDock{
 
 /* little “hide / show” tab */
 /* little “hide / show” tab  ─ centred on the column’s edge */
+/* little “hide / show” tab – now fixed to the viewport */
 #tlToggle{
-  position:absolute;
-  top:50%;                                 /* vertically centred                 */
-  left:calc(var(--timelineDockW) - 8px);   /* sits 8 px inside the border        */
-  transform:translateY(-50%);
-  width:20px;height:40px;padding:0;border:none;
-  border-radius:0 4px 4px 0;               /* rounded on the right‑hand side     */
+  position:fixed;
+  top:50%;                      /* vertically centred on screen              */
+  left:var(--timelineDockW);    /* flush with the column edge when visible   */
+  transform:translate(-50%,-50%);
+  width:22px;height:44px;border:none;padding:0;
+  border-radius:0 6px 6px 0;    /* rounded on the right‑hand side            */
   background:#455a64;color:#fff;
-  font:14px/14px Roboto,Arial,sans-serif;
+  font:16px/16px Roboto,Arial,sans-serif;
   cursor:pointer;display:flex;align-items:center;justify-content:center;
-  z-index:1000;transition:transform .25s;
+  z-index:1000;transition:left .25s,transform .25s;
 }
-/* rotated arrow when the dock is hidden */
+/* when the dock slides away, just pull the tab back to the hard‑left edge */
 body.timeline-hidden #tlToggle{
-  transform:translate(-100%,-50%) rotate(180deg);
+  left:0;                       /* always clickable                         */
+  transform:translate(0,-50%) rotate(180deg);
 }
 
 #panel{
@@ -159,7 +161,11 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 <body>
 
 <div id="timelineDock">
-  <button id="tlToggle" title="Hide / show timeline">⯈</button>
+  <!-- toggle tab (sits outside the sliding column) -->
+<button id="tlToggle" title="Hide / show timeline">⯈</button>
+
+<!-- sliding timeline column -->
+<div id="timelineDock">
   <iframe src="TimeFrames.html" title="TimeFrames" loading="lazy"></iframe>
 </div>
 
