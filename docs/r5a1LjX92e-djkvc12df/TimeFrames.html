@@ -9,7 +9,7 @@
 
 <style>
 :root{
-  /* colour palette -------------------------------------------------- */
+  /* colours --------------------------------------------------------- */
   --clr-early:        #8BC34A;
   --clr-late:         #4CAF50;
   --clr-lunch:        #FFEB3B;
@@ -18,71 +18,69 @@
   --clr-evening:      #BA68C8;
   --clr-late-evening: #F44336;
 
-  /* layout ---------------------------------------------------------- */
-  --gutter:80px;                /* full width of axis + ticks + labels */
-  --axis-w:4px;                 /* black vertical line                 */
-  --drawer-w:150px;             /* total width shown inside map pane   */
-  --bar-w:calc(var(--drawer-w) - var(--gutter));
-  --timeline-h:520px;
+  /* layout tokens --------------------------------------------------- */
+  --axis-w: 4px;            /* thickness of black line               */
+  --gutter: 84px;           /* full zone: axis + tick + labels       */
+  --bar-w:  72px;           /* width of coloured bar                 */
+  --drawer-w: calc(var(--gutter) + var(--bar-w));
+  --timeline-h: 520px;
 
   /* ticks ----------------------------------------------------------- */
   --tick-minor:#9e9e9e;
   --tick-major:#424242;
 }
 
-/* reset & container layout */
+/* reset & containers */
 *{box-sizing:border-box;margin:0;padding:0;}
-html,body{margin:0;font-family:Roboto,Arial,sans-serif;background:#fff;overflow:hidden;}
+html,body{font-family:Roboto,Arial,sans-serif;overflow:hidden;}
 
 #controls{display:flex;flex-direction:column;gap:6px;padding:8px 8px 6px;}
-.shiftToggle{
-  padding:6px 14px;border:none;border-radius:4px;background:#e0e0e0;
-  cursor:pointer;font-size:14px;transition:background .15s;
-}
+.shiftToggle{padding:6px 14px;border:none;border-radius:4px;
+  cursor:pointer;font-size:14px;background:#e0e0e0;transition:background .15s;}
 .shiftToggle:hover{background:#f1f1f1;}
 .shiftToggle.active{background:#90CAF9;font-weight:500;}
 
-.drawer{max-height:0;overflow:hidden;transition:max-height .30s ease;padding-left:8px;}
+.drawer{
+  padding-left:8px;overflow:hidden;max-height:0;
+  transition:max-height .3s ease;
+}
 .drawer.open{padding-top:10px;padding-bottom:10px;max-height:none;}
 
 .timeline{
-  position:relative;width:var(--drawer-w);height:var(--timeline-h);
+  position:relative;height:var(--timeline-h);width:var(--drawer-w);
   background:#fafafa;border-radius:2px;box-shadow:inset 0 0 0 1px #e0e0e0;
 }
 
-/* ─── axis (z‑5) ─── */
+/* ── axis (z‑5) – pinned hard left of drawer ── */
 .timeline::before{
-  content:"";position:absolute;top:0;left:calc(var(--gutter)/2 - var(--axis-w)/2);
+  content:"";position:absolute;top:0;left:0;
   width:var(--axis-w);height:100%;background:#000;border-radius:2px;z-index:5;
 }
 
-/* ─── ticks (z‑4) ─── */
-.tick{
-  position:absolute;left:0;width:100%;pointer-events:none;z-index:4;
-}
+/* ── ticks (z‑4) – dash starts just right of axis ── */
+.tick{position:absolute;left:0;width:100%;pointer-events:none;z-index:4;}
 .tick::before{
-  content:"";position:absolute;
-  left:calc(var(--gutter)/2 + var(--axis-w)/2); /* flush with axis right edge */
+  content:"";position:absolute;left:var(--axis-w);
   width:6px;height:1px;background:var(--tick-minor);
 }
 .tick.bold::before{width:10px;background:var(--tick-major);}
 .tick span{
-  position:absolute;left:calc(var(--gutter)/2 + var(--axis-w)/2 + 4px);
-  font-size:11px;line-height:1;color:#424242;
+  position:absolute;left:calc(var(--axis-w) + 10px);
+  font-size:11px;color:#424242;line-height:1;
 }
 
-/* ─── coloured bars (z‑1) ─── */
+/* ── coloured bars (z‑1) ── */
 .segment{
   position:absolute;left:var(--gutter);width:var(--bar-w);z-index:1;
 }
 .segment span{
   position:absolute;left:6px;top:50%;transform:translateY(-50%);
-  font-size:15px;font-weight:400;color:#000;white-space:nowrap;pointer-events:none;
+  font-size:15px;font-weight:400;white-space:nowrap;color:#000;
 }
 
-/* ─── “now” marker (z‑6) ─── */
+/* ── “now” marker (z‑6) ── */
 .nowMarker{
-  position:absolute;left:calc(var(--gutter)/2);z-index:6;
+  position:absolute;left:calc(var(--axis-w)/2);z-index:6;
   width:12px;height:12px;border:2px solid #000;background:#fff;border-radius:50%;
   transform:translateX(-50%) translateY(-50%);box-shadow:0 0 4px rgba(0,0,0,.4);
   animation:pulse 2s infinite;
@@ -93,6 +91,7 @@ html,body{margin:0;font-family:Roboto,Arial,sans-serif;background:#fff;overflow:
   100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}
 }
 </style>
+
 </head>
 <body>
 
