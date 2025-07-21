@@ -23,19 +23,37 @@
 }
 html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 
-/* ───────────────────────────────────────────────
-   Time-frame column
-   ─────────────────────────────────────────────── */
+/* ───────── timeline COLUMN (fixed 160 px) ───────── */
+:root{ --timelineDockW:160px; }                /* keep in one token   */
+
 #timelineDock{
-  position:absolute;top:0;left:0;width:110px;height:100%;
-  border-right:1px solid var(--clrPanelBorder);background:#fff;z-index:6;
+  position:absolute;top:0;left:0;
+  width:var(--timelineDockW);height:100%;
+  border-right:1px solid var(--clrPanelBorder);
+  background:#fff;z-index:6;overflow:hidden;
+  transition:transform .25s;
 }
-#timelineDock iframe{width:110%;height:100%;border:none;}
+#timelineDock iframe{width:100%;height:100%;border:none;}
+
+body.timeline-hidden #timelineDock{
+  transform:translateX(calc(-1 * var(--timelineDockW)));
+}
+
+/* little “hide / show” tab */
+#tlToggle{
+  position:absolute;top:42px;right:-16px;           /* below shift tabs  */
+  width:16px;height:32px;padding:0;border:none;
+  border-radius:4px 0 0 4px;background:#455a64;color:#fff;
+  font:13px/13px Roboto,Arial,sans-serif;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  z-index:999;transition:transform .25s;
+}
+body.timeline-hidden #tlToggle{transform:rotate(180deg);}
 
 #panel{
   position:absolute;top:0;left:0;z-index:5;width:340px;max-height:100%;
   background:var(--clrPanelBg);
-  padding:16px 14px 12px 126px;   /* push past timeline column */
+  padding:16px 14px 12px calc(var(--timelineDockW) + 16px);   /* push past timeline column */
   border-right:1px solid var(--clrPanelBorder);box-shadow:var(--clrPanelShadow);
   overflow:auto;border-top-right-radius:var(--radiusLg);
   border-bottom-right-radius:var(--radiusLg);
@@ -133,6 +151,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 <body>
 
 <div id="timelineDock">
+  <button id="tlToggle" title="Hide / show timeline">⯈</button>
   <iframe src="TimeFrames.html" title="TimeFrames" loading="lazy"></iframe>
 </div>
 
@@ -582,5 +601,13 @@ function displayLegs(res,stat){
   msg.textContent=`Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
 }
 </script>
+</body>
+
+  <script>
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('tlToggle')
+          .addEventListener('click',()=>document.body.classList.toggle('timeline-hidden'));
+});
+</script
 </body>
 </html>
