@@ -40,15 +40,23 @@ body.timeline-hidden #timelineDock{
 }
 
 /* little “hide / show” tab */
+/* little “hide / show” tab  ─ centred on the column’s edge */
 #tlToggle{
-  position:absolute;top:42px;right:-18px;           /* below shift tabs  */
-  width:18px;height:36px;padding:0;border:none;
-  border-radius:4px 0 0 4px;background:#455a64;color:#fff;
-  font:13px/13px Roboto,Arial,sans-serif;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  z-index:999;transition:transform .25s;
+  position:absolute;
+  top:50%;                                 /* vertically centred                 */
+  left:calc(var(--timelineDockW) - 8px);   /* sits 8 px inside the border        */
+  transform:translateY(-50%);
+  width:20px;height:40px;padding:0;border:none;
+  border-radius:0 4px 4px 0;               /* rounded on the right‑hand side     */
+  background:#455a64;color:#fff;
+  font:14px/14px Roboto,Arial,sans-serif;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  z-index:1000;transition:transform .25s;
 }
-body.timeline-hidden #tlToggle{transform:rotate(180deg);}
+/* rotated arrow when the dock is hidden */
+body.timeline-hidden #tlToggle{
+  transform:translate(-100%,-50%) rotate(180deg);
+}
 
 #panel{
   position:absolute;top:0;left:0;z-index:5;width:340px;max-height:100%;
@@ -607,6 +615,6 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('tlToggle')
           .addEventListener('click',()=>document.body.classList.toggle('timeline-hidden'));
 });
-</script
+</script>
 </body>
 </html>
