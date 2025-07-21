@@ -162,22 +162,26 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 
 <div id="timelineDock">
   <!-- toggle tab (sits outside the sliding column) -->
-<button id="tlToggle" title="Hide / show timeline">⯈</button>
+  <button id="tlToggle" title="Hide / show timeline">⯈</button>
 
-<!-- sliding timeline column -->
-<div id="timelineDock">
-  <iframe src="TimeFrames.html" title="TimeFrames" loading="lazy"></iframe>
-</div>
+  <!-- sliding timeline column -->
+  <div id="timelineDock">
+    <iframe src="TimeFrames.html"
+            title="TimeFrames"
+            loading="lazy"></iframe>
+  </div>
 
-<div id="panel">
-  <div id="stops"></div>
-  <button id="add">+ Add stop</button>
-  <button id="route">Route</button>
-  <button id="opt">Optimize</button>
-  <div id="msg"></div>
-</div>
+  <!-- stop‑list panel -->
+  <div id="panel">
+    <div id="stops"></div>
+    <button id="add">+ Add stop</button>
+    <button id="route">Route</button>
+    <button id="opt">Optimize</button>
+    <div id="msg"></div>
+  </div>
 
-<div id="map"></div>
+  <!-- the map (fills remaining space) -->
+  <div id="map"></div>
 
 <!-- ── 2. main planner ── -->
 <script type="module">
