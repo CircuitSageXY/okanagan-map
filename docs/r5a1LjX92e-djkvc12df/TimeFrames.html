@@ -4,10 +4,11 @@
 <meta charset="utf-8">
 <title>Route‑Planner Time Frames</title>
 
+<!-- Google font (unchanged) -->
 <link rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap">
-      
-<!-- ① replace your whole <style>…</style> section with this -->
+
+<!-- ───────────── STYLE – single copy only ───────────── -->
 <style>
 :root{
   /* colours -------------------------------------------------------- */
@@ -16,60 +17,61 @@
   --clr-evening:#BA68C8; --clr-late-evening:#F44336;
 
   /* layout tokens -------------------------------------------------- */
-  --axis-w:4px;                /* thickness of black line              */
-
-  /* 4 px axis + 6 px dash + 40 px label “08:00” + 2 px breathing = 52 px */
-  --gutter:52px;
-
-  --gap:2px;                   /* visual gap axis→bar                  */
-  --bar-w:78px;                /* coloured bar width                   */
-
-  --drawer-w:calc(var(--gutter) + var(--gap) + var(--bar-w) + 2px); /* rhs pad */
+  --axis-w:4px;                 /* black line thickness                */
+  --gutter:52px;                /* axis + tick‑dash + hour label       */
+  --gap:2px;                    /* gap after label                     */
+  --bar-w:90px;                 /* coloured bar width                  */
+  --drawer-w:calc(var(--gutter) + var(--gap) + var(--bar-w) + 2px);
   --timeline-h:520px;
 
-  /* ticks ---------------------------------------------------------- */
   --tick-minor:#9e9e9e; --tick-major:#424242;
 }
 
-/* reset & containers --------------------------------------------- */
+/* reset ----------------------------------------------------------- */
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{font-family:Roboto,Arial,sans-serif;overflow:hidden;}
 
+/* timeline‑wide hide / show -------------------------------------- */
+#timelineDock{position:relative;max-width:var(--drawer-w);transition:.25s;}
+body.timeline-hidden #timelineDock{
+  transform:translateX(calc(-1 * var(--drawer-w)));
+}
+#tlToggle{
+  position:absolute;top:6px;right:-14px;width:14px;height:30px;
+  border:none;border-radius:4px 0 0 4px;background:#455a64;color:#fff;
+  font-size:12px;line-height:12px;cursor:pointer;display:flex;
+  align-items:center;justify-content:center;transition:transform .25s;
+}
+body.timeline-hidden #tlToggle{transform:rotate(180deg);}
+
+/* shift buttons --------------------------------------------------- */
 #controls{display:flex;flex-direction:column;gap:6px;padding:8px 8px 6px;}
 .shiftToggle{padding:6px 14px;border:none;border-radius:4px;
   background:#e0e0e0;cursor:pointer;font-size:14px;transition:background .15s;}
-.shiftToggle:hover{background:#f1f1f1;} .shiftToggle.active{background:#90CAF9;font-weight:500;}
+.shiftToggle:hover{background:#f1f1f1;}
+.shiftToggle.active{background:#90CAF9;font-weight:500;}
 
-#timelineDock{position:relative;max-width:var(--drawer-w);} /* wrapper added for hide */
-
+/* drawers --------------------------------------------------------- */
 .drawer{
-  padding-left:8px;overflow:hidden;max-height:0;transition:max-height .3s ease;
-  max-width:var(--drawer-w);
+  padding-left:8px;overflow:hidden;max-height:0;max-width:var(--drawer-w);
+  transition:max-height .3s ease;
 }
 .drawer.open{padding-top:10px;padding-bottom:10px;max-height:none;}
 
+/* timeline box ---------------------------------------------------- */
 .timeline{
   position:relative;width:var(--drawer-w);height:var(--timeline-h);
-  background:#fafafa;border-radius:2px;box-shadow:inset 0 0 0 1px #e0e0e0;
-  overflow:hidden;padding-right:2px;        /* stop rhs clipping           */
+  background:#fafafa;border-radius:2px;
+  box-shadow:inset 0 0 0 1px #e0e0e0;overflow:hidden;padding-right:2px;
 }
 
-/* toggle button for whole timeline -------------------------------- */
-#tlToggle{
-  position:absolute;top:6px;right:-14px;   /* sits just outside drawer    */
-  width:14px;height:28px;border:none;border-radius:4px 0 0 4px;
-  background:#455a64;color:#fff;font-size:12px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  transition:right .25s;
-}
-
-/* ── axis (z‑5) ── */
+/* axis ------------------------------------------------------------ */
 .timeline::before{
   content:"";position:absolute;top:0;left:0;width:var(--axis-w);height:100%;
   background:#000;border-radius:2px;z-index:5;
 }
 
-/* ── ticks (z‑4) ── */
+/* ticks ----------------------------------------------------------- */
 .tick{position:absolute;left:0;width:100%;pointer-events:none;z-index:4;}
 .tick::before{
   content:"";position:absolute;left:var(--axis-w);width:6px;height:1px;
@@ -81,17 +83,17 @@ html,body{font-family:Roboto,Arial,sans-serif;overflow:hidden;}
   color:#424242;line-height:1;
 }
 
-/* ── coloured bars (z‑1) ── */
+/* coloured bars --------------------------------------------------- */
 .segment{
-  position:absolute;left:calc(var(--gutter) + var(--gap));
-  width:var(--bar-w);z-index:1;
+  position:absolute;left:calc(var(--gutter) + var(--gap));width:var(--bar-w);
+  z-index:1;
 }
 .segment span{
   position:absolute;left:6px;top:50%;transform:translateY(-50%);
   font-size:15px;font-weight:400;white-space:nowrap;color:#000;
 }
 
-/* ── now marker (z‑6) ── */
+/* now‑marker ------------------------------------------------------ */
 .nowMarker{
   position:absolute;left:calc(var(--axis-w)/2);z-index:6;
   width:12px;height:12px;border:2px solid #000;background:#fff;border-radius:50%;
@@ -103,27 +105,29 @@ html,body{font-family:Roboto,Arial,sans-serif;overflow:hidden;}
   70%{box-shadow:0 0 0 6px rgba(0,0,0,0);}
   100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}
 }
-
-/* hide‑drawer state ---------------------------------------------- */
-body.timeline-hidden #timelineDock{transform:translateX(calc(-1 * var(--drawer-w)));transition:transform .25s;}
-body.timeline-hidden #tlToggle{right:-14px;transform:rotate(180deg);}  /* arrow faces out */
 </style>
+</head>
+<body>
 
-<!-- ② add a wrapper div around your controls + drawers + toggle button -->
+<!-- ───────────── timeline column (ONE copy) ───────────── -->
 <div id="timelineDock">
-  <button id="tlToggle">⯈</button>
+  <button id="tlToggle" title="Hide / show timeline">⯈</button>
 
-  <!-- your existing controls + drawers go here -->
-  <!-- #controls, #day .drawer, #night .drawer, .timeline … -->
+  <!--  Put your existing markup below  ------------------- -->
+  <div id="controls">
+    <!-- shift buttons go here -->
+  </div>
+
+  <!-- example drawers (keep yours) -->
+  <!-- <div id="day" class="drawer open">…</div> -->
+  <!-- <div id="night" class="drawer">…</div> -->
 </div>
 
-<!-- ③ add this tiny JS after your existing <script> block -->
+<!-- ───────────── toggle script ───────────── -->
 <script>
 document.addEventListener('DOMContentLoaded',()=>{
-  const btn=document.getElementById('tlToggle');
-  btn.addEventListener('click',()=>{
-    document.body.classList.toggle('timeline-hidden');
-  });
+  document.getElementById('tlToggle')
+          .addEventListener('click',()=>document.body.classList.toggle('timeline-hidden'));
 });
 </script>
 </head>
