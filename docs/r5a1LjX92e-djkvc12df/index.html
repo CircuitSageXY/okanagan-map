@@ -31,12 +31,13 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   width:var(--timelineDockW);height:100%;
   border-right:1px solid var(--clrPanelBorder);
   background:#fff;z-index:6;overflow:hidden;
-  transition:transform .25s;
+  transition:left .25s;                       /* ← we slide with left now */
 }
 #timelineDock iframe{width:100%;height:100%;border:none;}
 
+/* slide the whole column completely off‑screen */
 body.timeline-hidden #timelineDock{
-  transform:translateX(calc(-1 * var(--timelineDockW)));
+  left:calc(-1 * var(--timelineDockW));       /* tuck it away */
 }
 
 /* little “hide / show” tab */
@@ -44,29 +45,33 @@ body.timeline-hidden #timelineDock{
 /* little “hide / show” tab – now fixed to the viewport */
 #tlToggle{
   position:fixed;
-  top:50%;                      /* vertically centred on screen              */
-  left:var(--timelineDockW);    /* flush with the column edge when visible   */
+  top:50%;                                    /* centred vertically       */
+  left:var(--timelineDockW);                  /* hugs column when shown   */
   transform:translate(-50%,-50%);
   width:22px;height:44px;border:none;padding:0;
-  border-radius:0 6px 6px 0;    /* rounded on the right‑hand side            */
+  border-radius:0 6px 6px 0;                  /* rounded on the right     */
   background:#455a64;color:#fff;
   font:16px/16px Roboto,Arial,sans-serif;
   cursor:pointer;display:flex;align-items:center;justify-content:center;
   z-index:1000;transition:left .25s,transform .25s;
 }
-/* when the dock slides away, just pull the tab back to the hard‑left edge */
+/* after the column slides out, keep the tab at the hard‑left edge */
 body.timeline-hidden #tlToggle{
-  left:0;                       /* always clickable                         */
+  left:0;
   transform:translate(0,-50%) rotate(180deg);
 }
 
 #panel{
   position:absolute;top:0;left:0;z-index:5;width:340px;max-height:100%;
   background:var(--clrPanelBg);
-  padding:16px 14px 12px calc(var(--timelineDockW) + 16px);   /* push past timeline column */
+  padding:16px 14px 12px calc(var(--timelineDockW) + 16px); /* default gap */
   border-right:1px solid var(--clrPanelBorder);box-shadow:var(--clrPanelShadow);
   overflow:auto;border-top-right-radius:var(--radiusLg);
   border-bottom-right-radius:var(--radiusLg);
+  transition:padding-left .25s;               /* smooth slide‑over        */
+}
+body.timeline-hidden #panel{
+  padding-left:16px;                          /* hug the window edge      */
 }
 #panel::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;
   background:var(--clrPanelStripe);}
