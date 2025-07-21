@@ -159,19 +159,18 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 <script type="module" src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/modular/sortable.core.esm.js"></script>
 </head>
 <body>
-
-<div id="timelineDock">
-  <!-- toggle tab (sits outside the sliding column) -->
+  
+  <!-- ☰  toggle tab – fixed on screen -->
   <button id="tlToggle" title="Hide / show timeline">⯈</button>
 
-  <!-- sliding timeline column -->
+  <!-- ───── sliding TIMELINE column ───── -->
   <div id="timelineDock">
     <iframe src="TimeFrames.html"
             title="TimeFrames"
             loading="lazy"></iframe>
   </div>
 
-  <!-- stop‑list panel -->
+  <!-- ───── stop‑list panel ───── -->
   <div id="panel">
     <div id="stops"></div>
     <button id="add">+ Add stop</button>
@@ -180,7 +179,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
     <div id="msg"></div>
   </div>
 
-  <!-- the map (fills remaining space) -->
+  <!-- ───── Google map (fills the rest) ───── -->
   <div id="map"></div>
 
 <!-- ── 2. main planner ── -->
