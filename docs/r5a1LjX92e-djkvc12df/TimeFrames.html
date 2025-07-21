@@ -9,20 +9,24 @@
       
 <style>
 :root{
-  /* colour palette ---------------------------------------------- */
-  --clr-early:#8BC34A;--clr-late:#4CAF50;--clr-lunch:#FFEB3B;
-  --clr-afternoon:#03A9F4;--clr-supper:#FF9800;--clr-evening:#BA68C8;
-  --clr-late-evening:#F44336;
+  /* colours -------------------------------------------------------- */
+  --clr-early:#8BC34A; --clr-late:#4CAF50; --clr-lunch:#FFEB3B;
+  --clr-afternoon:#03A9F4; --clr-supper:#FF9800;
+  --clr-evening:#BA68C8; --clr-late-evening:#F44336;
 
-  /* layout tokens ----------------------------------------------- */
-  --axis-w:4px;               /* thickness of black line              */
-  --gutter:52px;              /* axis + tick dash + hour label        */
-  --gap:1px;                  /* tiny space between gutter & bar      */
-  --bar-w:62px;               /* coloured bar width                   */
+  /* layout tokens -------------------------------------------------- */
+  --axis-w:4px;               /* thickness of black line               */
+
+  /*  4 px  axis  +  6 px dash offset  + 42 px label “00:00” width  = 52 px     */
+  --gutter:52px;              /* axis + dash + hour text               */
+
+  --gap:4px;                  /* slim gap after label                  */
+  --bar-w:74px;               /* coloured bar width                    */
+
   --drawer-w:calc(var(--gutter) + var(--gap) + var(--bar-w) + 2px); /* +2 RHS pad*/
   --timeline-h:520px;
 
-  /* ticks -------------------------------------------------------- */
+  /* ticks ---------------------------------------------------------- */
   --tick-minor:#9e9e9e;
   --tick-major:#424242;
 }
@@ -41,16 +45,14 @@ html,body{font-family:Roboto,Arial,sans-serif;overflow:hidden;}
 
 .drawer{
   padding-left:8px;overflow:hidden;max-height:0;
-  transition:max-height .3s ease;
-  max-width:var(--drawer-w);          /* prevents spill onto the map   */
+  transition:max-height .3s ease;max-width:var(--drawer-w);
 }
 .drawer.open{padding-top:10px;padding-bottom:10px;max-height:none;}
 
 .timeline{
-  position:relative;height:var(--timeline-h);width:var(--drawer-w);
-  background:#fafafa;border-radius:2px;
-  box-shadow:inset 0 0 0 1px #e0e0e0;
-  overflow:hidden;padding-right:2px; /* keep long labels inside box   */
+  position:relative;width:var(--drawer-w);height:var(--timeline-h);
+  background:#fafafa;border-radius:2px;box-shadow:inset 0 0 0 1px #e0e0e0;
+  overflow:hidden;padding-right:2px;               /* stop RHS clipping   */
 }
 
 /* ── axis (z‑5) ── */
@@ -66,15 +68,15 @@ html,body{font-family:Roboto,Arial,sans-serif;overflow:hidden;}
   width:6px;height:1px;background:var(--tick-minor);
 }
 .tick.bold::before{width:10px;background:var(--tick-major);}
-.tick span{
-  position:absolute;left:calc(var(--axis-w) + 5px);
+.tick span{                      /* hour label sits 6 px after dash  */
+  position:absolute;left:calc(var(--axis-w) + 6px);
   font-size:11px;color:#424242;line-height:1;
 }
 
 /* ── coloured bars (z‑1) ── */
 .segment{
   position:absolute;
-  left:calc(var(--gutter) + var(--gap));
+  left:calc(var(--gutter) + var(--gap));  /* only 4 px gap after label */
   width:var(--bar-w);z-index:1;
 }
 .segment span{
