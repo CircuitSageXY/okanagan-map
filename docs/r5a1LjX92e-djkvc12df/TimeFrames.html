@@ -7,6 +7,7 @@
 <link rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap">
       
+<!-- ① replace your whole <style>…</style> section with this -->
 <style>
 :root{
   /* colours -------------------------------------------------------- */
@@ -15,73 +16,79 @@
   --clr-evening:#BA68C8; --clr-late-evening:#F44336;
 
   /* layout tokens -------------------------------------------------- */
-  --axis-w:4px;               /* thickness of black line               */
+  --axis-w:4px;                /* thickness of black line              */
 
-  /*  4 px  axis  +  6 px dash offset  + 42 px label “00:00” width  = 52 px     */
-  --gutter:52px;              /* axis + dash + hour text               */
+  /* 4 px axis + 6 px dash + 40 px label “08:00” + 2 px breathing = 52 px */
+  --gutter:52px;
 
-  --gap:6px;                  /* slim gap after label                  */
-  --bar-w:74px;               /* coloured bar width                    */
+  --gap:2px;                   /* visual gap axis→bar                  */
+  --bar-w:78px;                /* coloured bar width                   */
 
-  --drawer-w:calc(var(--gutter) + var(--gap) + var(--bar-w) + 2px); /* +2 RHS pad*/
+  --drawer-w:calc(var(--gutter) + var(--gap) + var(--bar-w) + 2px); /* rhs pad */
   --timeline-h:520px;
 
   /* ticks ---------------------------------------------------------- */
-  --tick-minor:#9e9e9e;
-  --tick-major:#424242;
+  --tick-minor:#9e9e9e; --tick-major:#424242;
 }
 
-/* reset & containers */
+/* reset & containers --------------------------------------------- */
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{font-family:Roboto,Arial,sans-serif;overflow:hidden;}
 
 #controls{display:flex;flex-direction:column;gap:6px;padding:8px 8px 6px;}
-.shiftToggle{
-  padding:6px 14px;border:none;border-radius:4px;
-  background:#e0e0e0;cursor:pointer;font-size:14px;transition:background .15s;
-}
-.shiftToggle:hover{background:#f1f1f1;}
-.shiftToggle.active{background:#90CAF9;font-weight:500;}
+.shiftToggle{padding:6px 14px;border:none;border-radius:4px;
+  background:#e0e0e0;cursor:pointer;font-size:14px;transition:background .15s;}
+.shiftToggle:hover{background:#f1f1f1;} .shiftToggle.active{background:#90CAF9;font-weight:500;}
+
+#timelineDock{position:relative;max-width:var(--drawer-w);} /* wrapper added for hide */
 
 .drawer{
-  padding-left:8px;overflow:hidden;max-height:0;
-  transition:max-height .3s ease;max-width:var(--drawer-w);
+  padding-left:8px;overflow:hidden;max-height:0;transition:max-height .3s ease;
+  max-width:var(--drawer-w);
 }
 .drawer.open{padding-top:10px;padding-bottom:10px;max-height:none;}
 
 .timeline{
   position:relative;width:var(--drawer-w);height:var(--timeline-h);
   background:#fafafa;border-radius:2px;box-shadow:inset 0 0 0 1px #e0e0e0;
-  overflow:hidden;padding-right:2px;               /* stop RHS clipping   */
+  overflow:hidden;padding-right:2px;        /* stop rhs clipping           */
+}
+
+/* toggle button for whole timeline -------------------------------- */
+#tlToggle{
+  position:absolute;top:6px;right:-14px;   /* sits just outside drawer    */
+  width:14px;height:28px;border:none;border-radius:4px 0 0 4px;
+  background:#455a64;color:#fff;font-size:12px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:right .25s;
 }
 
 /* ── axis (z‑5) ── */
 .timeline::before{
-  content:"";position:absolute;top:0;left:0;
-  width:var(--axis-w);height:100%;background:#000;border-radius:2px;z-index:5;
+  content:"";position:absolute;top:0;left:0;width:var(--axis-w);height:100%;
+  background:#000;border-radius:2px;z-index:5;
 }
 
 /* ── ticks (z‑4) ── */
 .tick{position:absolute;left:0;width:100%;pointer-events:none;z-index:4;}
 .tick::before{
-  content:"";position:absolute;left:var(--axis-w);
-  width:6px;height:1px;background:var(--tick-minor);
+  content:"";position:absolute;left:var(--axis-w);width:6px;height:1px;
+  background:var(--tick-minor);
 }
 .tick.bold::before{width:10px;background:var(--tick-major);}
-.tick span{                      /* hour label sits 6 px after dash  */
-  position:absolute;left:calc(var(--axis-w) + 6px);
-  font-size:11px;color:#424242;line-height:1;
+.tick span{
+  position:absolute;left:calc(var(--axis-w) + 6px);font-size:11px;
+  color:#424242;line-height:1;
 }
 
 /* ── coloured bars (z‑1) ── */
 .segment{
-  position:absolute;
-  left:calc(var(--gutter) + var(--gap));  /* only 4 px gap after label */
+  position:absolute;left:calc(var(--gutter) + var(--gap));
   width:var(--bar-w);z-index:1;
 }
 .segment span{
   position:absolute;left:6px;top:50%;transform:translateY(-50%);
-  font-size:15px;font-weight:400;color:#000;white-space:nowrap;
+  font-size:15px;font-weight:400;white-space:nowrap;color:#000;
 }
 
 /* ── now marker (z‑6) ── */
@@ -96,7 +103,29 @@ html,body{font-family:Roboto,Arial,sans-serif;overflow:hidden;}
   70%{box-shadow:0 0 0 6px rgba(0,0,0,0);}
   100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}
 }
+
+/* hide‑drawer state ---------------------------------------------- */
+body.timeline-hidden #timelineDock{transform:translateX(calc(-1 * var(--drawer-w)));transition:transform .25s;}
+body.timeline-hidden #tlToggle{right:-14px;transform:rotate(180deg);}  /* arrow faces out */
 </style>
+
+<!-- ② add a wrapper div around your controls + drawers + toggle button -->
+<div id="timelineDock">
+  <button id="tlToggle">⯈</button>
+
+  <!-- your existing controls + drawers go here -->
+  <!-- #controls, #day .drawer, #night .drawer, .timeline … -->
+</div>
+
+<!-- ③ add this tiny JS after your existing <script> block -->
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  const btn=document.getElementById('tlToggle');
+  btn.addEventListener('click',()=>{
+    document.body.classList.toggle('timeline-hidden');
+  });
+});
+</script>
 </head>
 <body>
 
