@@ -629,7 +629,7 @@ function attachRowEvents(input){
   });
 }
 
- function enterFlatMode(){
+function enterFlatMode(){
   if (flatMode) return;
   flatMode = true;
 
@@ -652,10 +652,36 @@ function attachRowEvents(input){
     });
   }
 
-  const allRows = [...document.querySelectorAll('.row')];
-  allRows.forEach(r => list.appendChild(r));
+  // 1) move only rows that actually have a value
+  const filledRows = [...document.querySelectorAll('.row')]
+    .filter(r => r.querySelector('.stop').value.trim());
 
-  buildTimelineFromDOM(); // will render nothing in flat mode
+  filledRows.forEach(r => list.appendChild(r));
+
+  // 2) ensure only TWO empty rows by default
+  //    (keep existing empties if user already typed nothing there)
+  const empties = [...document.querySelectorAll('.row')]
+    .filter(r => !r.querySelector('.stop').value.trim());
+
+  // drop extra empties beyond the first two (to avoid clutter)
+  empties.slice(2).forEach(r => r.remove());
+
+  // if we still have fewer than 2 rows total, add new ones
+  const need = Math.max(0, 2 - list.querySelectorAll('.row').length);
+  for (let i=0;i<need;i++){
+    addRowToFlatList();
+  }
+
+  renumber();
+  buildTimelineFromDOM(); // will clear itself in flat mode
+}
+
+function addRowToFlatList(){
+  // pick a frame id just for color stripe (0 = AM Early colour)
+  const row = makeRow(document.querySelectorAll('.row').length, 0);
+  row.dataset.frame = 0;
+  document.getElementById('plainList').appendChild(row);
+  attachRowEvents(row.querySelector('.stop'));
 }
 
 function exitFlatMode(){
