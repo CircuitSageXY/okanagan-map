@@ -30,7 +30,7 @@
 }
 html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 
-/* ---------- SIDE PANEL (normal view) ---------- */
+/* ---------- SIDE PANEL ---------- */
 #panel{
   position:absolute;top:0;left:0;z-index:5;width:520px;height:100%;
   background:var(--clrPanelBg);border-right:1px solid var(--clrPanelBorder);
@@ -48,14 +48,11 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .tl-tick{position:absolute;left:0;width:100%;pointer-events:none;}
 .tl-tick::before{content:"";position:absolute;left:var(--axis-w);width:6px;height:1px;background:var(--tick-minor);}
 .tl-tick.bold::before{width:10px;background:var(--tick-major);}
-.tl-label{
-  position:absolute;left:14px;font-size:11px;color:#424242;background:rgba(255,255,255,.85);
-  padding:0 2px;border-radius:2px;line-height:1;
-}
+.tl-label{position:absolute;left:14px;font-size:11px;color:#424242;background:rgba(255,255,255,.85);
+  padding:0 2px;border-radius:2px;line-height:1;}
 .nowMarker{
   position:absolute;left:2px;width:12px;height:12px;border:2px solid #000;background:#fff;border-radius:50%;
-  transform:translate(-50%,-50%);box-shadow:0 0 4px rgba(0,0,0,.4);animation:pulse 2s infinite;z-index:3;
-}
+  transform:translate(-50%,-50%);box-shadow:0 0 4px rgba(0,0,0,.4);animation:pulse 2s infinite;z-index:3;}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(0,0,0,.35);}70%{box-shadow:0 0 0 6px rgba(0,0,0,0);}100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}}
 
 /* ---------- FRAMES ---------- */
@@ -72,12 +69,15 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .frame-header .swatch{width:16px;height:16px;border-radius:3px;flex:none;}
 .frame-hide{margin-left:auto;cursor:pointer;color:#666;font-size:20px;line-height:20px;} /* <<< */
 .frame-hide:hover{color:#000;} /* <<< */
+.frame.collapsed .frame-list,
+.frame.collapsed .addRowBtn{display:none;} /* <<< */
+.frame.collapsed{opacity:.55;}             /* <<< */
+.frame.collapsed .frame-hide{color:#c00;}  /* <<< */
 
 .frame-list{padding:6px 10px 8px 6px;min-height:8px;}
 .addRowBtn{
   margin:6px 0 8px 28px;background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
-  padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;
-}
+  padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;}
 .addRowBtn:hover{background:#e7e7e7;}
 
 .frame[data-frame="0"]{border-left:4px solid var(--f-early);}
@@ -88,18 +88,13 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .frame[data-frame="5"]{border-left:4px solid var(--f-evening);}
 .frame[data-frame="6"]{border-left:4px solid var(--f-lateev);}
 
-/* collapsed frame */ /* <<< */
-.frame.collapsed .frame-list,
-.frame.collapsed .addRowBtn{display:none;}
-.frame.collapsed{opacity:.6;}
-.frame.collapsed .frame-hide{color:#c00;}
-
 /* ---------- ROWS ---------- */
 .row{display:flex;align-items:center;margin:8px 0;padding:4px 6px 4px 0;
-  border-radius:var(--radiusMd);transition:background var(--transFast),box-shadow var(--transFast);}
+  border-radius:var(--radiusMd);transition:background var(--transFast),box-shadow var(--transFast),outline var(--transFast);}
 .row.focused{background:var(--clrInputBgAlt);box-shadow:0 0 0 2px rgba(33,150,243,.25);}
-.row:hover:not(.focused){background:rgba(0,0,0,.04);}
+.row:hover:not(.focused):not(.selected){background:rgba(0,0,0,.04);}
 .row.invalid input.stop{border-color:#e53935;background:#fff7f7;}
+.row.selected{outline:3px solid rgba(33,150,243,.6);}       /* <<< multi-select highlight */
 
 .bullet{
   min-width:24px;padding:0 6px;height:24px;border-radius:50%;
@@ -115,8 +110,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 input.stop{
   flex:1;height:38px;border:1px solid var(--clrInputBorder);
   border-radius:var(--radiusSm);padding:4px 6px 4px 10px;font-size:14px;
-  background:var(--clrInputBg);transition:border-color var(--transFast),box-shadow var(--transFast);
-}
+  background:var(--clrInputBg);transition:border-color var(--transFast),box-shadow var(--transFast);}
 input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 0 3px rgba(33,150,243,.25);}
 
 .row[data-frame="0"] input.stop{border-left:4px solid var(--f-early);    padding-left:6px;}
@@ -133,8 +127,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   cursor:pointer;margin-left:4px;font-size:20px;line-height:20px;color:#fff;
   width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;
   background:var(--clrD);border-radius:var(--radiusSm);
-  transition:transform var(--transFast),background var(--transFast);
-}
+  transition:transform var(--transFast),background var(--transFast);}
 .remove:hover{background:#f75a4d;transform:scale(1.08);} .remove:active{transform:scale(.94);}
 
 /* ---------- ACTION BUTTONS (normal) ---------- */
@@ -143,14 +136,14 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 }
 #actions button{
   padding:8px 14px;font-size:14px;border-radius:var(--radiusMd);
-  border:1px solid transparent;cursor:pointer;transition:background var(--transFast),transform var(--transFast),opacity var(--transFast);
-}
+  border:1px solid transparent;cursor:pointer;transition:background var(--transFast),transform var(--transFast);}
 #route{background:var(--clrA);color:#fff;border-color:var(--clrA);}
 #route:hover{background:#5b9bff;} #route:active{transform:scale(.96);}
 #optAll{background:var(--clrB);color:#fff;border-color:var(--clrB);}
 #optAll:hover{background:#26c36c;} #optAll:active{transform:scale(.96);}
 #optFrames{background:#795548;color:#fff;border-color:#795548;}
 #optFrames:hover{background:#8d6e63;} #optFrames:active{transform:scale(.96);}
+#delSel{background:#db4437;color:#fff;border-color:#db4437;display:none;} /* <<< multi delete */
 
 #msg{margin:12px 0;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 0;}
 
@@ -172,37 +165,29 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 #svBack{
   position:fixed;bottom:16px;right:16px;z-index:1200;
   padding:8px 14px;border:none;border-radius:6px;background:#455a64;color:#fff;
-  font-size:14px;cursor:pointer;display:none;box-shadow:0 2px 6px rgba(0,0,0,.35);
-}
+  font-size:14px;cursor:pointer;display:none;box-shadow:0 2px 6px rgba(0,0,0,.35);}
 #svBack:hover{background:#546e7a;}
 
 /* ---------- FLAT MODE ---------- */
-#panel.flat{
-  width:auto;background:transparent;border:none;box-shadow:none;pointer-events:none;
-}
+#panel.flat{width:auto;background:transparent;border:none;box-shadow:none;pointer-events:none;}
 #panel.flat #content{display:none;}
 #panel.flat #scroller{padding:12px;}
-#panel.flat #msg{display:none;}               /* <<< hide ghost msg */
-#panel.flat #actions{display:none;}           /* <<< hide old buttons */
+#panel.flat #msg{display:none;}
+#panel.flat #actions{display:none;}
 
-/* Floating directions panel */
 #addrBar{
   position:absolute;top:12px;left:12px;width:380px;z-index:8;
-  background:rgba(255,255,255,.75); /* 25% transparent */
+  background:rgba(255,255,255,.75);
   border:1px solid #d7d7d7;border-radius:10px;
   box-shadow:0 2px 6px rgba(0,0,0,.25);padding:12px 12px 10px 12px;
-  pointer-events:auto;display:none;backdrop-filter:blur(2px);
-}
+  pointer-events:auto;display:none;backdrop-filter:blur(2px);}
 #addrBar.active{display:block;}
-#addrBarHeader{
-  display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:500;font-size:15px;
-}
+#addrBarHeader{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:500;font-size:15px;}
 #addrTitle{flex:1;}
 #addrToggles{display:flex;gap:6px;margin-left:0;}
 .toggleChip{
   padding:3px 10px;border-radius:14px;border:1px solid #bbb;font-size:12px;cursor:pointer;user-select:none;
-  line-height:16px;display:inline-block;min-width:46px;text-align:center;
-}
+  line-height:16px;display:inline-block;min-width:46px;text-align:center;}
 .toggleChip.day  {border-color:var(--f-afternoon);color:var(--f-afternoon);}
 .toggleChip.night{border-color:var(--f-evening);color:var(--f-evening);}
 .toggleChip.active.day  {background:var(--f-afternoon);color:#fff;}
@@ -210,21 +195,20 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 
 #addrAdd{
   background:var(--clrPanelBg);border:1px solid #bbb;border-radius:50%;width:24px;height:24px;
-  font-size:16px;line-height:22px;text-align:center;cursor:pointer;flex:none;
-}
+  font-size:16px;line-height:22px;text-align:center;cursor:pointer;flex:none;}
 #addrAdd:hover{background:#f2f2f2;}
 
 #addrList .row{margin:6px 0;}
 
 #addrFooter{
   margin-top:10px;border-top:1px solid #dadada;padding-top:8px;
-  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-}
-#flatMsg{font-size:16px;font-weight:700;color:#0066cc;flex:1 1 100%;} /* <<< larger */
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+#flatMsg{font-size:16px;font-weight:700;color:#0066cc;flex:1 1 100%;}
 #flatButtons{display:flex;gap:8px;}
 #flatButtons button{padding:6px 12px;font-size:13px;border-radius:6px;cursor:pointer;border:none;}
 #flatRoute{background:var(--clrA);color:#fff;}
 #flatOpt{background:var(--clrB);color:#fff;}
+#flatDelSel{background:#db4437;color:#fff;display:none;} /* <<< */
 
 .hidden{display:none!important;}
 </style>
@@ -255,6 +239,7 @@ function init(){ if(typeof window.routePlannerInit==='function'){window.routePla
     <button id="route">Route</button>
     <button id="optAll"    title="Optimize entire day">Optimize</button>
     <button id="optFrames" title="Optimize each time frame separately">Optimize by Frames</button>
+    <button id="delSel" title="Delete selected stops">Delete Selected</button> <!-- <<< -->
   </div>
 </div>
 
@@ -275,6 +260,7 @@ function init(){ if(typeof window.routePlannerInit==='function'){window.routePla
     <div id="flatButtons">
       <button id="flatRoute">Route</button>
       <button id="flatOpt">Optimize</button>
+      <button id="flatDelSel">Delete Selected</button> <!-- <<< -->
     </div>
   </div>
 </div>
@@ -348,15 +334,10 @@ function geocodeSmart(text){
   });
 }
 
-/* ---------- LABELS ---------- */
-function idxToLabel(i){
-  let s='', n=i+1;
-  while(n>0){const rem=(n-1)%26; s=String.fromCharCode(65+rem)+s; n=Math.floor((n-1)/26);}
-  return s;
-}
+/* ---------- LABEL & ROW HELPERS ---------- */
+function idxToLabel(i){let s='',n=i+1;while(n>0){const rem=(n-1)%26;s=String.fromCharCode(65+rem)+s;n=Math.floor((n-1)/26);}return s;}
 
-/* ---------- HELPERS ---------- */
-function ensureCoords(rows){                            // unchanged signature
+function ensureCoords(rows){
   const tasks=rows.map(row=>{
     const inp=row.querySelector('.stop');
     row.classList.remove('invalid');
@@ -368,6 +349,7 @@ function ensureCoords(rows){                            // unchanged signature
   });
   return Promise.all(tasks).then(a=>a.every(Boolean));
 }
+
 function makeRow(i,frameId){
   const d=document.createElement('div');
   d.className='row'; d.dataset.frame=frameId;
@@ -378,21 +360,22 @@ function makeRow(i,frameId){
     <input class="stop" placeholder="Enter stop" autocomplete="off" autocorrect="off" spellcheck="false">
     <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
     <span class="remove" title="Remove stop">×</span>`;
-  d.querySelector('.remove').onclick=()=>{d.remove();renumber();autoCompute();buildTimelineFromDOM();};
+  d.querySelector('.remove').onclick=()=>{d.remove();renumber();autoCompute();buildTimelineFromDOM();showDelButtonsIfNeeded();}; // <<<
+  d.addEventListener('click',rowClickSelect); // <<< multi-select
   return d;
 }
 
-/* visible rows for numbering */   // <<< helper
 function currentRowsForNumbering(){
   if(flatMode) return [...document.querySelectorAll('#addrList .row')];
   return [...document.querySelectorAll('.frame')]
-         .filter(fr=>{
-            if(fr.classList.contains('collapsed')) return false;
-            const sh=fr.dataset.shift;
-            return (sh==='day'&&dayVisible)||(sh==='night'&&nightVisible);
-          })
-         .flatMap(fr=>[...fr.querySelectorAll('.row')]);
+    .filter(fr=>{
+      if(fr.classList.contains('collapsed')) return false;
+      const sh=fr.dataset.shift;
+      return (sh==='day'&&dayVisible)||(sh==='night'&&nightVisible);
+    })
+    .flatMap(fr=>[...fr.querySelectorAll('.row')]);
 }
+
 function renumber(){
   const rows=currentRowsForNumbering();
   rows.forEach((r,i)=>{
@@ -403,6 +386,7 @@ function renumber(){
     b.className='bullet '+clr;
   });
 }
+
 const clearPreviewPins=()=>{previewPins.forEach(m=>m.setMap(null));previewPins=[];};
 const addPreviewPin=(pos,label)=>previewPins.push(new google.maps.Marker({map,position:pos,label:{text:label,color:'#fff'}}));
 const clearLegDisplays=()=>document.querySelectorAll('.leg-display').forEach(e=>e.remove());
@@ -427,7 +411,6 @@ function installPredictionFilter(){
   }).observe(document.body,{childList:true,subtree:true});
 }
 
-/* manual Tab/Enter commit */
 function acceptTopPrediction(inp){
   const q=inp.value.trim();if(!q){focusNextStop(inp);return;}
   acService.getPlacePredictions({input:q,bounds:CENTRAL_OK_BOUNDS,componentRestrictions:{country:'ca'},types:['address']},
@@ -460,6 +443,28 @@ const rowToLocation=row=>{
     : inp.value.trim();
 };
 
+/* ---------- MULTI-SELECT DELETE ---------- */
+function rowClickSelect(e){
+  if(!(e.ctrlKey||e.metaKey)) return;
+  e.currentTarget.classList.toggle('selected');
+  showDelButtonsIfNeeded();
+}
+function showDelButtonsIfNeeded(){
+  const anySel=document.querySelector('.row.selected');
+  document.getElementById('delSel').style.display = anySel && !flatMode ? 'inline-block':'none';
+  document.getElementById('flatDelSel').style.display = anySel && flatMode ? 'inline-block':'none';
+}
+function deleteSelected(){
+  document.querySelectorAll('.row.selected').forEach(r=>r.remove());
+  showDelButtonsIfNeeded();
+  renumber();autoCompute();buildTimelineFromDOM();
+}
+document.addEventListener('keydown',e=>{
+  if((e.key==='Delete'||e.key==='Backspace') && document.querySelector('.row.selected')){
+    e.preventDefault();deleteSelected();
+  }
+});
+
 /* ---------- INIT ---------- */
 window.routePlannerInit=()=>{
   installPredictionFilter();
@@ -483,9 +488,11 @@ window.routePlannerInit=()=>{
   document.getElementById('route').onclick=rebuildRoute;
   document.getElementById('optAll').onclick=globalOptimizeRoute;
   document.getElementById('optFrames').onclick=optimizeByFrames;
+  document.getElementById('delSel').onclick=deleteSelected;          // <<<
 
   document.getElementById('flatRoute').onclick=rebuildRoute;
   document.getElementById('flatOpt').onclick=globalOptimizeRoute;
+  document.getElementById('flatDelSel').onclick=deleteSelected;      // <<<
 
   const sv=map.getStreetView();
   sv.addListener('visible_changed',()=>{document.getElementById('svBack').style.display=sv.getVisible()?'block':'none';});
@@ -515,7 +522,7 @@ function autoCompute(){
     clearPreviewPins();clearLegDisplays();msg.textContent='';flatMsg.textContent='';clearDirections();return;
   }
 
-  // <<< do NOT geocode while typing:
+  // Don’t geocode while typing
   if(filled.some(r=>!r.querySelector('.stop').dataset.lat)){
     clearDirections();clearLegDisplays();msg.textContent='';flatMsg.textContent='';
     return;
@@ -536,9 +543,10 @@ function rebuildRoute(){
   const msg=document.getElementById('msg');
   const flatMsg=document.getElementById('flatMsg');
   clearLegDisplays();
+
   if(rows.length<2){msg.textContent='';flatMsg.textContent='';clearDirections();return;}
 
-  ensureCoords(rows).then(ok=>{                    // <<< geocode now
+  ensureCoords(rows).then(ok=>{
     if(!ok){msg.textContent='One or more stops can’t be located – please edit.';flatMsg.textContent=msg.textContent;return;}
     const locs=rows.map(rowToLocation);
     const reqId=++routeVersion;
@@ -553,9 +561,13 @@ function rebuildRoute(){
 async function globalOptimizeRoute(){
   const msg=document.getElementById('msg');
   const flatMsg=document.getElementById('flatMsg');
+  clearLegDisplays();                                            // <<<
+
   const rows=getOrderedRows();
   if(rows.length<3){rebuildRoute();return;}
-  const ok=await ensureCoords(rows); if(!ok){msg.textContent='One or more stops can’t be located – please edit.';flatMsg.textContent=msg.textContent;return;}
+
+  const ok=await ensureCoords(rows);
+  if(!ok){msg.textContent='One or more stops can’t be located – please edit.';flatMsg.textContent=msg.textContent;return;}
 
   const locs=rows.map(rowToLocation);
   routeVersion++;const runId=routeVersion;
@@ -570,11 +582,20 @@ async function globalOptimizeRoute(){
     if(stat!=='OK'){msg.textContent='Optimize failed';flatMsg.textContent='Optimize failed';return;}
 
     const order=[0,...res.routes[0].waypoint_order.map(i=>i+1),locs.length-1];
-    const allRows=[...rows];
-    order.forEach(idx=>{
-      const r=allRows[idx];
-      (flatMode ? document.getElementById('addrList') : getFrameListById(+r.dataset.frame)).appendChild(r);
-    });
+    const curRows=[...rows];
+
+    if(flatMode){
+      const list=document.getElementById('addrList');
+      order.forEach(i=>list.appendChild(curRows[i]));
+    }else{
+      // keep rows in same frame they already belong to
+      order.forEach(i=>{
+        const r=curRows[i];
+        const parent=getFrameListById(+r.dataset.frame);
+        parent.appendChild(r);
+      });
+    }
+
     renumber();
     dirRend.setDirections(res);
     displayLegs(res,'OK');
@@ -583,22 +604,28 @@ async function globalOptimizeRoute(){
 
 async function optimizeByFrames(){
   const msg=document.getElementById('msg'); msg.textContent='Optimizing by frames…';
-  const visFrames=FRAMES.filter(f=>(f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible));
+  clearLegDisplays();                                        // <<<
+
+  const visFrames=FRAMES.filter(f=>{
+    const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
+    return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) && !sec.classList.contains('collapsed');
+  });
+
   for(const fr of visFrames){
     const list=getFrameListById(fr.id);
     const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
     if(rows.length<3) continue;
-    const ok=await ensureCoords(rows); if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
+
+    const ok=await ensureCoords(rows);
+    if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
 
     const locs=rows.map(rowToLocation);
-    routeVersion++;const runId=routeVersion;
     await new Promise(resolve=>{
       dirSvc.route({
         origin:locs[0],destination:locs[locs.length-1],
         waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
         optimizeWaypoints:true,travelMode:'DRIVING'
       },(res,stat)=>{
-        if(runId!==routeVersion){resolve();return;}
         if(stat!=='OK'){resolve();return;}
         const order=[0,...res.routes[0].waypoint_order.map(i=>i+1),locs.length-1];
         const cur=[...rows];
@@ -642,13 +669,12 @@ function buildFrameBuckets(){
     const head=document.createElement('div');
     head.className='frame-header';
     head.innerHTML=`<span class="swatch" style="background:${fr.color}"></span>${fr.name}`;
-    const hideBtn=document.createElement('span');                 // <<< add hide btn
+    const hideBtn=document.createElement('span');
     hideBtn.className='material-icons frame-hide';
     hideBtn.title='Hide / show this time frame';
     hideBtn.textContent='visibility_off';
     hideBtn.onclick=()=>toggleFrame(fr.id);
     head.appendChild(hideBtn);
-
     sec.appendChild(head);
 
     const list=document.createElement('div');
@@ -687,8 +713,7 @@ function addRowToFrame(frameId, focus = true){
   const row  = makeRow(0, frameId);
   list.appendChild(row);
   attachRowEvents(row.querySelector('.stop'));
-  renumber();
-  buildTimelineFromDOM();
+  renumber();buildTimelineFromDOM();
   if (focus) row.querySelector('.stop').focus();
 }
 function addRowToAddrBar(){
@@ -698,9 +723,7 @@ function addRowToAddrBar(){
   attachRowEvents(row.querySelector('.stop'));
   renumber();
 }
-function emptyRowsIn(list){
-  return [...list.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());
-}
+function emptyRowsIn(list){return [...list.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());}
 function ensurePlaceholdersForFrame(frameId){
   const list=getFrameListById(frameId);
   const need=BASE_EMPTY_PER_FRAME - emptyRowsIn(list).length;
@@ -723,19 +746,17 @@ function getOrderedRows(includeHidden=false){
     const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
     const vis=(f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)||includeHidden;
     if(!vis) return;
-    if(sec.classList.contains('collapsed') && !includeHidden) return;  // <<< skip hidden
+    if(sec.classList.contains('collapsed') && !includeHidden) return;
     rows.push(...getFrameListById(f.id).querySelectorAll('.row'));
   });
   return rows.filter(r=>r.querySelector('.stop').value.trim());
 }
 
-/* collapse/restore frame */ // <<< 
+/* collapse/restore frame */
 function toggleFrame(id){
   const sec=document.querySelector(`.frame[data-frame="${id}"]`);
   sec.classList.toggle('collapsed');
-  renumber();
-  autoCompute();
-  buildTimelineFromDOM();
+  renumber();autoCompute();buildTimelineFromDOM();
 }
 
 function attachRowEvents(input){
@@ -773,7 +794,7 @@ function attachRowEvents(input){
     fields:['formatted_address','geometry','place_id'],types:['address'],
     componentRestrictions:{country:'ca'},bounds:CENTRAL_OK_BOUNDS,strictBounds:true
   });
-  ac.addListener('place_changed',()=>{/* intentionally ignore to avoid auto fill */});
+  ac.addListener('place_changed',()=>{/* ignore auto fill */});
 }
 
 /* ---------- FLAT BAR ---------- */
@@ -800,7 +821,7 @@ function enterFlatMode(){
   for(let i=blanks.length;i<2;i++) addRowToAddrBar();
 
   renumber();buildTimelineFromDOM();
-  updateToggleChips();updateButtons();
+  updateToggleChips();updateButtons();showDelButtonsIfNeeded();
 }
 function exitFlatMode(){
   if(!flatMode)return;
@@ -817,7 +838,7 @@ function exitFlatMode(){
 
   ensureAllFramesHaveBaseline();
   buildTimelineFromDOM();
-  updateButtons();
+  updateButtons();showDelButtonsIfNeeded();
 }
 function updateToggleChips(){
   document.getElementById('toggleDay').classList.toggle('active',dayVisible);
