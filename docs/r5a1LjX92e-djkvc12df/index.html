@@ -200,7 +200,6 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 
 <script>
 
-const labels='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 const colourCycle=['A','B','C','D','E','F','G','H'];
 
 let map,dirSvc,dirRend,geocoder,acService,placeSvc;
@@ -268,6 +267,18 @@ function geocodeSmart(text){
     }
   });
 }
+
+// 0 -> A, 25 -> Z, 26 -> AA, 27 -> AB, ...
+function idxToLabel(i){
+  let s='', n=i+1;
+  while(n>0){
+    const rem = (n-1)%26;
+    s = String.fromCharCode(65+rem) + s;
+    n = Math.floor((n-1)/26);
+  }
+  return s;
+}
+
 function ensureCoords(rows){
   const tasks=rows.map(row=>{
     const inp=row.querySelector('.stop');
@@ -283,23 +294,33 @@ function ensureCoords(rows){
 
 /* DOM helpers */
 function makeRow(i,frameId){
-  const d=document.createElement('div');d.className='row';d.dataset.frame=frameId;
-  const clr=colourCycle[i%colourCycle.length]||'defaultBullet';
-  d.innerHTML=`
-    <div class="bullet ${clr}">${labels[i]}</div>
-    <input class="stop" placeholder="Enter stop">
-    <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
-    <span class="remove" title="Remove stop">×</span>`;
+const d = document.createElement('div');
+d.className = 'row';
+d.dataset.frame = frameId;
+
+const labelText = idxToLabel(i);
+const clr = colourCycle[i % colourCycle.length] || 'defaultBullet';
+
+d.innerHTML = `
+  <div class="bullet ${clr}">${labelText}</div>
+  <input class="stop" placeholder="Enter stop">
+  <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
+  <span class="remove" title="Remove stop">×</span>`;
+
   d.querySelector('.remove').onclick=()=>{d.remove();renumber();autoCompute();};
   return d;
 }
 function renumber(){
-  [...document.querySelectorAll('.row')].forEach((r,i)=>{
-    const b=r.querySelector('.bullet');
-    b.textContent=labels[i]||'?';
-    b.className='bullet '+(colourCycle[i%colourCycle.length]||'defaultBullet');
+  const rows = [...document.querySelectorAll('.row')];
+  rows.forEach((r, i)=>{
+    const b = r.querySelector('.bullet');
+    const labelText = idxToLabel(i);
+    const clr = colourCycle[i % colourCycle.length] || 'defaultBullet';
+    b.textContent = labelText;
+    b.className = 'bullet ' + clr;
   });
 }
+
 const clearPreviewPins=()=>{previewPins.forEach(m=>m.setMap(null));previewPins=[];};
 const addPreviewPin=(pos,label)=>previewPins.push(new google.maps.Marker({map,position:pos,label:{text:label,color:'#fff'}}));
 const clearLegDisplays=()=>document.querySelectorAll('.leg-display').forEach(e=>e.remove());
