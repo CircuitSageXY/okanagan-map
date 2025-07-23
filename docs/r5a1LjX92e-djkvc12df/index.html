@@ -51,10 +51,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .tl-seg{
   position:absolute;left:20px;width:44px;border-radius:3px;opacity:.45;
 }
-.tl-seg[data-name]::after{
-  content:attr(data-name);
-  position:absolute;left:4px;top:2px;font-size:10px;color:#000;background:rgba(255,255,255,.75);padding:0 2px;border-radius:2px;
-}
+
 .tl-tick{
   position:absolute;left:0;width:100%;pointer-events:none;
 }
@@ -209,6 +206,8 @@ const colourCycle=['A','B','C','D','E','F','G','H'];
 let map,dirSvc,dirRend,geocoder,acService,placeSvc;
 let autoTimer=null,routeVersion=0,previewPins=[];
 let dayVisible=true,nightVisible=false;
+let flatMode = false;
+
 
 const FRAMES=[
   {id:0,key:'early',     name:'AM Early',     start:'07:00', end:'09:00',  color:'var(--f-early)',     shift:'day'},
@@ -567,10 +566,14 @@ function addRowToFrame(frameId,focus=true){
   buildTimelineFromDOM();
 }
 
-function getOrderedRows(){
+function getOrderedRows(includeHidden=false){
+  if(flatMode){
+    return [...document.querySelectorAll('#plainList .row')]
+           .filter(r=>r.querySelector('.stop').value.trim());
+  }
   const rows=[];
   FRAMES.forEach(f=>{
-    const vis=(f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible);
+    const vis=(f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)||includeHidden;
     if(!vis)return;
     rows.push(...getFrameListById(f.id).querySelectorAll('.row'));
   });
@@ -624,6 +627,53 @@ function attachRowEvents(input){
     input.dataset.lat=pt.lat;input.dataset.lng=pt.lng;
     autoCompute();
   });
+}
+
+ function enterFlatMode(){
+  if (flatMode) return;
+  flatMode = true;
+
+  document.getElementById('framesContainer').style.display = 'none';
+  document.getElementById('timelineCol').style.display     = 'none';
+
+  let list = document.getElementById('plainList');
+  if (!list){
+    list = document.createElement('div');
+    list.id = 'plainList';
+    list.className = 'frame-list';
+    const scroller = document.getElementById('scroller');
+    const msg      = document.getElementById('msg');
+    scroller.insertBefore(list, msg);
+
+    Sortable.create(list,{
+      handle: '.drag',
+      animation: 150,
+      onEnd: ()=>{ renumber(); autoCompute(); }
+    });
+  }
+
+  const allRows = [...document.querySelectorAll('.row')];
+  allRows.forEach(r => list.appendChild(r));
+
+  buildTimelineFromDOM(); // will render nothing in flat mode
+}
+
+function exitFlatMode(){
+  if (!flatMode) return;
+  flatMode = false;
+
+  const list = document.getElementById('plainList');
+  if (list){
+    list.querySelectorAll('.row').forEach(r=>{
+      const fid = +r.dataset.frame || 0;
+      getFrameListById(fid).appendChild(r);
+    });
+    list.remove();
+  }
+
+  document.getElementById('framesContainer').style.display = '';
+  document.getElementById('timelineCol').style.display     = '';
+  buildTimelineFromDOM();
 }
 
 /* TIMELINE from DOM ---------------------------------------------- */
@@ -690,7 +740,6 @@ function buildTimelineFromDOM(){
       const h=dom.offsetHeight;
       const seg=document.createElement('div');
       seg.className='tl-seg';
-      seg.dataset.name=fr.name;
       seg.style.background=fr.color;
       seg.style.top=top+'px';
       seg.style.height=h+'px';
@@ -738,9 +787,17 @@ function applyShiftVisibility(){
     const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
     sec.style.display=vis?'block':'none';
   });
+
+  if(!dayVisible && !nightVisible){
+    enterFlatMode();
+  }else{
+    exitFlatMode();
+  }
+
   buildTimelineFromDOM();
   autoCompute();
 }
+
 function clearAllStops(){
   document.querySelectorAll('.row input.stop').forEach(inp=>{
     inp.value='';inp.dataset.lat='';inp.dataset.lng='';
