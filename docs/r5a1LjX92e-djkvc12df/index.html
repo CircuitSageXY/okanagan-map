@@ -585,17 +585,12 @@ const getFrameListById=id=>document.getElementById('frame-'+id);
 
 function addRowToFrame(frameId, focus = true){
   const list = getFrameListById(frameId);
-
-  // index passed to makeRow is irrelevant because we renumber right after
-  const row = makeRow(0, frameId);
+  const row  = makeRow(0, frameId);
   list.appendChild(row);
-
   attachRowEvents(row.querySelector('.stop'));
-
-  renumber();               // <- fixes the “Q” / wrong label issue
+  renumber();
   buildTimelineFromDOM();
-
-  if(focus) row.querySelector('.stop').focus();
+  if (focus) row.querySelector('.stop').focus();
 }
   buildTimelineFromDOM();
 }
