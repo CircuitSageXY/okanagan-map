@@ -87,7 +87,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 }
 .addRowBtn:hover{background:#e7e7e7;}
 
-/* colored spines to bind frame to timeline colour */
+/* colored spines */
 .frame[data-frame="0"]{border-left:4px solid var(--f-early);}
 .frame[data-frame="1"]{border-left:4px solid var(--f-late);}
 .frame[data-frame="2"]{border-left:4px solid var(--f-lunch);}
@@ -139,11 +139,11 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 
 /* ACTION BUTTONS ------------------------------------------------- */
 #actions{
-  position:absolute;bottom:12px;left:16px;right:16px;display:flex;gap:10px;flex-wrap:wrap;
+  position:absolute;bottom:12px;left:16px;right:16px;display:flex;gap:10px;flex-wrap:wrap;z-index:7;
 }
 #actions button{
   padding:8px 14px;font-size:14px;border-radius:var(--radiusMd);
-  border:1px solid transparent;cursor:pointer;transition:background var(--transFast),transform var(--transFast);
+  border:1px solid transparent;cursor:pointer;transition:background var(--transFast),transform var(--transFast),opacity var(--transFast);
 }
 #route{background:var(--clrA);color:#fff;border-color:var(--clrA);}
 #route:hover{background:#5b9bff;} #route:active{transform:scale(.96);}
@@ -154,6 +154,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 
 #msg{margin:12px 0;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 0;}
 
+/* Leg summary bubbles */
 .leg-display{margin:6px 0 0 28px;font-size:16px;font-weight:600;color:#1b1b1b;
   padding:4px 10px;border-radius:6px;background:rgba(0,0,0,.06);
   display:inline-block;line-height:1.25;white-space:nowrap;}
@@ -175,51 +176,48 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 }
 #svBack:hover{background:#546e7a;}
 
-/* Flat mode plain list ------------------------------------------ */
+/* ====== FLAT MODE ======  */
 #panel.flat{
-  width:340px;
-  background:transparent;
-  border:none;
-  box-shadow:none;
+  width:auto;background:transparent;border:none;box-shadow:none;pointer-events:none;
 }
+#panel.flat #content{display:none;}
+#panel.flat #scroller{padding:12px;}
+#panel.flat #msg{pointer-events:auto;}
 
-#panel.flat #content{display:none;}   /* hide timeline + frames column   */
-#panel.flat #scroller{padding:12px;}  /* tighter padding inside scroller */
-
-/* The plain list container */
-#plainList,
-#plainList.plain-list{
-  background:#fff;
-  border:1px solid #d7d7d7;
-  border-radius:10px;
-  box-shadow:0 2px 6px rgba(0,0,0,.25);
-  padding:12px;
+#panel.flat #actions{
+  position:fixed;bottom:12px;left:12px;right:auto;pointer-events:auto;
 }
+#panel.flat #actions button{opacity:.45;}
+#panel.flat #actions button:hover{opacity:.9;}
 
-  /* ===== Flat floating mode (both shifts hidden) ===== */
-#panel.flat{
-  width:auto;
-  background:transparent;
-  border:none;
-  box-shadow:none;
-  pointer-events:none;          /* clicks go through to the map */
+#panel.flat #optFrames{display:none;} /* hide frames optimizer in flat */
+
+/* Floating address bar/list */
+#addrBar{
+  position:absolute;top:12px;left:12px;width:360px;z-index:8;
+  background:#fff;border:1px solid #d7d7d7;border-radius:10px;
+  box-shadow:0 2px 6px rgba(0,0,0,.25);padding:12px;pointer-events:auto;display:none;
 }
-#panel.flat #content{display:none;}   /* hide timeline + frames column */
-#panel.flat #scroller{padding:12px;}  /* tighter padding */
-
-#plainList,
-#plainList.plain-list{
-  position:absolute;
-  top:12px;left:12px;
-  width:360px;
-  background:#fff;
-  border:1px solid #d7d7d7;
-  border-radius:10px;
-  box-shadow:0 2px 6px rgba(0,0,0,.25);
-  padding:12px;
-  pointer-events:auto;          /* keep the list interactive */
+#addrBar.active{display:block;}
+#addrBarHeader{
+  display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-weight:500;
 }
+#addrAdd{background:#e0e0e0;border:1px solid #ccc;border-radius:4px;font-size:13px;padding:2px 8px;cursor:pointer;}
+#addrAdd:hover{background:#e7e7e7;}
+#addrList .row{margin:6px 0;}
+#addrToggles{
+  display:flex;gap:6px;margin-left:auto;
+}
+.toggleChip{
+  padding:2px 8px;border-radius:12px;border:1px solid #bbb;font-size:12px;cursor:pointer;user-select:none;
+}
+.toggleChip.active{background:var(--clrA);color:#fff;border-color:var(--clrA);}
 
+/* PlainList fallback (re-using same rows when flat) */
+#plainList{display:none;} /* not used anymore but kept for safety */
+
+/* Hide */
+.hidden{display:none!important;}
 </style>
 
 <script>
@@ -229,13 +227,13 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 <script async defer
   src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry">
 </script>
-
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 </head>
 <body>
 
 <button id="svBack">Back to Map</button>
 
+<!-- PANEL -------------------------------------------------------->
 <div id="panel">
   <div id="scroller">
     <div id="content">
@@ -249,6 +247,19 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
     <button id="optAll"    title="Optimize entire day">Optimize</button>
     <button id="optFrames" title="Optimize each time frame separately">Optimize by Frames</button>
   </div>
+</div>
+
+<!-- FLOATING ADDRESS BAR FOR TRUE FLAT MODE --------------------->
+<div id="addrBar">
+  <div id="addrBarHeader">
+    <span>Directions</span>
+    <div id="addrToggles">
+      <span id="toggleDay"   class="toggleChip">Day</span>
+      <span id="toggleNight" class="toggleChip">Night</span>
+    </div>
+    <button id="addrAdd" title="Add stop">+</button>
+  </div>
+  <div id="addrList"></div>
 </div>
 
 <div id="map"></div>
@@ -321,14 +332,9 @@ function geocodeSmart(text){
 }
 
 /* -------------------- LABELS -------------------- */
-// 0 -> A, 25 -> Z, 26 -> AA ...
 function idxToLabel(i){
   let s='', n=i+1;
-  while(n>0){
-    const rem=(n-1)%26;
-    s=String.fromCharCode(65+rem)+s;
-    n=Math.floor((n-1)/26);
-  }
+  while(n>0){const rem=(n-1)%26; s=String.fromCharCode(65+rem)+s; n=Math.floor((n-1)/26);}
   return s;
 }
 
@@ -345,7 +351,6 @@ function ensureCoords(rows){
   });
   return Promise.all(tasks).then(a=>a.every(Boolean));
 }
-
 function makeRow(i,frameId){
   const d=document.createElement('div');
   d.className='row'; d.dataset.frame=frameId;
@@ -428,7 +433,10 @@ const rowToLocation=row=>{
 window.routePlannerInit=()=>{
   installPredictionFilter();
 
-  map=new google.maps.Map(document.getElementById('map'),{center:{lat:49.8879,lng:-119.4960},zoom:10});
+  map=new google.maps.Map(document.getElementById('map'),{
+    center:{lat:49.8879,lng:-119.4960},zoom:10,
+    mapTypeControl:false,streetViewControl:true,fullscreenControl:true
+  });
   new google.maps.KmlLayer({url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',map,preserveViewport:true});
 
   dirSvc=new google.maps.DirectionsService();
@@ -439,6 +447,7 @@ window.routePlannerInit=()=>{
 
   buildFrameBuckets();
   buildTimelineFromDOM();
+  buildAddrBar();   // create floating bar hooks
 
   document.getElementById('route').onclick=rebuildRoute;
   document.getElementById('optAll').onclick=globalOptimizeRoute;
@@ -519,7 +528,7 @@ async function globalOptimizeRoute(){
     const allRows=[...rows];
     order.forEach(idx=>{
       const r=allRows[idx];
-      getFrameListById(+r.dataset.frame).appendChild(r);
+      (flatMode ? document.getElementById('addrList') : getFrameListById(+r.dataset.frame)).appendChild(r);
     });
     renumber();
     dirRend.setDirections(res);
@@ -611,17 +620,14 @@ function buildFrameBuckets(){
     });
   });
 
-  // preload placeholders
   FRAMES.forEach(fr=>ensurePlaceholdersForFrame(fr.id));
   renumber();
 
-  // rebuild timeline when size/children change
   const ro=new ResizeObserver(()=>buildTimelineFromDOM());
   document.querySelectorAll('.frame').forEach(f=>ro.observe(f));
   const mo=new MutationObserver(()=>buildTimelineFromDOM());
   document.querySelectorAll('.frame-list').forEach(fl=>mo.observe(fl,{childList:true,subtree:true}));
 }
-
 const getFrameListById=id=>document.getElementById('frame-'+id);
 
 function addRowToFrame(frameId, focus = true){
@@ -632,6 +638,13 @@ function addRowToFrame(frameId, focus = true){
   renumber();
   buildTimelineFromDOM();
   if (focus) row.querySelector('.stop').focus();
+}
+function addRowToAddrBar(){
+  const list=document.getElementById('addrList');
+  const row=makeRow(0, 0);
+  list.appendChild(row);
+  attachRowEvents(row.querySelector('.stop'));
+  renumber();
 }
 function emptyRowsIn(list){
   return [...list.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());
@@ -650,7 +663,7 @@ function ensureAllFramesHaveBaseline(){
 
 function getOrderedRows(includeHidden=false){
   if(flatMode){
-    return [...document.querySelectorAll('#plainList .row')]
+    return [...document.querySelectorAll('#addrList .row')]
            .filter(r=>r.querySelector('.stop').value.trim());
   }
   const rows=[];
@@ -670,7 +683,7 @@ function attachRowEvents(input){
     input.addEventListener('mouseup',mu);
   });
   input.addEventListener('blur',()=>markRowFocus(input,false));
-  input.addEventListener('input',()=>{input.dataset.lat='';input.dataset.lng='';});
+  input.addEventListener('input',()=>{input.dataset.lat='';input.dataset.lng='';scheduleAutoCompute();});
   input.addEventListener('keydown',e=>{
     if(e.key==='Tab'&&!e.shiftKey){
       if(input.dataset.lat&&input.dataset.lng) return;
@@ -688,7 +701,7 @@ function attachRowEvents(input){
     // ensure enough rows
     for(let i=0;i<lines.length;i++){
       if(allRows[start+i]) continue;
-      addRowToFrame(+input.closest('.frame').dataset.frame,false);
+      flatMode ? addRowToAddrBar() : addRowToFrame(+input.closest('.row').dataset.frame,false);
     }
     lines.forEach((addr,i)=>{
       const r=document.querySelectorAll('.row')[start+i]; if(!r) return;
@@ -715,64 +728,62 @@ function attachRowEvents(input){
   });
 }
 
-/* -------------------- FLAT MODE -------------------- */
-function enterFlatMode(){
-  if(flatMode) return;
-  flatMode = true;
-
-  document.getElementById('panel').classList.add('flat');
-  document.getElementById('framesContainer').style.display = 'none';
-  document.getElementById('timelineCol').style.display     = 'none';
-
-  let list = document.getElementById('plainList');
-  if(!list){
-    list = document.createElement('div');
-    list.id = 'plainList';
-    const scroller = document.getElementById('scroller');
-    const msg = document.getElementById('msg');
-    scroller.insertBefore(list, msg);
-
-    Sortable.create(list,{
-      handle:'.drag',animation:150,
-      onEnd:()=>{ renumber(); autoCompute(); }
-    });
-  }
-
-  // move only filled rows
-  const filled = [...document.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
-  filled.forEach(r=>list.appendChild(r));
-
-  // ensure exactly 2 empties
-  const empties = [...document.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());
-  empties.slice(2).forEach(r=>r.remove());
-  const need = Math.max(0, 2 - list.querySelectorAll('.row').length);
-  for(let i=0;i<need;i++) addRowToFlatList();
-
-  renumber();
-  buildTimelineFromDOM();      // will render nothing in flat mode
+/* -------------------- ADDRESS BAR -------------------- */
+function buildAddrBar(){
+  const list=document.getElementById('addrList');
+  Sortable.create(list,{handle:'.drag',animation:150,onEnd:()=>{renumber();autoCompute();}});
+  document.getElementById('addrAdd').onclick=()=>{addRowToAddrBar();};
+  document.getElementById('toggleDay').onclick=()=>toggleShift('day');
+  document.getElementById('toggleNight').onclick=()=>toggleShift('night');
 }
 
+/* -------------------- FLAT MODE -------------------- */
+function enterFlatMode(){
+  if(flatMode)return;
+  flatMode=true;
+
+  document.getElementById('panel').classList.add('flat');
+  document.getElementById('addrBar').classList.add('active');
+
+  // move filled rows to addr bar
+  const addrList=document.getElementById('addrList');
+  const filled=[...document.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
+  filled.forEach(r=>addrList.appendChild(r));
+
+  // ensure at least 2 blank
+  let blanks=[...addrList.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());
+  for(let i=blanks.length;i<2;i++) addRowToAddrBar();
+
+  renumber();
+  buildTimelineFromDOM();
+  updateToggleChips();
+  updateButtons();
+}
 function exitFlatMode(){
-  if(!flatMode) return;
-  flatMode = false;
+  if(!flatMode)return;
+  flatMode=false;
 
-  const list = document.getElementById('plainList');
-  if(list){
-    list.querySelectorAll('.row').forEach(r=>{
-      const fid = +r.dataset.frame || 0;
-      getFrameListById(fid).appendChild(r);
-    });
-    list.remove();
-  }
+  const addrList=document.getElementById('addrList');
+  addrList.querySelectorAll('.row').forEach(r=>{
+    const fid=+r.dataset.frame || 0;
+    getFrameListById(fid).appendChild(r);
+  });
 
+  document.getElementById('addrBar').classList.remove('active');
   document.getElementById('panel').classList.remove('flat');
-  document.getElementById('framesContainer').style.display = '';
-  document.getElementById('timelineCol').style.display     = '';
 
   ensureAllFramesHaveBaseline();
   buildTimelineFromDOM();
+  updateButtons();
 }
-
+function updateToggleChips(){
+  document.getElementById('toggleDay').classList.toggle('active',dayVisible);
+  document.getElementById('toggleNight').classList.toggle('active',nightVisible);
+}
+function updateButtons(){
+  const optFrames=document.getElementById('optFrames');
+  optFrames.style.display = (!flatMode && (dayVisible||nightVisible)) ? 'inline-block' : 'none';
+}
 
 /* -------------------- TIMELINE -------------------- */
 const mins=(h,m)=>h*60+m;
@@ -815,16 +826,13 @@ function buildTimelineFromDOM(){
 
     const sTop=document.querySelector(`.frame[data-frame="${fInShift[0].id}"]`).offsetTop;
     const eBot=(()=>{const lf=fInShift[fInShift.length-1];
-      const dom=document.querySelector(`.frame[data-frame="${lf.id}"]`);
-      return dom.offsetTop+dom.offsetHeight;})();
+      const dom=document.querySelector(`.frame[data-frame="${lf.id}"]`);return dom.offsetTop+dom.offsetHeight;})();
 
     const pxSpan=eBot-sTop;
     const minSpan=e-s;
     const pxPerMin=pxSpan/minSpan;
 
-    for(let t=s;t<=e;t+=30){
-      addTick(t,sTop+(t-s)*pxPerMin, t%60===0);
-    }
+    for(let t=s;t<=e;t+=30){addTick(t,sTop+(t-s)*pxPerMin, t%60===0);}
     if((e-s)%30!==0) addTick(e,sTop+(e-s)*pxPerMin,true);
 
     fInShift.forEach(fr=>{
@@ -879,13 +887,14 @@ function applyShiftVisibility(){
     enterFlatMode();
   }else{
     exitFlatMode();
-    // make sure the visible frames always have their 4 placeholders back
     FRAMES.forEach(fr=>{
       const vis = (fr.shift === 'day' && dayVisible) || (fr.shift === 'night' && nightVisible);
       if(vis) ensurePlaceholdersForFrame(fr.id);
     });
   }
 
+  updateToggleChips();
+  updateButtons();
   buildTimelineFromDOM();
   autoCompute();
 }
