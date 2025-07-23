@@ -67,12 +67,12 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   font-size:15px;font-weight:500;color:#000;border-bottom:1px solid #e0e0e0;background:#fafafa;
 }
 .frame-header .swatch{width:16px;height:16px;border-radius:3px;flex:none;}
-.frame-hide{margin-left:auto;cursor:pointer;color:#666;font-size:20px;line-height:20px;} 
-.frame-hide:hover{color:#000;} 
+.frame-hide{margin-left:auto;cursor:pointer;color:#666;font-size:20px;line-height:20px;}
+.frame-hide:hover{color:#000;}
 .frame.collapsed .frame-list,
-.frame.collapsed .addRowBtn{display:none;} 
-.frame.collapsed{opacity:.55;}             
-.frame.collapsed .frame-hide{color:#c00;}  
+.frame.collapsed .addRowBtn{display:none;}
+.frame.collapsed{opacity:.55;}
+.frame.collapsed .frame-hide{color:#c00;}
 
 .frame-list{padding:6px 10px 8px 6px;min-height:8px;}
 .addRowBtn{
@@ -94,7 +94,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .row.focused{background:var(--clrInputBgAlt);box-shadow:0 0 0 2px rgba(33,150,243,.25);}
 .row:hover:not(.focused):not(.selected){background:rgba(0,0,0,.04);}
 .row.invalid input.stop{border-color:#e53935;background:#fff7f7;}
-.row.selected{outline:3px solid rgba(33,150,243,.6);}       
+.row.selected{outline:3px solid rgba(33,150,243,.6);}
 
 .bullet{
   min-width:24px;padding:0 6px;height:24px;border-radius:50%;
@@ -130,7 +130,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   transition:transform var(--transFast),background var(--transFast);}
 .remove:hover{background:#f75a4d;transform:scale(1.08);} .remove:active{transform:scale(.94);}
 
-/* ---------- ACTION BUTTONS (normal) ---------- */
+/* ---------- ACTION BUTTONS ---------- */
 #actions{
   position:absolute;bottom:12px;left:16px;right:16px;display:flex;gap:10px;flex-wrap:wrap;z-index:7;
 }
@@ -271,15 +271,11 @@ function init(){ if(typeof window.routePlannerInit==='function'){window.routePla
 /* ---------- CONFIG ---------- */
 const colourCycle=['A','B','C','D','E','F','G','H'];
 const BASE_EMPTY_PER_FRAME = 4;
+const OPT_UNLOCK_ENDS = true;
 
-/* --- OPT OPTIONS --- */
-const OPT_UNLOCK_ENDS = true;   // allow first & last to move when optimizing
-let map,dirSvc,dirRend,geocoder,acService,placeSvc; // <<< CHANGED (removed dmSvc)
-
-/* ---------- STATE ---------- */
-let autoTimer=null,routeVersion=0,previewPins=[];
-let dayVisible=false,nightVisible=false;
-let flatMode=false;
+let map,dirSvc,dirRend,geocoder,acService,placeSvc;
+let autoTimer=null,routeVersion=0,previewPins=[],routeMarkers=[];
+let dayVisible=false,nightVisible=false,flatMode=false;
 
 /* ---------- FRAMES / SHIFTS ---------- */
 const FRAMES=[
@@ -339,7 +335,7 @@ function geocodeSmart(text){
   });
 }
 
-/* ---------- LABEL & ROW HELPERS ---------- */
+/* ---------- LABEL / ROW HELPERS ---------- */
 function idxToLabel(i){let s='',n=i+1;while(n>0){const rem=(n-1)%26;s=String.fromCharCode(65+rem)+s;n=Math.floor((n-1)/26);}return s;}
 function currentRowsForNumbering(){
   if(flatMode) return [...document.querySelectorAll('#addrList .row')];
@@ -366,7 +362,21 @@ const addPreviewPin=(pos,label)=>previewPins.push(new google.maps.Marker({map,po
 const clearLegDisplays=()=>document.querySelectorAll('.leg-display').forEach(e=>e.remove());
 const markRowFocus=(input,focus)=>{const row=input.closest('.row');if(!row)return;row.classList.toggle('focused',focus);};
 
-/* ---------- NEW: LOCAL DISTANCE MATRIX + TSP ---------- */ // <<< CHANGED
+/* ---------- OUR OWN MARKERS ---------- */
+function clearRouteMarkers(){routeMarkers.forEach(m=>m.setMap(null));routeMarkers=[];}
+function drawRouteMarkers(latLngs, rows){
+  clearRouteMarkers();
+  latLngs.forEach((pt,i)=>{
+    if(!pt) return;
+    const lbl = rows[i]?.querySelector('.bullet')?.textContent.trim() || '';
+    routeMarkers.push(new google.maps.Marker({
+      map, position:pt,
+      label:{text:lbl,color:'#fff',fontWeight:'700'},
+    }));
+  });
+}
+
+/* ---------- LOCAL DISTANCE MATRIX + TSP (instant) ---------- */
 function buildDistanceMatrix(points){
   const n=points.length;
   const D=Array.from({length:n},()=>Array(n).fill(0));
@@ -381,8 +391,6 @@ function buildDistanceMatrix(points){
 function solveTSPWithMatrix(D){
   const n=D.length;
   if(n<=2) return [...Array(n).keys()];
-
-  // Nearest neighbour
   const used=Array(n).fill(false);
   let path=[0]; used[0]=true;
   for(let i=1;i<n;i++){
@@ -390,9 +398,6 @@ function solveTSPWithMatrix(D){
     for(let j=0;j<n;j++) if(!used[j] && D[last][j]<bestD){best=j;bestD=D[last][j];}
     path.push(best); used[best]=true;
   }
-
-  // 2‑opt
-  const distPath=p=>{let s=0;for(let i=0;i<p.length-1;i++) s+=D[p[i]][p[i+1]];return s;};
   let improved=true;
   while(improved){
     improved=false;
@@ -513,7 +518,7 @@ window.routePlannerInit=()=>{
   new google.maps.KmlLayer({url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',map,preserveViewport:true});
 
   dirSvc=new google.maps.DirectionsService();
-  dirRend=new google.maps.DirectionsRenderer({map});
+  dirRend=new google.maps.DirectionsRenderer({map, suppressMarkers:true}); // custom markers
   geocoder=new google.maps.Geocoder();
   acService=new google.maps.places.AutocompleteService();
   placeSvc =new google.maps.places.PlacesService(map);
@@ -547,7 +552,7 @@ window.routePlannerInit=()=>{
 
 /* ---------- ROUTING ---------- */
 const scheduleAutoCompute=(ms=250)=>{clearTimeout(autoTimer);autoTimer=setTimeout(autoCompute,ms);};
-function clearDirections(){dirRend.set('directions',null);dirRend.setMap(null);dirRend.setMap(map);}
+function clearDirections(){dirRend.set('directions',null);dirRend.setMap(null);dirRend.setMap(map);clearRouteMarkers();}
 
 function ensureCoords(rows){
   const tasks=rows.map(row=>{
@@ -590,7 +595,7 @@ function rebuildRoute(){
   const rows=getOrderedRows();
   const msg=document.getElementById('msg');
   const flatMsg=document.getElementById('flatMsg');
-  clearLegDisplays();
+  clearLegDisplays(); clearRouteMarkers();
 
   if(rows.length<2){msg.textContent='';flatMsg.textContent='';clearDirections();return;}
 
@@ -602,11 +607,19 @@ function rebuildRoute(){
       origin:locs[0],destination:locs[locs.length-1],
       waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
       travelMode:'DRIVING'
-    },(res,stat)=>{ if(reqId!==routeVersion) return; displayLegs(res,stat); });
+    },(res,stat)=>{
+      if(reqId!==routeVersion) return;
+      displayLegs(res,stat);
+      if(stat==='OK'){
+        // convert to LatLng array in order: origin, waypoints..., destination
+        const pts=[locs[0], ...locs.slice(1,-1), locs[locs.length-1]].map(l=> (typeof l==='string')?null:l);
+        drawRouteMarkers(pts, rows);
+      }
+    });
   });
 }
 
-/* ---------- GLOBAL OPT (instant) ---------- */ // <<< CHANGED
+/* ---------- GLOBAL OPT ---------- */
 async function globalOptimizeRoute(){
   const msg=document.getElementById('msg');
   const flatMsg=document.getElementById('flatMsg');
@@ -621,7 +634,7 @@ async function globalOptimizeRoute(){
   const locs=rows.map(rowToLocation);
   msg.textContent='Optimizing…'; flatMsg.textContent='Optimizing…';
 
-  const pts=locs.map(l=> (typeof l==='string')?null:l); // should all be LatLng now
+  const pts=locs.map(l=> (typeof l==='string')?null:l);
   const D=buildDistanceMatrix(pts);
   const order=solveTSPWithMatrix(D);
 
@@ -631,7 +644,7 @@ async function globalOptimizeRoute(){
   msg.textContent='Optimized.'; flatMsg.textContent='Optimized.';
 }
 
-/* ---------- OPT BY FRAMES (instant) ---------- */ // <<< CHANGED
+/* ---------- OPT BY FRAMES ---------- */
 async function optimizeByFrames(){
   const msg=document.getElementById('msg'); msg.textContent='Optimizing by frames…';
   clearLegDisplays();
@@ -703,7 +716,7 @@ function buildFrameBuckets(){
 
     const addBtn=document.createElement('button');
     addBtn.className='addRowBtn';addBtn.textContent='+ Add stop';
-    addBtn.onclick=()=>{addRowToFrame(fr.id);};
+    addBtn.onclick=()=>{addRowToFrame(fr.id,true,true);}; // select new
     sec.appendChild(addBtn);
 
     container.appendChild(sec);
@@ -728,12 +741,17 @@ function buildFrameBuckets(){
 }
 const getFrameListById=id=>document.getElementById('frame-'+id);
 
-/* NEW: helper to select a row on creation */  // <<< CHANGED
-function selectRow(row){
-  document.querySelectorAll('.row.selected').forEach(r=>r.classList.remove('selected'));
-  row.classList.add('selected');
-  showDelButtonsIfNeeded();
-  row.scrollIntoView({block:'nearest',behavior:'smooth'});
+/* selection helper */
+function setSelected(row, on){
+  if(!row) return;
+  if(on){
+    document.querySelectorAll('.row.selected').forEach(r=>r.classList.remove('selected'));
+    row.classList.add('selected');
+    showDelButtonsIfNeeded();
+  }else{
+    row.classList.remove('selected');
+    showDelButtonsIfNeeded();
+  }
 }
 
 function makeRow(i,frameId){
@@ -751,29 +769,30 @@ function makeRow(i,frameId){
   return d;
 }
 
-function addRowToFrame(frameId, focus = true){
+/* flags: focus (bool), selectFlag (bool) */
+function addRowToFrame(frameId, focus=true, selectFlag=false){
   const list = getFrameListById(frameId);
   const row  = makeRow(0, frameId);
   list.appendChild(row);
   attachRowEvents(row.querySelector('.stop'));
   renumber();buildTimelineFromDOM();
-  if (focus) row.querySelector('.stop').focus();
-  selectRow(row); // <<< CHANGED
+  if(focus) row.querySelector('.stop').focus();
+  if(selectFlag) setSelected(row,true);     // only when user initiated
 }
-function addRowToAddrBar(){
+function addRowToAddrBar(selectFlag=true){
   const list=document.getElementById('addrList');
   const row=makeRow(0, 0);
   list.appendChild(row);
   attachRowEvents(row.querySelector('.stop'));
   renumber();
   row.querySelector('.stop').focus();
-  selectRow(row); // <<< CHANGED
+  if(selectFlag) setSelected(row,true);
 }
 function emptyRowsIn(list){return [...list.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());}
 function ensurePlaceholdersForFrame(frameId){
   const list=getFrameListById(frameId);
   const need=BASE_EMPTY_PER_FRAME - emptyRowsIn(list).length;
-  for(let i=0;i<need;i++) addRowToFrame(frameId,false);
+  for(let i=0;i<need;i++) addRowToFrame(frameId,false,false);
 }
 function ensureAllFramesHaveBaseline(){
   FRAMES.forEach(fr=>{
@@ -823,7 +842,7 @@ function attachRowEvents(input){
     const start=allRows.indexOf(input.closest('.row'));
     for(let i=0;i<lines.length;i++){
       if(allRows[start+i]) continue;
-      flatMode ? addRowToAddrBar() : addRowToFrame(+input.closest('.row').dataset.frame,false);
+      flatMode ? addRowToAddrBar(false) : addRowToFrame(+input.closest('.row').dataset.frame,false,false);
     }
     lines.forEach((addr,i)=>{
       const r=document.querySelectorAll('.row')[start+i]; if(!r) return;
@@ -843,7 +862,7 @@ function attachRowEvents(input){
 function buildAddrBar(){
   const list=document.getElementById('addrList');
   Sortable.create(list,{handle:'.drag',animation:150,onEnd:()=>{renumber();autoCompute();}});
-  document.getElementById('addrAdd').onclick=()=>addRowToAddrBar();
+  document.getElementById('addrAdd').onclick=()=>addRowToAddrBar(true);
   document.getElementById('toggleDay').onclick=()=>toggleShift('day');
   document.getElementById('toggleNight').onclick=()=>toggleShift('night');
 }
@@ -859,7 +878,7 @@ function enterFlatMode(){
   filled.forEach(r=>addrList.appendChild(r));
 
   let blanks=[...addrList.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());
-  for(let i=blanks.length;i<2;i++) addRowToAddrBar();
+  for(let i=blanks.length;i<2;i++) addRowToAddrBar(false); // do not auto select on mode change
 
   renumber();buildTimelineFromDOM();
   updateToggleChips();updateButtons();showDelButtonsIfNeeded();
