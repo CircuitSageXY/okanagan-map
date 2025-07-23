@@ -583,12 +583,20 @@ function buildFrameBuckets(){
 
 const getFrameListById=id=>document.getElementById('frame-'+id);
 
-function addRowToFrame(frameId,focus=true){
-  const list=getFrameListById(frameId);
-  const row=makeRow(document.querySelectorAll('.row').length,frameId);
+function addRowToFrame(frameId, focus = true){
+  const list = getFrameListById(frameId);
+
+  // index passed to makeRow is irrelevant because we renumber right after
+  const row = makeRow(0, frameId);
   list.appendChild(row);
+
   attachRowEvents(row.querySelector('.stop'));
+
+  renumber();               // <- fixes the “Q” / wrong label issue
+  buildTimelineFromDOM();
+
   if(focus) row.querySelector('.stop').focus();
+}
   buildTimelineFromDOM();
 }
 function emptyRowsIn(list){
@@ -833,20 +841,26 @@ function toggleShift(which){
 }
 function applyShiftVisibility(){
   FRAMES.forEach(fr=>{
-    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
-    const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
-    sec.style.display=vis?'block':'none';
+    const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
+    const vis = (fr.shift === 'day' && dayVisible) || (fr.shift === 'night' && nightVisible);
+    sec.style.display = vis ? 'block' : 'none';
   });
 
   if(!dayVisible && !nightVisible){
     enterFlatMode();
   }else{
     exitFlatMode();
+    // make sure the visible frames always have their 4 placeholders back
+    FRAMES.forEach(fr=>{
+      const vis = (fr.shift === 'day' && dayVisible) || (fr.shift === 'night' && nightVisible);
+      if(vis) ensurePlaceholdersForFrame(fr.id);
+    });
   }
 
   buildTimelineFromDOM();
   autoCompute();
 }
+
 function clearAllStops(){
   document.querySelectorAll('.row input.stop').forEach(inp=>{
     inp.value='';inp.dataset.lat='';inp.dataset.lng='';
