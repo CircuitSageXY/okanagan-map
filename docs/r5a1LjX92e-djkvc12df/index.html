@@ -272,7 +272,11 @@ function init(){ if(typeof window.routePlannerInit==='function'){window.routePla
 const colourCycle=['A','B','C','D','E','F','G','H'];
 const BASE_EMPTY_PER_FRAME = 4;
 
-let map,dirSvc,dirRend,geocoder,acService,placeSvc;
+/* --- NEW OPT OPTIONS --- */                         // <<<
+const OPT_UNLOCK_ENDS = true;   // allow first & last to move when optimizing
+const DM_BATCH_LIMIT  = 25;     // not used yet, here if you ever batch DM calls
+
+let map,dirSvc,dirRend,geocoder,acService,placeSvc,dmSvc; // <<< dmSvc
 let autoTimer=null,routeVersion=0,previewPins=[];
 let dayVisible=false,nightVisible=false;
 let flatMode=false;
@@ -360,8 +364,8 @@ function makeRow(i,frameId){
     <input class="stop" placeholder="Enter stop" autocomplete="off" autocorrect="off" spellcheck="false">
     <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
     <span class="remove" title="Remove stop">×</span>`;
-  d.querySelector('.remove').onclick=()=>{d.remove();renumber();autoCompute();buildTimelineFromDOM();showDelButtonsIfNeeded();}; // <<<
-  d.addEventListener('click',rowClickSelect); // <<< multi-select
+  d.querySelector('.remove').onclick=()=>{d.remove();renumber();autoCompute();buildTimelineFromDOM();showDelButtonsIfNeeded();};
+  d.addEventListener('click',rowClickSelect); // multi-select
   return d;
 }
 
@@ -465,6 +469,16 @@ document.addEventListener('keydown',e=>{
   }
 });
 
+// auto-clear selection when clicking without Ctrl/Cmd anywhere   // <<<
+document.addEventListener('click',e=>{
+  if(e.ctrlKey||e.metaKey) return;
+  if(!document.querySelector('.row.selected')) return;
+  // allow clicking inside the same selected row's input without clearing
+  if(e.target.closest('.row') && e.target.tagName==='INPUT') return;
+  document.querySelectorAll('.row.selected').forEach(r=>r.classList.remove('selected'));
+  showDelButtonsIfNeeded();
+}, true);
+
 /* ---------- INIT ---------- */
 window.routePlannerInit=()=>{
   installPredictionFilter();
@@ -480,6 +494,7 @@ window.routePlannerInit=()=>{
   geocoder=new google.maps.Geocoder();
   acService=new google.maps.places.AutocompleteService();
   placeSvc =new google.maps.places.PlacesService(map);
+  dmSvc   =new google.maps.DistanceMatrixService();   // <<<
 
   buildFrameBuckets();
   buildTimelineFromDOM();
@@ -488,11 +503,11 @@ window.routePlannerInit=()=>{
   document.getElementById('route').onclick=rebuildRoute;
   document.getElementById('optAll').onclick=globalOptimizeRoute;
   document.getElementById('optFrames').onclick=optimizeByFrames;
-  document.getElementById('delSel').onclick=deleteSelected;          // <<<
+  document.getElementById('delSel').onclick=deleteSelected;
 
   document.getElementById('flatRoute').onclick=rebuildRoute;
   document.getElementById('flatOpt').onclick=globalOptimizeRoute;
-  document.getElementById('flatDelSel').onclick=deleteSelected;      // <<<
+  document.getElementById('flatDelSel').onclick=deleteSelected;
 
   const sv=map.getStreetView();
   sv.addListener('visible_changed',()=>{document.getElementById('svBack').style.display=sv.getVisible()?'block':'none';});
@@ -558,10 +573,88 @@ function rebuildRoute(){
   });
 }
 
+/* ---------- DistanceMatrix + TSP helpers ---------- */   // <<<
+async function distanceMatrix(points){
+  return new Promise((resolve,reject)=>{
+    dmSvc.getDistanceMatrix({
+      origins:points,destinations:points,
+      travelMode:'DRIVING',unitSystem:google.maps.UnitSystem.METRIC
+    },(res,stat)=>{
+      if(stat!=='OK') return reject(stat);
+      const n=res.rows.length;
+      const dist=Array.from({length:n},(_,i)=>
+        res.rows[i].elements.map(e=>e.status==='OK'?e.distance.value:Infinity));
+      resolve(dist);
+    });
+  });
+}
+async function solveTSP(points){
+  const n=points.length;
+  if(n<=2) return [...Array(n).keys()];
+  const D=await distanceMatrix(points);
+
+  // nearest neighbour
+  const used=Array(n).fill(false);
+  let path=[0]; used[0]=true;
+  for(let i=1;i<n;i++){
+    const last=path[path.length-1];
+    let best=-1,bestD=Infinity;
+    for(let j=0;j<n;j++) if(!used[j] && D[last][j]<bestD){best=j;bestD=D[last][j];}
+    path.push(best); used[best]=true;
+  }
+  // 2-opt
+  const pathLen=p=>{let s=0;for(let i=0;i<p.length-1;i++) s+=D[p[i]][p[i+1]];return s;};
+  let improved=true;
+  while(improved){
+    improved=false;
+    for(let i=1;i<n-2;i++){
+      for(let k=i+1;k<n-1;k++){
+        const delta=-D[path[i-1]][path[i]]-D[path[k]][path[k+1]]+D[path[i-1]][path[k]]+D[path[i]][path[k+1]]
+        if(delta<0){
+          const rev=path.slice(i,k+1).reverse();
+          path=[...path.slice(0,i),...rev,...path.slice(k+1)];
+          improved=true;
+        }
+      }
+    }
+  }
+  return path;
+}
+
+function reattachInOrder(order, rows){         // <<<
+  if(flatMode){
+    const list=document.getElementById('addrList');
+    order.forEach(i=>list.appendChild(rows[i]));
+  }else{
+    order.forEach(i=>{
+      const r=rows[i];
+      getFrameListById(+r.dataset.frame).appendChild(r);
+    });
+  }
+}
+
+function runGoogleOptimize(locs, rows, msg, flatMsg){   // <<<
+  const reqId=++routeVersion;
+  dirSvc.route({
+    origin:locs[0],destination:locs[locs.length-1],
+    waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
+    optimizeWaypoints:true,travelMode:'DRIVING'
+  },(res,stat)=>{
+    if(reqId!==routeVersion)return;
+    if(stat!=='OK'){msg.textContent='Optimize failed';flatMsg.textContent='Optimize failed';return;}
+    const order=[0,...res.routes[0].waypoint_order.map(i=>i+1),locs.length-1];
+    reattachInOrder(order, rows);
+    renumber();
+    dirRend.setDirections(res);
+    displayLegs(res,'OK');
+  });
+}
+
+/* ---------- GLOBAL OPT ---------- */
 async function globalOptimizeRoute(){
   const msg=document.getElementById('msg');
   const flatMsg=document.getElementById('flatMsg');
-  clearLegDisplays();                                            // <<<
+  clearLegDisplays();
 
   const rows=getOrderedRows();
   if(rows.length<3){rebuildRoute();return;}
@@ -570,41 +663,25 @@ async function globalOptimizeRoute(){
   if(!ok){msg.textContent='One or more stops can’t be located – please edit.';flatMsg.textContent=msg.textContent;return;}
 
   const locs=rows.map(rowToLocation);
-  routeVersion++;const runId=routeVersion;
   msg.textContent='Optimizing…'; flatMsg.textContent='Optimizing…';
 
-  dirSvc.route({
-    origin:locs[0],destination:locs[locs.length-1],
-    waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
-    optimizeWaypoints:true,travelMode:'DRIVING'
-  },(res,stat)=>{
-    if(runId!==routeVersion)return;
-    if(stat!=='OK'){msg.textContent='Optimize failed';flatMsg.textContent='Optimize failed';return;}
+  if(!OPT_UNLOCK_ENDS){
+    runGoogleOptimize(locs, rows, msg, flatMsg);
+    return;
+  }
 
-    const order=[0,...res.routes[0].waypoint_order.map(i=>i+1),locs.length-1];
-    const curRows=[...rows];
-
-    if(flatMode){
-      const list=document.getElementById('addrList');
-      order.forEach(i=>list.appendChild(curRows[i]));
-    }else{
-      // keep rows in same frame they already belong to
-      order.forEach(i=>{
-        const r=curRows[i];
-        const parent=getFrameListById(+r.dataset.frame);
-        parent.appendChild(r);
-      });
-    }
-
-    renumber();
-    dirRend.setDirections(res);
-    displayLegs(res,'OK');
-  });
+  // unlock ends – run our TSP
+  const order = await solveTSP(locs);
+  reattachInOrder(order, rows);
+  renumber();
+  rebuildRoute();
+  msg.textContent='Optimized.'; flatMsg.textContent='Optimized.';
 }
 
+/* ---------- OPT BY FRAMES ---------- */
 async function optimizeByFrames(){
   const msg=document.getElementById('msg'); msg.textContent='Optimizing by frames…';
-  clearLegDisplays();                                        // <<<
+  clearLegDisplays();
 
   const visFrames=FRAMES.filter(f=>{
     const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
@@ -616,23 +693,28 @@ async function optimizeByFrames(){
     const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
     if(rows.length<3) continue;
 
-    const ok=await ensureCoords(rows);
-    if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
+    const ok=await ensureCoords(rows); if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
 
-    const locs=rows.map(rowToLocation);
-    await new Promise(resolve=>{
-      dirSvc.route({
-        origin:locs[0],destination:locs[locs.length-1],
-        waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
-        optimizeWaypoints:true,travelMode:'DRIVING'
-      },(res,stat)=>{
-        if(stat!=='OK'){resolve();return;}
-        const order=[0,...res.routes[0].waypoint_order.map(i=>i+1),locs.length-1];
-        const cur=[...rows];
-        order.forEach(i=>list.appendChild(cur[i]));
-        resolve();
+    if(OPT_UNLOCK_ENDS){
+      const locs=rows.map(rowToLocation);
+      const order=await solveTSP(locs);
+      order.forEach(i=>list.appendChild(rows[i]));
+    }else{
+      await new Promise(resolve=>{
+        const locs=rows.map(rowToLocation);
+        dirSvc.route({
+          origin:locs[0],destination:locs[locs.length-1],
+          waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
+          optimizeWaypoints:true,travelMode:'DRIVING'
+        },(res,stat)=>{
+          if(stat==='OK'){
+            const order=[0,...res.routes[0].waypoint_order.map(i=>i+1),locs.length-1];
+            const cur=[...rows]; order.forEach(i=>list.appendChild(cur[i]));
+          }
+          resolve();
+        });
       });
-    });
+    }
   }
   renumber(); rebuildRoute(); msg.textContent='Optimized by frames.';
 }
