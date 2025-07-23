@@ -9,45 +9,43 @@
 
 <style>
 :root{
-  /* GOOGLE pin colours (unchanged) */
+  /* Google-ish bullet colours */
   --clrA:#4285F4; --clrB:#0F9D58; --clrC:#F4B400; --clrD:#DB4437;
   --clrE:#ab47bc; --clrF:#00acc1; --clrG:#ff7043; --clrH:#8d6e63;
   --clrDefault:#607d8b;
 
-  /* PANEL + INPUTS */
+  /* UI tokens */
   --clrPanelBg:#ffffff; --clrPanelStripe:#2196f3; --clrPanelBorder:#d7d7d7;
   --clrPanelShadow:0 2px 8px rgba(0,0,0,.25);
   --clrInputBorder:#c7c7c7; --clrInputBg:#fff; --clrInputBgAlt:#fafafa;
   --radiusSm:4px; --radiusMd:6px; --radiusLg:10px;
-  --transFast:.12s; --transMed:.18s; --fontMain:Roboto,Arial,sans-serif;
+  --transFast:.12s; --fontMain:Roboto,Arial,sans-serif;
 
-  /* TIMELINE / FRAMES  ✱ CHANGED */
-  --axis-w:4px; --tick-minor:#9e9e9e; --tick-major:#424242;
-  --timeline-h:680px;              /* taller to fit 30‑min ticks */
-  --gutter:52px; --gap:1px; --bar-w:104px;
-  --drawer-w:calc(var(--gutter) + var(--gap) + var(--bar-w) + 2px);
-
-  /* frame colours (match your TimeFrames file) */
+  /* frame colours */
   --f-early:#8BC34A; --f-late:#4CAF50; --f-lunch:#FFEB3B;
   --f-afternoon:#03A9F4; --f-supper:#FF9800;
   --f-evening:#BA68C8; --f-lateev:#F44336;
 
-  /* layout */
-  --timelineDockW:160px; /* old value – we now make it wider */
+  /* timeline sizing */
+  --axis-w:4px;
+  --gutter:52px; --gap:1px; --bar-w:104px;
+  --tick-minor:#9e9e9e; --tick-major:#424242;
+
+  /* left drawer width adjusted */
+  --drawer-w:calc(var(--gutter) + var(--gap) + var(--bar-w) + 2px);
+
+  /* convenience */
+  --timelineDockW:var(--drawer-w);
 }
 html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 
-/* TIMELINE COLUMN (left)  ✱ CHANGED */
 #timelineDock{
-  position:absolute;top:0;left:0;
-  width:var(--drawer-w);height:100%;
+  position:absolute;top:0;left:0;width:var(--drawer-w);height:100%;
   border-right:1px solid var(--clrPanelBorder);
-  background:#fff;z-index:6;overflow:auto;
-  transition:left .25s;
+  background:#fff;z-index:6;overflow-y:auto;transition:left .25s;
 }
 body.timeline-hidden #timelineDock{ left:calc(-1 * var(--drawer-w)); }
 
-/* show/hide tab */
 #tlToggle{
   position:fixed;top:50%;left:var(--drawer-w);
   transform:translate(-50%,-50%);
@@ -57,27 +55,42 @@ body.timeline-hidden #timelineDock{ left:calc(-1 * var(--drawer-w)); }
   cursor:pointer;display:flex;align-items:center;justify-content:center;
   z-index:1000;transition:left .25s,transform .25s;
 }
-body.timeline-hidden #tlToggle{ left:0; transform:translate(0,-50%) rotate(180deg); }
+body.timeline-hidden #tlToggle{ left:0;transform:translate(0,-50%) rotate(180deg); }
 
-/* MAIN PANEL (stop buckets)  ✱ CHANGED margin-left */
+/* PANEL on right of timeline */
 #panel{
-  position:absolute;top:0;left:0;z-index:5;width:380px;max-height:100%;
+  position:absolute;top:0;left:0;z-index:5;width:400px;max-height:100%;
   background:var(--clrPanelBg);
   padding:16px 14px 12px calc(var(--drawer-w) + 16px);
   border-right:1px solid var(--clrPanelBorder);box-shadow:var(--clrPanelShadow);
-  overflow:auto;border-top-right-radius:var(--radiusLg);
-  border-bottom-right-radius:var(--radiusLg);
+  overflow:auto;border-top-right-radius:var(--radiusLg);border-bottom-right-radius:var(--radiusLg);
   transition:padding-left .25s;
 }
 body.timeline-hidden #panel{ padding-left:16px; }
 
-/* STOP ROWS ------------------------------------------------------ */
+/* FRAME SECTIONS */
+.frame{
+  border:1px solid var(--clrPanelBorder);border-radius:6px;margin-bottom:14px;background:#fff;
+  box-shadow:0 1px 2px rgba(0,0,0,.08);
+}
+.frame-header{
+  display:flex;align-items:center;gap:8px;padding:6px 10px;
+  font-size:15px;font-weight:500;color:#000;border-bottom:1px solid #e0e0e0;
+}
+.frame-header .swatch{width:16px;height:16px;border-radius:3px;flex:none;}
+.frame-list{padding:6px 10px 8px 6px;min-height:8px;}
+.addRowBtn{
+  margin:6px 0 0 28px;background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
+  padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;
+}
+.addRowBtn:hover{background:#e7e7e7;}
+
+/* ROWS */
 .row{display:flex;align-items:center;margin:8px 0;padding:4px 6px 4px 0;
   border-radius:var(--radiusMd);transition:background var(--transFast),box-shadow var(--transFast);}
 .row.focused{background:var(--clrInputBgAlt);box-shadow:0 0 0 2px rgba(33,150,243,.25);}
 .row:hover:not(.focused){background:rgba(0,0,0,.04);}
 .row.invalid input.stop{border-color:#e53935;background:#fff7f7;}
-
 .bullet{
   width:24px;height:24px;border-radius:50%;line-height:24px;text-align:center;
   font-weight:600;font-size:13px;color:#fff;margin-right:8px;flex:none;
@@ -95,7 +108,7 @@ input.stop{flex:1;height:38px;border:1px solid var(--clrInputBorder);
 input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
   box-shadow:0 0 0 3px rgba(33,150,243,.25);}
 
-/* coloured stripes beside inputs */
+/* left colour stripe based on frame id */
 .row[data-frame="0"] input.stop{border-left:4px solid var(--f-early);    padding-left:6px;}
 .row[data-frame="1"] input.stop{border-left:4px solid var(--f-late);     padding-left:6px;}
 .row[data-frame="2"] input.stop{border-left:4px solid var(--f-lunch);    padding-left:6px;}
@@ -104,23 +117,25 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 .row[data-frame="5"] input.stop{border-left:4px solid var(--f-evening);  padding-left:6px;}
 .row[data-frame="6"] input.stop{border-left:4px solid var(--f-lateev);   padding-left:6px;}
 
-.drag{cursor:grab;margin-left:6px;color:#666;font-size:22px;line-height:22px;
-  padding:2px;border-radius:var(--radiusSm);transition:background var(--transFast);}
+.drag{cursor:grab;margin-left:6px;color:#666;font-size:22px;line-height:22px;padding:2px;border-radius:var(--radiusSm);transition:background var(--transFast);}
 .drag:hover{background:rgba(0,0,0,.08);} .drag:active{cursor:grabbing;}
-
 .remove{cursor:pointer;margin-left:4px;font-size:20px;line-height:20px;color:#fff;
   width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;
   background:var(--clrD);border-radius:var(--radiusSm);
   transition:transform var(--transFast),background var(--transFast);}
 .remove:hover{background:#f75a4d;transform:scale(1.08);} .remove:active{transform:scale(.94);}
 
-#route,#opt{margin:12px 0 14px 0;padding:8px 14px;font-size:14px;
-  border-radius:var(--radiusMd);border:1px solid transparent;cursor:pointer;
-  transition:background var(--transFast),box-shadow var(--transFast),transform var(--transFast);}
+/* Buttons */
+#route,#optAll,#optFrames{
+  margin:12px 6px 14px 0;padding:8px 14px;font-size:14px;border-radius:var(--radiusMd);
+  border:1px solid transparent;cursor:pointer;transition:background var(--transFast),transform var(--transFast);
+}
 #route{background:var(--clrA);color:#fff;border-color:var(--clrA);}
 #route:hover{background:#5b9bff;} #route:active{transform:scale(.96);}
-#opt{background:var(--clrB);color:#fff;border-color:var(--clrB);}
-#opt:hover{background:#26c36c;} #opt:active{transform:scale(.96);}
+#optAll{background:var(--clrB);color:#fff;border-color:var(--clrB);}
+#optAll:hover{background:#26c36c;} #optAll:active{transform:scale(.96);}
+#optFrames{background:#795548;color:#fff;border-color:#795548;}
+#optFrames:hover{background:#8d6e63;} #optFrames:active{transform:scale(.96);}
 
 .leg-display{margin:6px 0 0 28px;font-size:16px;font-weight:600;color:#1b1b1b;
   padding:4px 10px;border-radius:6px;background:rgba(0,0,0,.06);
@@ -137,27 +152,9 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 
 #msg{margin:12px 0;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 0;}
 
-/* FRAME SECTIONS -------------------------------------------------- */
-.frame{
-  border:1px solid var(--clrPanelBorder);border-radius:6px;margin-bottom:14px;
-  background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.08);
-}
-.frame-header{
-  display:flex;align-items:center;gap:8px;padding:6px 10px;
-  font-size:15px;font-weight:500;color:#000;border-bottom:1px solid #e0e0e0;
-}
-.frame-header .swatch{
-  width:16px;height:16px;border-radius:3px;flex:none;
-}
-.frame-list{padding:6px 10px 8px 6px;min-height:8px;}
-.addRowBtn{
-  margin:6px 0 0 28px;background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
-  padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;
-}
-.addRowBtn:hover{background:#e7e7e7;}
-/* TIMELINE INSIDE LEFT COLUMN ------------------------------------ */
+/* TIMELINE (no giant coloured blocks) */
 .timeline{
-  position:relative;width:100%;height:var(--timeline-h);
+  position:relative;width:100%;
   background:#fafafa;border-radius:2px;box-shadow:inset 0 0 0 1px #e0e0e0;
   overflow:hidden;margin:8px 0;padding-right:2px;
 }
@@ -166,49 +163,39 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
   background:#000;border-radius:2px;z-index:5;
 }
 .tick{position:absolute;left:0;width:100%;pointer-events:none;z-index:4;}
-.tick::before{
-  content:"";position:absolute;left:var(--axis-w);width:6px;height:1px;background:var(--tick-minor);
-}
+.tick::before{content:"";position:absolute;left:var(--axis-w);width:6px;height:1px;background:var(--tick-minor);}
 .tick.bold::before{width:10px;background:var(--tick-major);}
-.tick span{
-  position:absolute;left:calc(var(--axis-w) + 6px);font-size:11px;color:#424242;line-height:1;
+.tick span{position:absolute;left:calc(var(--axis-w) + 6px);font-size:11px;color:#424242;line-height:1;}
+
+/* small frame stripes along timeline instead of big blocks */
+.segment{position:absolute;left:calc(var(--axis-w) + 24px);height:2px;width:calc(100% - 40px);opacity:.45;}
+.segment::after{
+  content:attr(data-name);position:absolute;left:0;top:-8px;font-size:11px;color:#000;background:rgba(255,255,255,.8);padding:0 2px;border-radius:2px;
 }
-.segment{
-  position:absolute;left:calc(var(--gutter) + var(--gap));width:var(--bar-w);z-index:1;
-}
-.segment span{
-  position:absolute;left:6px;top:50%;transform:translateY(-50%);
-  font-size:15px;font-weight:400;color:#000;white-space:nowrap;
-}
+
 .nowMarker{
-  position:absolute;left:calc(var(--axis-w)/2);z-index:6;
-  width:12px;height:12px;border:2px solid #000;background:#fff;border-radius:50%;
-  transform:translateX(-50%) translateY(-50%);
-  box-shadow:0 0 4px rgba(0,0,0,.4);animation:pulse 2s infinite;
+  position:absolute;left:calc(var(--axis-w)/2);z-index:6;width:12px;height:12px;border:2px solid #000;background:#fff;border-radius:50%;
+  transform:translate(-50%,-50%);box-shadow:0 0 4px rgba(0,0,0,.4);animation:pulse 2s infinite;
 }
-@keyframes pulse{
-  0%{box-shadow:0 0 0 0 rgba(0,0,0,.35);}
-  70%{box-shadow:0 0 0 6px rgba(0,0,0,0);}
-  100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(0,0,0,.35);}70%{box-shadow:0 0 0 6px rgba(0,0,0,0);}100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}}
+
+#controls{display:none;} /* we removed visible buttons, now F1/F2 */
+
+/* StreetView back button */
+#svBack{
+  position:fixed;bottom:16px;right:16px;z-index:1200;
+  padding:8px 14px;border:none;border-radius:6px;background:#455a64;color:#fff;
+  font-size:14px;cursor:pointer;display:none;box-shadow:0 2px 6px rgba(0,0,0,.35);
 }
-#controls{display:flex;flex-direction:column;gap:6px;padding:8px 8px 6px;}
-.shiftToggle{padding:6px 14px;border:none;border-radius:4px;background:#e0e0e0;cursor:pointer;font-size:14px;transition:background .15s;}
-.shiftToggle:hover{background:#f1f1f1;}
-.shiftToggle.active{background:#90CAF9;font-weight:500;}
-.drawer{padding-left:8px;overflow:hidden;max-height:0;transition:max-height .3s ease;}
-.drawer.open{padding-top:10px;padding-bottom:10px;max-height:none;}
+#svBack:hover{background:#546e7a;}
 </style>
 
 <script>
-  /* Google callback stub */
-  function init(){
-    if(typeof window.routePlannerInit==='function'){ window.routePlannerInit(); }
-    else{ window.__mapsApiReady=true; }
-  }
+  function init(){ if(typeof window.routePlannerInit==='function'){window.routePlannerInit();} else{window.__mapsApiReady=true;} }
 </script>
 
 <script async defer
-  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry">
+ src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry">
 </script>
 
 <script type="module" src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/modular/sortable.core.esm.js"></script>
@@ -216,22 +203,22 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 <body>
 
 <button id="tlToggle" title="Hide / show timeline">⯈</button>
+<button id="svBack">Back to Map</button>
 
-<!-- LEFT timeline column (no iframe now) -->
+<!-- left drawer -->
 <div id="timelineDock">
-  <div id="controls">
-    <button class="shiftToggle" data-shift="day">Day&nbsp;Shift</button>
-    <button class="shiftToggle" data-shift="night">Night&nbsp;Shift</button>
-  </div>
-  <div id="day"   class="drawer"></div>
-  <div id="night" class="drawer"></div>
+  <div id="dayDrawer"   class="drawer-wrap"></div>
+  <div id="nightDrawer" class="drawer-wrap"></div>
 </div>
 
-<!-- Right panel with frame buckets -->
+<!-- right panel -->
 <div id="panel">
   <div id="framesContainer"></div>
+
   <button id="route">Route</button>
-  <button id="opt">Optimize</button>
+  <button id="optAll"    title="Optimize entire day">Optimize</button>
+  <button id="optFrames" title="Optimize each time frame separately">Optimize by Frames</button>
+
   <div id="msg"></div>
 </div>
 
@@ -245,23 +232,24 @@ const colourCycle = ['A','B','C','D','E','F','G','H'];
 
 let map, dirSvc, dirRend, geocoder, acService, placeSvc;
 let autoTimer = null, routeVersion = 0, previewPins = [];
+let dayVisible = true, nightVisible = false;   // current toggles
 
-/* ───── FRAME DEFINITIONS (shared by timeline + buckets) ───── */
+/* FRAME & SHIFT definitions */
 const FRAMES = [
-  { id:0, key:'early',      name:'AM Early',     start:'07:00', end:'09:00',  color:'var(--f-early)'},
-  { id:1, key:'late',       name:'AM Late',      start:'09:00', end:'11:00',  color:'var(--f-late)'},
-  { id:2, key:'lunch',      name:'Lunch',        start:'11:00', end:'13:00',  color:'var(--f-lunch)'},
-  { id:3, key:'afternoon',  name:'Afternoon',    start:'13:00', end:'16:00',  color:'var(--f-afternoon)'},
-  { id:4, key:'supper',     name:'Supper',       start:'16:00', end:'18:30',  color:'var(--f-supper)'},
-  { id:5, key:'evening',    name:'Evening',      start:'18:30', end:'21:00',  color:'var(--f-evening)'},
-  { id:6, key:'lateev',     name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--f-lateev)'}
+  { id:0, key:'early',      name:'AM Early',     start:'07:00', end:'09:00',  color:'var(--f-early)',     shift:'day'},
+  { id:1, key:'late',       name:'AM Late',      start:'09:00', end:'11:00',  color:'var(--f-late)',      shift:'day'},
+  { id:2, key:'lunch',      name:'Lunch',        start:'11:00', end:'13:00',  color:'var(--f-lunch)',     shift:'day'},
+  { id:3, key:'afternoon',  name:'Afternoon',    start:'13:00', end:'15:30',  color:'var(--f-afternoon)', shift:'day'}, /* trimmed at 15:30 */
+  { id:4, key:'supper',     name:'Supper',       start:'16:00', end:'18:30',  color:'var(--f-supper)',    shift:'night'},
+  { id:5, key:'evening',    name:'Evening',      start:'18:30', end:'21:00',  color:'var(--f-evening)',   shift:'night'},
+  { id:6, key:'lateev',     name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--f-lateev)',    shift:'night'}
 ];
 const SHIFTS = {
   day:   {start:'07:00', end:'15:30'},
   night: {start:'13:30', end:'22:30'}
 };
 
-/* ───────────────────────── geometry & area checks (unchanged) ───────────────────────── */
+/* ─────────────────── geometry / bounds ─────────────────── */
 const IHA_POLY = [
   {lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
   {lat:51.00,lng:-123.00},{lat:50.10,lng:-123.20},{lat:49.80,lng:-122.40},
@@ -281,22 +269,19 @@ function insidePoly(pt,poly){
 const CENTRAL_OK_BOUNDS = {south:49.60,north:50.30,west:-120.20,east:-118.90};
 const CENTRAL_OK_RX = /kelowna|west kelowna|lake country|oyama|peachland|fintry|joe rich|ellison|rutland|glenmore|glenrosa/i;
 
-/* ───────────────────────── smart geocoder (unchanged) ───────────────────────── */
+/* ─────────────────── smart geocoder ─────────────────── */
 function geocodeSmart(text){
   const cleaned = text.replace(/\s+/g,' ').trim();
   if(!cleaned) return Promise.resolve(null);
   return new Promise(res=>{
     acService.getPlacePredictions({
-      input: cleaned,
-      bounds: CENTRAL_OK_BOUNDS,
-      componentRestrictions:{country:'ca'},
-      types:['address']
+      input: cleaned, bounds: CENTRAL_OK_BOUNDS,
+      componentRestrictions:{country:'ca'}, types:['address']
     },(preds,status)=>{
       if(status===google.maps.places.PlacesServiceStatus.OK && preds?.length){
         const pred = preds.find(p=>CENTRAL_OK_RX.test(p.description)) || preds[0];
         placeSvc.getDetails({
-          placeId: pred.place_id,
-          fields:['formatted_address','geometry']
+          placeId: pred.place_id, fields:['formatted_address','geometry']
         },(plc,stat2)=>{
           if(stat2===google.maps.places.PlacesServiceStatus.OK && plc?.geometry){
             const loc = plc.geometry.location;
@@ -319,7 +304,7 @@ function geocodeSmart(text){
   });
 }
 
-/* ─────────────────────── batch geocode + validator ─────────────────────── */
+/* batch geocode */
 function ensureCoords(rows){
   const tasks = rows.map(row=>{
     const inp = row.querySelector('.stop');
@@ -327,20 +312,16 @@ function ensureCoords(rows){
     if(!inp.value || (inp.dataset.lat && inp.dataset.lng)) return true;
     return geocodeSmart(inp.value).then(out=>{
       if(out){
-        inp.dataset.lat = out.lat;
-        inp.dataset.lng = out.lng;
-        inp.value       = out.formatted;
+        inp.dataset.lat = out.lat; inp.dataset.lng = out.lng; inp.value = out.formatted;
         return true;
       }
-      row.classList.add('invalid');
-      inp.placeholder = 'Unrecognised – edit me';
-      return false;
+      row.classList.add('invalid'); inp.placeholder = 'Unrecognised – edit me'; return false;
     });
   });
   return Promise.all(tasks).then(arr=>arr.every(Boolean));
 }
 
-/* ───────────────────────── DOM helpers ───────────────────────── */
+/* DOM helper rows etc */
 function makeRow(i, frameId){
   const d = document.createElement('div'); d.className='row'; d.dataset.frame=frameId;
   const clr = colourCycle[i%colourCycle.length] || 'defaultBullet';
@@ -353,21 +334,18 @@ function makeRow(i, frameId){
   return d;
 }
 function renumber(){
-  const allRows=[...document.querySelectorAll('.row')];
-  allRows.forEach((r,i)=>{
+  [...document.querySelectorAll('.row')].forEach((r,i)=>{
     const b=r.querySelector('.bullet');
     b.textContent = labels[i] || '?';
     b.className   = 'bullet '+(colourCycle[i%colourCycle.length] || 'defaultBullet');
   });
 }
-/* preview pins etc */
 const clearPreviewPins = () => { previewPins.forEach(m=>m.setMap(null)); previewPins=[]; };
-const addPreviewPin   = (pos,label) => previewPins.push(new google.maps.Marker(
-  {map,position:pos,label:{text:label,color:'#fff'}}));
+const addPreviewPin   = (pos,label) => previewPins.push(new google.maps.Marker({map,position:pos,label:{text:label,color:'#fff'}}));
 const clearLegDisplays = () => document.querySelectorAll('.leg-display').forEach(e=>e.remove());
 const markRowFocus = (input,focus) => { const row=input.closest('.row'); if(!row)return; row.classList.toggle('focused',focus); };
 
-/* ───────────────────────── prediction filter ───────────────────────── */
+/* Prediction filter */
 function installPredictionFilter(){
   new MutationObserver(muts=>{
     muts.forEach(m=>m.addedNodes.forEach(node=>{
@@ -376,7 +354,7 @@ function installPredictionFilter(){
       requestAnimationFrame(()=>{
         const container=node.parentElement;if(!container) return;
         const allowed=CENTRAL_OK_RX.test(txt);
-        if(allowed){node.style.display='';node.classList.add('pac-central-ok');}
+        if(allowed){node.style.display='';}
         else{
           const hasAllowed=[...container.children].some(ch=>CENTRAL_OK_RX.test(ch.textContent));
           if(hasAllowed) node.style.display='none';
@@ -387,35 +365,28 @@ function installPredictionFilter(){
   }).observe(document.body,{childList:true,subtree:true});
 }
 
-/* TAB helper */
+/* tab */
 function focusNextStop(curInput){
   const stops=[...document.querySelectorAll('input.stop')];
   const i=stops.indexOf(curInput);
   if(i>-1 && stops[i+1]){stops[i+1].focus();return;}
 }
 
-/* Accept top prediction */
+/* accept top pred */
 function acceptTopPrediction(inp){
   const q=inp.value.trim(); if(!q){focusNextStop(inp);return;}
   acService.getPlacePredictions({
-    input:q,bounds:CENTRAL_OK_BOUNDS,
-    componentRestrictions:{country:'ca'},
-    types:['address']
+    input:q,bounds:CENTRAL_OK_BOUNDS,componentRestrictions:{country:'ca'},types:['address']
   },(preds,status)=>{
-    if(status!==google.maps.places.PlacesServiceStatus.OK||!preds?.length){
-      focusNextStop(inp);return;
-    }
+    if(status!==google.maps.places.PlacesServiceStatus.OK||!preds?.length){focusNextStop(inp);return;}
     const pred=preds.find(p=>CENTRAL_OK_RX.test(p.description))||preds[0];
     placeSvc.getDetails({placeId:pred.place_id,fields:['formatted_address','geometry']},
       (plc,stat2)=>{
-        if(stat2!==google.maps.places.PlacesServiceStatus.OK||!plc?.geometry){
-          focusNextStop(inp);return;
-        }
+        if(stat2!==google.maps.places.PlacesServiceStatus.OK||!plc?.geometry){focusNextStop(inp);return;}
         const loc=plc.geometry.location,pt={lat:loc.lat(),lng:loc.lng()};
         if(!insidePoly(pt,IHA_POLY)){
           inp.value='';inp.placeholder='Outside Interior Health';
-          setTimeout(()=>{if(!inp.value)inp.placeholder='Enter stop';},3000);
-          focusNextStop(inp);return;
+          setTimeout(()=>{if(!inp.value)inp.placeholder='Enter stop';},3000);focusNextStop(inp);return;
         }
         inp.value=plc.formatted_address||pred.description;
         inp.dataset.lat=pt.lat;inp.dataset.lng=pt.lng;
@@ -432,12 +403,11 @@ const rowToLocation = row => {
     : inp.value.trim();
 };
 
-/* ───────────────────────── INIT ───────────────────────── */
+/* INIT */
 window.routePlannerInit = () => {
   installPredictionFilter();
 
-  map = new google.maps.Map(document.getElementById('map'),
-    {center:{lat:49.8879,lng:-119.4960},zoom:10});
+  map = new google.maps.Map(document.getElementById('map'),{center:{lat:49.8879,lng:-119.4960},zoom:10});
   new google.maps.KmlLayer({
     url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',
     map, preserveViewport:true
@@ -449,24 +419,42 @@ window.routePlannerInit = () => {
   acService = new google.maps.places.AutocompleteService();
   placeSvc  = new google.maps.places.PlacesService(map);
 
-  buildTimeline();           /* left column */
-  buildFrameBuckets();       /* right panel */
+  buildTimelines();
+  buildFrameBuckets();
 
-  document.getElementById('route').onclick = rebuildRoute;
-  document.getElementById('opt').onclick   = globalOptimizeRoute;
+  document.getElementById('route').onclick     = rebuildRoute;
+  document.getElementById('optAll').onclick    = globalOptimizeRoute;
+  document.getElementById('optFrames').onclick = optimizeByFrames;
+
+  // Pegman back button
+  const sv = map.getStreetView();
+  sv.addListener('visible_changed',()=>{
+    document.getElementById('svBack').style.display = sv.getVisible()?'block':'none';
+  });
+  document.getElementById('svBack').onclick = ()=>sv.setVisible(false);
+
+  // toggle tab
+  document.getElementById('tlToggle').addEventListener('click',()=>document.body.classList.toggle('timeline-hidden'));
+
+  // keyboard shortcuts
+  window.addEventListener('keydown',e=>{
+    if(e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA') return;
+    if(e.key==='F1'){ e.preventDefault(); toggleShift('day'); }
+    if(e.key==='F2'){ e.preventDefault(); toggleShift('night'); }
+    if(e.key==='F3'){ e.preventDefault(); clearAllStops(); }
+  });
+
+  // start with day visible
+  applyShiftVisibility();
 };
-
-/* run init immediately if Maps already loaded */
-if(window.__mapsApiReady) window.routePlannerInit();
 
 /* debounce */
 const scheduleAutoCompute = (ms=250) => { clearTimeout(autoTimer); autoTimer=setTimeout(autoCompute,ms); };
 
-/* directions reset */
+/* clear directions */
 function clearDirections(){
   dirRend.set('directions',null);
-  dirRend.setMap(null);
-  dirRend.setMap(map);
+  dirRend.setMap(null); dirRend.setMap(map);
 }
 
 /* autoCompute */
@@ -485,7 +473,6 @@ function autoCompute(){
       msg.textContent='One or more stops can’t be located – please edit.'; return; }
 
     clearPreviewPins();
-    /* 1 stop => preview, 2+ => route */
     if(filled.length===1){
       const inp=filled[0].querySelector('.stop');
       addPreviewPin({lat:+inp.dataset.lat,lng:+inp.dataset.lng},labels[0]);
@@ -498,7 +485,7 @@ function autoCompute(){
   });
 }
 
-/* ROUTING */
+/* ROUTE build */
 function rebuildRoute(){
   const orderedRows=getOrderedRows();
   const msg=document.getElementById('msg');
@@ -519,11 +506,10 @@ function rebuildRoute(){
   });
 }
 
-/* OPTIMIZER */
+/* GLOBAL OPTIMIZE */
 async function globalOptimizeRoute(){
   const msg=document.getElementById('msg');
   const rows=getOrderedRows();
-
   if(rows.length<3){ rebuildRoute(); return; }
 
   const allOK = await ensureCoords(rows);
@@ -531,7 +517,6 @@ async function globalOptimizeRoute(){
 
   const locs=rows.map(rowToLocation);
   routeVersion++; const runId=routeVersion;
-
   msg.textContent='Optimizing…';
 
   dirSvc.route({
@@ -544,23 +529,16 @@ async function globalOptimizeRoute(){
     if(runId!==routeVersion) return;
     if(stat!=='OK'){ msg.textContent='Optimize failed'; return; }
 
-    /* reorder DOM according to Google order, but we keep frame membership */
+    // reorder DOM (keeping frames? we allow full reorder here)
     const order=[0,...res.routes[0].waypoint_order.map(i=>i+1),locs.length-1];
-    const allRows=[...rows]; // copy
-    const container=document.createDocumentFragment();
-    order.forEach(idx=>container.appendChild(allRows[idx]));
-    // append back in visual order to first frame's list. Then redistribute equally?:
-    // Simpler: just append to current parent sequentially.
-    // We'll just move each row back to its current frame parent to preserve membership.
-    // (If you want auto-bucket after optimize, add logic here.)
-    document.body.appendChild(container); // temp detach
-    // re-append rows into their original frame-lists in new order:
-    getFrameLists().forEach(fl=>fl.innerHTML=""); // clear
+    const listByFrame = FRAMES.map(f=>getFrameListById(f.id));
+    // flatten all rows first
+    const allRows=[...rows];
     order.forEach(idx=>{
       const r=allRows[idx];
+      // put sequentially into frames in display order (not strictly needed, but keeps membership)
       getFrameListById(+r.dataset.frame).appendChild(r);
     });
-
     renumber();
     dirRend.setDirections(res);
     displayLegs(res,'OK');
@@ -571,13 +549,60 @@ async function globalOptimizeRoute(){
   });
 }
 
+/* OPTIMIZE BY FRAMES */
+async function optimizeByFrames(){
+  const msg=document.getElementById('msg');
+  msg.textContent='Optimizing by frames…';
+
+  // process frames in visible order
+  const visFrames = FRAMES.filter(f=> (f.shift==='day' && dayVisible) || (f.shift==='night' && nightVisible));
+  let prevEndLoc = null;
+
+  for(const fr of visFrames){
+    const list = getFrameListById(fr.id);
+    const rows = [...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
+    if(rows.length<3){                            // <=2 no point optimizing
+      prevEndLoc = rows.length? rowToLocation(rows[rows.length-1]) : prevEndLoc;
+      continue;
+    }
+    const ok = await ensureCoords(rows);
+    if(!ok){ msg.textContent='One or more stops can’t be located – please edit.'; return; }
+
+    const locs = rows.map(rowToLocation);
+    // let Google optimize just inside this block
+    routeVersion++; const runId=routeVersion;
+
+    await new Promise(resolve=>{
+      dirSvc.route({
+        origin:locs[0],
+        destination:locs[locs.length-1],
+        waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
+        optimizeWaypoints:true,
+        travelMode:'DRIVING'
+      },(res,stat)=>{
+        if(runId!==routeVersion){ resolve(); return; }
+        if(stat!=='OK'){ resolve(); return; }
+
+        const order=[0,...res.routes[0].waypoint_order.map(i=>i+1),locs.length-1];
+        const currentRows=[...rows];
+        order.forEach(idx=>list.appendChild(currentRows[idx]));
+        prevEndLoc = rowToLocation(currentRows[ order[order.length-1] ]);
+        resolve();
+      });
+    });
+  }
+
+  renumber();
+  rebuildRoute(); // full render + leg summary
+  msg.textContent+=' done.';
+}
+
 /* LEG DISPLAY */
 function displayLegs(res,stat){
   const msg=document.getElementById('msg');
   if(stat!=='OK'){ msg.textContent='Route error: '+stat; clearDirections(); return; }
 
   dirRend.setDirections(res);
-
   const rows=getOrderedRows();
 
   let kmTot=0,minTot=0; clearLegDisplays();
@@ -597,12 +622,12 @@ function displayLegs(res,stat){
   msg.textContent=`Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
 }
 
-/* ───── FRAME BUCKET BUILDERS ───── */
+/* FRAME bucket builders */
 function buildFrameBuckets(){
   const container=document.getElementById('framesContainer');
   FRAMES.forEach(fr=>{
     const section=document.createElement('div');
-    section.className='frame'; section.dataset.frame=fr.id;
+    section.className='frame'; section.dataset.frame=fr.id; section.dataset.shift=fr.shift;
 
     const head=document.createElement('div');
     head.className='frame-header';
@@ -616,12 +641,11 @@ function buildFrameBuckets(){
     const addBtn=document.createElement('button');
     addBtn.className='addRowBtn';
     addBtn.textContent='+ Add stop';
-    addBtn.onclick=()=>{ addRowToFrame(fr.id); };
+    addBtn.onclick=()=>addRowToFrame(fr.id);
     section.appendChild(addBtn);
 
     container.appendChild(section);
 
-    // Sortable per frame list (shared)
     Sortable.create(list,{
       group:'stops', handle:'.drag', animation:150,
       onEnd:evt=>{
@@ -632,16 +656,15 @@ function buildFrameBuckets(){
     });
   });
 
-  /* create 4 rows per frame by default */
+  // initial four per frame
   FRAMES.forEach(fr=>{
     for(let i=0;i<4;i++) addRowToFrame(fr.id,false);
   });
   renumber();
+  applyShiftVisibility();
 }
 
-/* utils for frame lists */
 const getFrameListById = id => document.getElementById('frame-'+id);
-const getFrameLists    = () => FRAMES.map(f=>getFrameListById(f.id));
 function addRowToFrame(frameId, focus=true){
   const list=getFrameListById(frameId);
   const row=makeRow(document.querySelectorAll('.row').length, frameId);
@@ -649,17 +672,16 @@ function addRowToFrame(frameId, focus=true){
   attachRowEvents(row.querySelector('.stop'));
   if(focus) row.querySelector('.stop').focus();
 }
-
-/* get rows in visual order (frame order then within frame) */
 function getOrderedRows(){
   const rows=[];
   FRAMES.forEach(f=>{
+    const visible = (f.shift==='day' && dayVisible) || (f.shift==='night' && nightVisible);
+    if(!visible) return;
     rows.push(...getFrameListById(f.id).querySelectorAll('.row'));
   });
   return rows.filter(r=>r.querySelector('.stop').value.trim());
 }
 
-/* attach input events */
 function attachRowEvents(input){
   const ph='Enter stop'; input.placeholder=ph;
 
@@ -678,7 +700,6 @@ function attachRowEvents(input){
     }
   });
 
-  /* bulk paste */
   input.addEventListener('paste',e=>{
     const clip=(e.clipboardData||window.clipboardData).getData('text');
     const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -697,13 +718,10 @@ function attachRowEvents(input){
     renumber(); autoCompute();
   });
 
-  /* Google Places autocomplete */
   const ac=new google.maps.places.Autocomplete(input,{
     fields:['formatted_address','geometry','place_id'],
-    types:['address'],
-    componentRestrictions:{country:'ca'},
-    bounds:CENTRAL_OK_BOUNDS,
-    strictBounds:true
+    types:['address'],componentRestrictions:{country:'ca'},
+    bounds:CENTRAL_OK_BOUNDS,strictBounds:true
   });
   ac.addListener('place_changed',()=>{
     const plc=ac.getPlace();
@@ -719,86 +737,98 @@ function attachRowEvents(input){
   });
 }
 
-/* ───── TIMELINE BUILD ───── */
+/* TIMELINE BUILDERS */
 const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);}
 const pad=n=>n.toString().padStart(2,'0');
 
-function buildTimeline(){
-  const dayDrawer  = document.getElementById('day');
-  const nightDrawer= document.getElementById('night');
-
-  buildOneTimeline(dayDrawer,'day');
-  buildOneTimeline(nightDrawer,'night');
-
-  document.querySelectorAll('.shiftToggle').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const drawer=document.getElementById(btn.dataset.shift);
-      const open=drawer.classList.toggle('open');
-      btn.classList.toggle('active',open);
-    });
-  });
-
-  /* open day by default */
-  document.querySelector('.shiftToggle[data-shift="day"]').click();
+function buildTimelines(){
+  buildOneTimeline('day', document.getElementById('dayDrawer'));
+  buildOneTimeline('night',document.getElementById('nightDrawer'));
 }
 
-function buildOneTimeline(drawer,key){
+function buildOneTimeline(key, mount){
   const {start,end}=SHIFTS[key];
   const s=parseHM(start), e=parseHM(end), span=e-s;
+  const pxPerMin = 2.2;                           // vertical scale
+  const height   = (span)*pxPerMin;
 
   const line=document.createElement('div');
   line.className='timeline';
-  drawer.appendChild(line);
+  line.style.height = height+'px';
+  mount.appendChild(line);
 
-  /* 30‑minute ticks */
+  // ticks every 30 min
   for(let t=s;t<=e;t+=30){
     const pct=((t-s)/span)*100;
     const tick=document.createElement('div');
-    tick.className='tick'+(t%60===0?' bold':'');
-    tick.style.top=pct+'%';
-
-    if(t%30===0){
-      const lbl=document.createElement('span');
-      lbl.textContent=`${pad(Math.floor(t/60))}:${pad(t%60)}`;
-      tick.appendChild(lbl);
-    }
+    tick.className='tick'+(t%60===0?' bold':''); tick.style.top=pct+'%';
+    const lbl=document.createElement('span');
+    lbl.textContent=`${pad(Math.floor(t/60))}:${pad(t%30)}`;
+    tick.appendChild(lbl);
     line.appendChild(tick);
   }
 
-  /* coloured bars = intersection of frame with shift interval */
-  FRAMES.forEach(fr=>{
-    const segStart=Math.max(parseHM(fr.start),s);
-    const segEnd  =Math.min(parseHM(fr.end)  ,e);
+  // thin stripes for frames in this shift
+  FRAMES.filter(f=>f.shift===key).forEach(fr=>{
+    const fs=parseHM(fr.start), fe=parseHM(fr.end);
+    const segStart=Math.max(fs,s), segEnd=Math.min(fe,e);
     if(segEnd<=segStart) return;
-
     const seg=document.createElement('div');
     seg.className='segment';
-    seg.style.top   =((segStart-s)/span)*100+'%';
-    seg.style.height=((segEnd-segStart)/span)*100+'%';
+    seg.dataset.name=fr.name;
     seg.style.background=fr.color;
-
-    const txt=document.createElement('span');
-    txt.textContent=fr.name;
-    seg.appendChild(txt);
+    seg.style.top=((segStart-s)/span)*100+'%';
+    seg.style.height=((segEnd-segStart)/span)*100+'%';
     line.appendChild(seg);
   });
 
+  // now marker
   const mark=document.createElement('div'); mark.className='nowMarker'; line.appendChild(mark);
   const tickNow=()=>{
     const d=new Date(), m=d.getHours()*60+d.getMinutes();
-    const pct=((m-s)/span)*100;
-    mark.style.top=pct+'%';
-    mark.style.display=(m<s||m>e)?'none':'block';
+    const show=(m>=s && m<=e);
+    mark.style.display = show?'block':'none';
+    if(show) mark.style.top=((m-s)/span)*100+'%';
   };
-  tickNow(); setInterval(tickNow,60000);
+  tickNow(); setInterval(tickNow,60_000);
 }
 
-/* DOMContentLoaded for TL toggle is handled by CSS button */
-document.addEventListener('DOMContentLoaded',()=>{
-  document.getElementById('tlToggle')
-          .addEventListener('click',()=>document.body.classList.toggle('timeline-hidden'));
-});
+/* SHIFT VISIBILITY */
+function toggleShift(which){
+  if(which==='day'){ dayVisible=!dayVisible; }
+  if(which==='night'){ nightVisible=!nightVisible; }
+  applyShiftVisibility();
+}
+function applyShiftVisibility(){
+  // timeline drawers
+  document.getElementById('dayDrawer').style.display   = dayVisible  ? 'block':'none';
+  document.getElementById('nightDrawer').style.display = nightVisible? 'block':'none';
+
+  // frame sections
+  FRAMES.forEach(fr=>{
+    const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
+    const vis = (fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
+    sec.style.display = vis?'block':'none';
+  });
+
+  // if none visible, hide drawer altogether?
+  // (optional – as long as F1/F2 bring it back)
+
+  // recompute route if needed
+  autoCompute();
+}
+
+/* CLEAR ALL F3 */
+function clearAllStops(){
+  document.querySelectorAll('.row input.stop').forEach(inp=>{
+    inp.value=''; inp.dataset.lat=''; inp.dataset.lng='';
+  });
+  clearPreviewPins(); clearDirections(); clearLegDisplays();
+  document.getElementById('msg').textContent='';
+}
+
+/* DOMContentLoaded for tlToggle handled above */
 </script>
 </body>
 </html>
