@@ -592,8 +592,6 @@ function addRowToFrame(frameId, focus = true){
   buildTimelineFromDOM();
   if (focus) row.querySelector('.stop').focus();
 }
-  buildTimelineFromDOM();
-}
 function emptyRowsIn(list){
   return [...list.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());
 }
