@@ -67,12 +67,12 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   font-size:15px;font-weight:500;color:#000;border-bottom:1px solid #e0e0e0;background:#fafafa;
 }
 .frame-header .swatch{width:16px;height:16px;border-radius:3px;flex:none;}
-.frame-hide{margin-left:auto;cursor:pointer;color:#666;font-size:20px;line-height:20px;} /* <<< */
-.frame-hide:hover{color:#000;} /* <<< */
+.frame-hide{margin-left:auto;cursor:pointer;color:#666;font-size:20px;line-height:20px;} 
+.frame-hide:hover{color:#000;} 
 .frame.collapsed .frame-list,
-.frame.collapsed .addRowBtn{display:none;} /* <<< */
-.frame.collapsed{opacity:.55;}             /* <<< */
-.frame.collapsed .frame-hide{color:#c00;}  /* <<< */
+.frame.collapsed .addRowBtn{display:none;} 
+.frame.collapsed{opacity:.55;}             
+.frame.collapsed .frame-hide{color:#c00;}  
 
 .frame-list{padding:6px 10px 8px 6px;min-height:8px;}
 .addRowBtn{
@@ -94,7 +94,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .row.focused{background:var(--clrInputBgAlt);box-shadow:0 0 0 2px rgba(33,150,243,.25);}
 .row:hover:not(.focused):not(.selected){background:rgba(0,0,0,.04);}
 .row.invalid input.stop{border-color:#e53935;background:#fff7f7;}
-.row.selected{outline:3px solid rgba(33,150,243,.6);}       /* <<< multi-select highlight */
+.row.selected{outline:3px solid rgba(33,150,243,.6);}       
 
 .bullet{
   min-width:24px;padding:0 6px;height:24px;border-radius:50%;
@@ -143,7 +143,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 #optAll:hover{background:#26c36c;} #optAll:active{transform:scale(.96);}
 #optFrames{background:#795548;color:#fff;border-color:#795548;}
 #optFrames:hover{background:#8d6e63;} #optFrames:active{transform:scale(.96);}
-#delSel{background:#db4437;color:#fff;border-color:#db4437;display:none;} /* <<< multi delete */
+#delSel{background:#db4437;color:#fff;border-color:#db4437;display:none;}
 
 #msg{margin:12px 0;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 0;}
 
@@ -208,7 +208,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 #flatButtons button{padding:6px 12px;font-size:13px;border-radius:6px;cursor:pointer;border:none;}
 #flatRoute{background:var(--clrA);color:#fff;}
 #flatOpt{background:var(--clrB);color:#fff;}
-#flatDelSel{background:#db4437;color:#fff;display:none;} /* <<< */
+#flatDelSel{background:#db4437;color:#fff;display:none;}
 
 .hidden{display:none!important;}
 </style>
@@ -239,7 +239,7 @@ function init(){ if(typeof window.routePlannerInit==='function'){window.routePla
     <button id="route">Route</button>
     <button id="optAll"    title="Optimize entire day">Optimize</button>
     <button id="optFrames" title="Optimize each time frame separately">Optimize by Frames</button>
-    <button id="delSel" title="Delete selected stops">Delete Selected</button> <!-- <<< -->
+    <button id="delSel" title="Delete selected stops">Delete Selected</button>
   </div>
 </div>
 
@@ -260,7 +260,7 @@ function init(){ if(typeof window.routePlannerInit==='function'){window.routePla
     <div id="flatButtons">
       <button id="flatRoute">Route</button>
       <button id="flatOpt">Optimize</button>
-      <button id="flatDelSel">Delete Selected</button> <!-- <<< -->
+      <button id="flatDelSel">Delete Selected</button>
     </div>
   </div>
 </div>
@@ -272,15 +272,16 @@ function init(){ if(typeof window.routePlannerInit==='function'){window.routePla
 const colourCycle=['A','B','C','D','E','F','G','H'];
 const BASE_EMPTY_PER_FRAME = 4;
 
-/* --- NEW OPT OPTIONS --- */                         // <<<
+/* --- OPT OPTIONS --- */
 const OPT_UNLOCK_ENDS = true;   // allow first & last to move when optimizing
-const DM_BATCH_LIMIT  = 25;     // not used yet, here if you ever batch DM calls
+let map,dirSvc,dirRend,geocoder,acService,placeSvc; // <<< CHANGED (removed dmSvc)
 
-let map,dirSvc,dirRend,geocoder,acService,placeSvc,dmSvc; // <<< dmSvc
+/* ---------- STATE ---------- */
 let autoTimer=null,routeVersion=0,previewPins=[];
 let dayVisible=false,nightVisible=false;
 let flatMode=false;
 
+/* ---------- FRAMES / SHIFTS ---------- */
 const FRAMES=[
   {id:0,key:'early',     name:'AM Early',     start:'07:00', end:'09:00',  color:'var(--f-early)',     shift:'day'},
   {id:1,key:'late',      name:'AM Late',      start:'09:00', end:'11:00',  color:'var(--f-late)',      shift:'day'},
@@ -292,7 +293,7 @@ const FRAMES=[
 ];
 const SHIFTS={ day:{start:'07:00',end:'15:30'}, night:{start:'13:30',end:'22:30'} };
 
-/* ---------- GEO ---------- */
+/* ---------- GEO HELPERS ---------- */
 const IHA_POLY=[{lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
   {lat:51.00,lng:-123.00},{lat:50.10,lng:-123.20},{lat:49.80,lng:-122.40},
   {lat:49.00,lng:-120.00},{lat:49.00,lng:-114.00},{lat:51.20,lng:-114.00},
@@ -340,35 +341,6 @@ function geocodeSmart(text){
 
 /* ---------- LABEL & ROW HELPERS ---------- */
 function idxToLabel(i){let s='',n=i+1;while(n>0){const rem=(n-1)%26;s=String.fromCharCode(65+rem)+s;n=Math.floor((n-1)/26);}return s;}
-
-function ensureCoords(rows){
-  const tasks=rows.map(row=>{
-    const inp=row.querySelector('.stop');
-    row.classList.remove('invalid');
-    if(!inp.value || (inp.dataset.lat && inp.dataset.lng)) return true;
-    return geocodeSmart(inp.value).then(out=>{
-      if(out){inp.dataset.lat=out.lat;inp.dataset.lng=out.lng;inp.value=out.formatted;return true;}
-      row.classList.add('invalid');inp.placeholder='Unrecognised – edit me';return false;
-    });
-  });
-  return Promise.all(tasks).then(a=>a.every(Boolean));
-}
-
-function makeRow(i,frameId){
-  const d=document.createElement('div');
-  d.className='row'; d.dataset.frame=frameId;
-  const labelText=idxToLabel(i);
-  const clr=colourCycle[i%colourCycle.length] || 'defaultBullet';
-  d.innerHTML=`
-    <div class="bullet ${clr}">${labelText}</div>
-    <input class="stop" placeholder="Enter stop" autocomplete="off" autocorrect="off" spellcheck="false">
-    <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
-    <span class="remove" title="Remove stop">×</span>`;
-  d.querySelector('.remove').onclick=()=>{d.remove();renumber();autoCompute();buildTimelineFromDOM();showDelButtonsIfNeeded();};
-  d.addEventListener('click',rowClickSelect); // multi-select
-  return d;
-}
-
 function currentRowsForNumbering(){
   if(flatMode) return [...document.querySelectorAll('#addrList .row')];
   return [...document.querySelectorAll('.frame')]
@@ -379,7 +351,6 @@ function currentRowsForNumbering(){
     })
     .flatMap(fr=>[...fr.querySelectorAll('.row')]);
 }
-
 function renumber(){
   const rows=currentRowsForNumbering();
   rows.forEach((r,i)=>{
@@ -390,12 +361,67 @@ function renumber(){
     b.className='bullet '+clr;
   });
 }
-
 const clearPreviewPins=()=>{previewPins.forEach(m=>m.setMap(null));previewPins=[];};
 const addPreviewPin=(pos,label)=>previewPins.push(new google.maps.Marker({map,position:pos,label:{text:label,color:'#fff'}}));
 const clearLegDisplays=()=>document.querySelectorAll('.leg-display').forEach(e=>e.remove());
 const markRowFocus=(input,focus)=>{const row=input.closest('.row');if(!row)return;row.classList.toggle('focused',focus);};
 
+/* ---------- NEW: LOCAL DISTANCE MATRIX + TSP ---------- */ // <<< CHANGED
+function buildDistanceMatrix(points){
+  const n=points.length;
+  const D=Array.from({length:n},()=>Array(n).fill(0));
+  for(let i=0;i<n;i++){
+    for(let j=0;j<n;j++){
+      if(i===j) continue;
+      D[i][j]=google.maps.geometry.spherical.computeDistanceBetween(points[i],points[j]);
+    }
+  }
+  return D;
+}
+function solveTSPWithMatrix(D){
+  const n=D.length;
+  if(n<=2) return [...Array(n).keys()];
+
+  // Nearest neighbour
+  const used=Array(n).fill(false);
+  let path=[0]; used[0]=true;
+  for(let i=1;i<n;i++){
+    let last=path[path.length-1],best=-1,bestD=Infinity;
+    for(let j=0;j<n;j++) if(!used[j] && D[last][j]<bestD){best=j;bestD=D[last][j];}
+    path.push(best); used[best]=true;
+  }
+
+  // 2‑opt
+  const distPath=p=>{let s=0;for(let i=0;i<p.length-1;i++) s+=D[p[i]][p[i+1]];return s;};
+  let improved=true;
+  while(improved){
+    improved=false;
+    for(let i=1;i<n-2;i++){
+      for(let k=i+1;k<n-1;k++){
+        const delta=-D[path[i-1]][path[i]]-D[path[k]][path[k+1]]+D[path[i-1]][path[k]]+D[path[i]][path[k+1]];
+        if(delta<0){
+          const rev=path.slice(i,k+1).reverse();
+          path=[...path.slice(0,i),...rev,...path.slice(k+1)];
+          improved=true;
+        }
+      }
+    }
+  }
+  return path;
+}
+function reattachInOrder(order, rows){
+  if(flatMode){
+    const list=document.getElementById('addrList');
+    order.forEach(i=>list.appendChild(rows[i]));
+  }else{
+    order.forEach(i=>{
+      const r=rows[i];
+      getFrameListById(+r.dataset.frame).appendChild(r);
+    });
+  }
+}
+
+/* ---------- PREDICTION FILTER ---------- */
 function installPredictionFilter(){
   new MutationObserver(muts=>{
     muts.forEach(m=>m.addedNodes.forEach(node=>{
@@ -468,12 +494,9 @@ document.addEventListener('keydown',e=>{
     e.preventDefault();deleteSelected();
   }
 });
-
-// auto-clear selection when clicking without Ctrl/Cmd anywhere   // <<<
 document.addEventListener('click',e=>{
   if(e.ctrlKey||e.metaKey) return;
   if(!document.querySelector('.row.selected')) return;
-  // allow clicking inside the same selected row's input without clearing
   if(e.target.closest('.row') && e.target.tagName==='INPUT') return;
   document.querySelectorAll('.row.selected').forEach(r=>r.classList.remove('selected'));
   showDelButtonsIfNeeded();
@@ -494,7 +517,6 @@ window.routePlannerInit=()=>{
   geocoder=new google.maps.Geocoder();
   acService=new google.maps.places.AutocompleteService();
   placeSvc =new google.maps.places.PlacesService(map);
-  dmSvc   =new google.maps.DistanceMatrixService();   // <<<
 
   buildFrameBuckets();
   buildTimelineFromDOM();
@@ -527,6 +549,19 @@ window.routePlannerInit=()=>{
 const scheduleAutoCompute=(ms=250)=>{clearTimeout(autoTimer);autoTimer=setTimeout(autoCompute,ms);};
 function clearDirections(){dirRend.set('directions',null);dirRend.setMap(null);dirRend.setMap(map);}
 
+function ensureCoords(rows){
+  const tasks=rows.map(row=>{
+    const inp=row.querySelector('.stop');
+    row.classList.remove('invalid');
+    if(!inp.value || (inp.dataset.lat && inp.dataset.lng)) return true;
+    return geocodeSmart(inp.value).then(out=>{
+      if(out){inp.dataset.lat=out.lat;inp.dataset.lng=out.lng;inp.value=out.formatted;return true;}
+      row.classList.add('invalid');inp.placeholder='Unrecognised – edit me';return false;
+    });
+  });
+  return Promise.all(tasks).then(a=>a.every(Boolean));
+}
+
 function autoCompute(){
   const rows=[...document.querySelectorAll('.row')];
   const filled=rows.filter(r=>r.querySelector('.stop').value.trim());
@@ -537,10 +572,8 @@ function autoCompute(){
     clearPreviewPins();clearLegDisplays();msg.textContent='';flatMsg.textContent='';clearDirections();return;
   }
 
-  // Don’t geocode while typing
   if(filled.some(r=>!r.querySelector('.stop').dataset.lat)){
-    clearDirections();clearLegDisplays();msg.textContent='';flatMsg.textContent='';
-    return;
+    clearDirections();clearLegDisplays();msg.textContent='';flatMsg.textContent='';return;
   }
 
   if(filled.length===1){
@@ -573,84 +606,7 @@ function rebuildRoute(){
   });
 }
 
-/* ---------- DistanceMatrix + TSP helpers ---------- */   // <<<
-async function distanceMatrix(points){
-  return new Promise((resolve,reject)=>{
-    dmSvc.getDistanceMatrix({
-      origins:points,destinations:points,
-      travelMode:'DRIVING',unitSystem:google.maps.UnitSystem.METRIC
-    },(res,stat)=>{
-      if(stat!=='OK') return reject(stat);
-      const n=res.rows.length;
-      const dist=Array.from({length:n},(_,i)=>
-        res.rows[i].elements.map(e=>e.status==='OK'?e.distance.value:Infinity));
-      resolve(dist);
-    });
-  });
-}
-async function solveTSP(points){
-  const n=points.length;
-  if(n<=2) return [...Array(n).keys()];
-  const D=await distanceMatrix(points);
-
-  // nearest neighbour
-  const used=Array(n).fill(false);
-  let path=[0]; used[0]=true;
-  for(let i=1;i<n;i++){
-    const last=path[path.length-1];
-    let best=-1,bestD=Infinity;
-    for(let j=0;j<n;j++) if(!used[j] && D[last][j]<bestD){best=j;bestD=D[last][j];}
-    path.push(best); used[best]=true;
-  }
-  // 2-opt
-  const pathLen=p=>{let s=0;for(let i=0;i<p.length-1;i++) s+=D[p[i]][p[i+1]];return s;};
-  let improved=true;
-  while(improved){
-    improved=false;
-    for(let i=1;i<n-2;i++){
-      for(let k=i+1;k<n-1;k++){
-        const delta=-D[path[i-1]][path[i]]-D[path[k]][path[k+1]]+D[path[i-1]][path[k]]+D[path[i]][path[k+1]]
-        if(delta<0){
-          const rev=path.slice(i,k+1).reverse();
-          path=[...path.slice(0,i),...rev,...path.slice(k+1)];
-          improved=true;
-        }
-      }
-    }
-  }
-  return path;
-}
-
-function reattachInOrder(order, rows){         // <<<
-  if(flatMode){
-    const list=document.getElementById('addrList');
-    order.forEach(i=>list.appendChild(rows[i]));
-  }else{
-    order.forEach(i=>{
-      const r=rows[i];
-      getFrameListById(+r.dataset.frame).appendChild(r);
-    });
-  }
-}
-
-function runGoogleOptimize(locs, rows, msg, flatMsg){   // <<<
-  const reqId=++routeVersion;
-  dirSvc.route({
-    origin:locs[0],destination:locs[locs.length-1],
-    waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
-    optimizeWaypoints:true,travelMode:'DRIVING'
-  },(res,stat)=>{
-    if(reqId!==routeVersion)return;
-    if(stat!=='OK'){msg.textContent='Optimize failed';flatMsg.textContent='Optimize failed';return;}
-    const order=[0,...res.routes[0].waypoint_order.map(i=>i+1),locs.length-1];
-    reattachInOrder(order, rows);
-    renumber();
-    dirRend.setDirections(res);
-    displayLegs(res,'OK');
-  });
-}
-
-/* ---------- GLOBAL OPT ---------- */
+/* ---------- GLOBAL OPT (instant) ---------- */ // <<< CHANGED
 async function globalOptimizeRoute(){
   const msg=document.getElementById('msg');
   const flatMsg=document.getElementById('flatMsg');
@@ -665,20 +621,17 @@ async function globalOptimizeRoute(){
   const locs=rows.map(rowToLocation);
   msg.textContent='Optimizing…'; flatMsg.textContent='Optimizing…';
 
-  if(!OPT_UNLOCK_ENDS){
-    runGoogleOptimize(locs, rows, msg, flatMsg);
-    return;
-  }
+  const pts=locs.map(l=> (typeof l==='string')?null:l); // should all be LatLng now
+  const D=buildDistanceMatrix(pts);
+  const order=solveTSPWithMatrix(D);
 
-  // unlock ends – run our TSP
-  const order = await solveTSP(locs);
   reattachInOrder(order, rows);
   renumber();
   rebuildRoute();
   msg.textContent='Optimized.'; flatMsg.textContent='Optimized.';
 }
 
-/* ---------- OPT BY FRAMES ---------- */
+/* ---------- OPT BY FRAMES (instant) ---------- */ // <<< CHANGED
 async function optimizeByFrames(){
   const msg=document.getElementById('msg'); msg.textContent='Optimizing by frames…';
   clearLegDisplays();
@@ -695,26 +648,11 @@ async function optimizeByFrames(){
 
     const ok=await ensureCoords(rows); if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
 
-    if(OPT_UNLOCK_ENDS){
-      const locs=rows.map(rowToLocation);
-      const order=await solveTSP(locs);
-      order.forEach(i=>list.appendChild(rows[i]));
-    }else{
-      await new Promise(resolve=>{
-        const locs=rows.map(rowToLocation);
-        dirSvc.route({
-          origin:locs[0],destination:locs[locs.length-1],
-          waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
-          optimizeWaypoints:true,travelMode:'DRIVING'
-        },(res,stat)=>{
-          if(stat==='OK'){
-            const order=[0,...res.routes[0].waypoint_order.map(i=>i+1),locs.length-1];
-            const cur=[...rows]; order.forEach(i=>list.appendChild(cur[i]));
-          }
-          resolve();
-        });
-      });
-    }
+    const locs=rows.map(rowToLocation);
+    const pts=locs.map(l=> (typeof l==='string')?null:l);
+    const D=buildDistanceMatrix(pts);
+    const order=solveTSPWithMatrix(D);
+    order.forEach(i=>list.appendChild(rows[i]));
   }
   renumber(); rebuildRoute(); msg.textContent='Optimized by frames.';
 }
@@ -790,6 +728,29 @@ function buildFrameBuckets(){
 }
 const getFrameListById=id=>document.getElementById('frame-'+id);
 
+/* NEW: helper to select a row on creation */  // <<< CHANGED
+function selectRow(row){
+  document.querySelectorAll('.row.selected').forEach(r=>r.classList.remove('selected'));
+  row.classList.add('selected');
+  showDelButtonsIfNeeded();
+  row.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+
+function makeRow(i,frameId){
+  const d=document.createElement('div');
+  d.className='row'; d.dataset.frame=frameId;
+  const labelText=idxToLabel(i);
+  const clr=colourCycle[i%colourCycle.length] || 'defaultBullet';
+  d.innerHTML=`
+    <div class="bullet ${clr}">${labelText}</div>
+    <input class="stop" placeholder="Enter stop" autocomplete="off" autocorrect="off" spellcheck="false">
+    <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
+    <span class="remove" title="Remove stop">×</span>`;
+  d.querySelector('.remove').onclick=()=>{d.remove();renumber();autoCompute();buildTimelineFromDOM();showDelButtonsIfNeeded();};
+  d.addEventListener('click',rowClickSelect);
+  return d;
+}
+
 function addRowToFrame(frameId, focus = true){
   const list = getFrameListById(frameId);
   const row  = makeRow(0, frameId);
@@ -797,6 +758,7 @@ function addRowToFrame(frameId, focus = true){
   attachRowEvents(row.querySelector('.stop'));
   renumber();buildTimelineFromDOM();
   if (focus) row.querySelector('.stop').focus();
+  selectRow(row); // <<< CHANGED
 }
 function addRowToAddrBar(){
   const list=document.getElementById('addrList');
@@ -804,6 +766,8 @@ function addRowToAddrBar(){
   list.appendChild(row);
   attachRowEvents(row.querySelector('.stop'));
   renumber();
+  row.querySelector('.stop').focus();
+  selectRow(row); // <<< CHANGED
 }
 function emptyRowsIn(list){return [...list.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());}
 function ensurePlaceholdersForFrame(frameId){
@@ -818,7 +782,6 @@ function ensureAllFramesHaveBaseline(){
       ensurePlaceholdersForFrame(fr.id);
   });
 }
-
 function getOrderedRows(includeHidden=false){
   if(flatMode){
     return [...document.querySelectorAll('#addrList .row')].filter(r=>r.querySelector('.stop').value.trim());
@@ -833,14 +796,11 @@ function getOrderedRows(includeHidden=false){
   });
   return rows.filter(r=>r.querySelector('.stop').value.trim());
 }
-
-/* collapse/restore frame */
 function toggleFrame(id){
   const sec=document.querySelector(`.frame[data-frame="${id}"]`);
   sec.classList.toggle('collapsed');
   renumber();autoCompute();buildTimelineFromDOM();
 }
-
 function attachRowEvents(input){
   const ph='Enter stop'; input.placeholder=ph;
   input.addEventListener('focus',e=>{
@@ -887,7 +847,6 @@ function buildAddrBar(){
   document.getElementById('toggleDay').onclick=()=>toggleShift('day');
   document.getElementById('toggleNight').onclick=()=>toggleShift('night');
 }
-
 function enterFlatMode(){
   if(flatMode)return;
   flatMode=true;
@@ -1048,7 +1007,6 @@ function applyShiftVisibility(){
   buildTimelineFromDOM();
   autoCompute();
 }
-
 function clearAllStops(){
   document.querySelectorAll('.row input.stop').forEach(inp=>{
     inp.value='';inp.dataset.lat='';inp.dataset.lng='';
