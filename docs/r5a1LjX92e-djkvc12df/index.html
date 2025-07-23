@@ -4,79 +4,75 @@
 <meta charset="utf-8">
 <title>Okanagan Route Planner</title>
 
-<!-- Google icons -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap">
 
 <style>
 :root{
-  /* existing colours */
+  /* GOOGLE pin colours (unchanged) */
   --clrA:#4285F4; --clrB:#0F9D58; --clrC:#F4B400; --clrD:#DB4437;
-  --clrDefault:#607d8b;
-  /* extra bullet colours */
   --clrE:#ab47bc; --clrF:#00acc1; --clrG:#ff7043; --clrH:#8d6e63;
+  --clrDefault:#607d8b;
 
+  /* PANEL + INPUTS */
   --clrPanelBg:#ffffff; --clrPanelStripe:#2196f3; --clrPanelBorder:#d7d7d7;
   --clrPanelShadow:0 2px 8px rgba(0,0,0,.25);
   --clrInputBorder:#c7c7c7; --clrInputBg:#fff; --clrInputBgAlt:#fafafa;
   --radiusSm:4px; --radiusMd:6px; --radiusLg:10px;
   --transFast:.12s; --transMed:.18s; --fontMain:Roboto,Arial,sans-serif;
+
+  /* TIMELINE / FRAMES  ✱ CHANGED */
+  --axis-w:4px; --tick-minor:#9e9e9e; --tick-major:#424242;
+  --timeline-h:680px;              /* taller to fit 30‑min ticks */
+  --gutter:52px; --gap:1px; --bar-w:104px;
+  --drawer-w:calc(var(--gutter) + var(--gap) + var(--bar-w) + 2px);
+
+  /* frame colours (match your TimeFrames file) */
+  --f-early:#8BC34A; --f-late:#4CAF50; --f-lunch:#FFEB3B;
+  --f-afternoon:#03A9F4; --f-supper:#FF9800;
+  --f-evening:#BA68C8; --f-lateev:#F44336;
+
+  /* layout */
+  --timelineDockW:160px; /* old value – we now make it wider */
 }
 html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 
-/* ───────── timeline COLUMN (fixed 160 px) ───────── */
-:root{ --timelineDockW:160px; }                /* keep in one token   */
-
+/* TIMELINE COLUMN (left)  ✱ CHANGED */
 #timelineDock{
   position:absolute;top:0;left:0;
-  width:var(--timelineDockW);height:100%;
+  width:var(--drawer-w);height:100%;
   border-right:1px solid var(--clrPanelBorder);
-  background:#fff;z-index:6;overflow:hidden;
-  transition:left .25s;                       /* ← we slide with left now */
+  background:#fff;z-index:6;overflow:auto;
+  transition:left .25s;
 }
-#timelineDock iframe{width:100%;height:100%;border:none;}
+body.timeline-hidden #timelineDock{ left:calc(-1 * var(--drawer-w)); }
 
-/* slide the whole column completely off‑screen */
-body.timeline-hidden #timelineDock{
-  left:calc(-1 * var(--timelineDockW));       /* tuck it away */
-}
-
-/* little “hide / show” tab */
-/* little “hide / show” tab  ─ centred on the column’s edge */
-/* little “hide / show” tab – now fixed to the viewport */
+/* show/hide tab */
 #tlToggle{
-  position:fixed;
-  top:50%;                                    /* centred vertically       */
-  left:var(--timelineDockW);                  /* hugs column when shown   */
+  position:fixed;top:50%;left:var(--drawer-w);
   transform:translate(-50%,-50%);
   width:22px;height:44px;border:none;padding:0;
-  border-radius:0 6px 6px 0;                  /* rounded on the right     */
-  background:#455a64;color:#fff;
+  border-radius:0 6px 6px 0;background:#455a64;color:#fff;
   font:16px/16px Roboto,Arial,sans-serif;
   cursor:pointer;display:flex;align-items:center;justify-content:center;
   z-index:1000;transition:left .25s,transform .25s;
 }
-/* after the column slides out, keep the tab at the hard‑left edge */
-body.timeline-hidden #tlToggle{
-  left:0;
-  transform:translate(0,-50%) rotate(180deg);
-}
+body.timeline-hidden #tlToggle{ left:0; transform:translate(0,-50%) rotate(180deg); }
 
+/* MAIN PANEL (stop buckets)  ✱ CHANGED margin-left */
 #panel{
-  position:absolute;top:0;left:0;z-index:5;width:340px;max-height:100%;
+  position:absolute;top:0;left:0;z-index:5;width:380px;max-height:100%;
   background:var(--clrPanelBg);
-  padding:16px 14px 12px calc(var(--timelineDockW) + 16px); /* default gap */
+  padding:16px 14px 12px calc(var(--drawer-w) + 16px);
   border-right:1px solid var(--clrPanelBorder);box-shadow:var(--clrPanelShadow);
   overflow:auto;border-top-right-radius:var(--radiusLg);
   border-bottom-right-radius:var(--radiusLg);
-  transition:padding-left .25s;               /* smooth slide‑over        */
+  transition:padding-left .25s;
 }
-body.timeline-hidden #panel{
-  padding-left:16px;                          /* hug the window edge      */
-}
-#panel::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;
-  background:var(--clrPanelStripe);}
+body.timeline-hidden #panel{ padding-left:16px; }
 
-.row{display:flex;align-items:center;margin:12px 0;padding:4px 6px 4px 0;
+/* STOP ROWS ------------------------------------------------------ */
+.row{display:flex;align-items:center;margin:8px 0;padding:4px 6px 4px 0;
   border-radius:var(--radiusMd);transition:background var(--transFast),box-shadow var(--transFast);}
 .row.focused{background:var(--clrInputBgAlt);box-shadow:0 0 0 2px rgba(33,150,243,.25);}
 .row:hover:not(.focused){background:rgba(0,0,0,.04);}
@@ -100,15 +96,13 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
   box-shadow:0 0 0 3px rgba(33,150,243,.25);}
 
 /* coloured stripes beside inputs */
-.row .bullet.A + input.stop{border-left:4px solid var(--clrA);padding-left:6px;}
-.row .bullet.B + input.stop{border-left:4px solid var(--clrB);padding-left:6px;}
-.row .bullet.C + input.stop{border-left:4px solid var(--clrC);padding-left:6px;}
-.row .bullet.D + input.stop{border-left:4px solid var(--clrD);padding-left:6px;}
-.row .bullet.E + input.stop{border-left:4px solid var(--clrE);padding-left:6px;}
-.row .bullet.F + input.stop{border-left:4px solid var(--clrF);padding-left:6px;}
-.row .bullet.G + input.stop{border-left:4px solid var(--clrG);padding-left:6px;}
-.row .bullet.H + input.stop{border-left:4px solid var(--clrH);padding-left:6px;}
-.row .bullet.defaultBullet + input.stop{border-left:4px solid var(--clrDefault);padding-left:6px;}
+.row[data-frame="0"] input.stop{border-left:4px solid var(--f-early);    padding-left:6px;}
+.row[data-frame="1"] input.stop{border-left:4px solid var(--f-late);     padding-left:6px;}
+.row[data-frame="2"] input.stop{border-left:4px solid var(--f-lunch);    padding-left:6px;}
+.row[data-frame="3"] input.stop{border-left:4px solid var(--f-afternoon);padding-left:6px;}
+.row[data-frame="4"] input.stop{border-left:4px solid var(--f-supper);   padding-left:6px;}
+.row[data-frame="5"] input.stop{border-left:4px solid var(--f-evening);  padding-left:6px;}
+.row[data-frame="6"] input.stop{border-left:4px solid var(--f-lateev);   padding-left:6px;}
 
 .drag{cursor:grab;margin-left:6px;color:#666;font-size:22px;line-height:22px;
   padding:2px;border-radius:var(--radiusSm);transition:background var(--transFast);}
@@ -120,14 +114,12 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
   transition:transform var(--transFast),background var(--transFast);}
 .remove:hover{background:#f75a4d;transform:scale(1.08);} .remove:active{transform:scale(.94);}
 
-#add,#route,#opt{margin-top:8px;margin-bottom:14px;padding:8px 14px;font-size:14px;
+#route,#opt{margin:12px 0 14px 0;padding:8px 14px;font-size:14px;
   border-radius:var(--radiusMd);border:1px solid transparent;cursor:pointer;
   transition:background var(--transFast),box-shadow var(--transFast),transform var(--transFast);}
-#add{margin-left:28px;background:#e0e0e0;color:#000;border-color:#d0d0d0;}
-#add:hover{background:#e7e7e7;} #add:active{transform:scale(.96);}
-#route{margin-left:8px;background:var(--clrA);color:#fff;border-color:var(--clrA);}
+#route{background:var(--clrA);color:#fff;border-color:var(--clrA);}
 #route:hover{background:#5b9bff;} #route:active{transform:scale(.96);}
-#opt{margin-left:8px;background:var(--clrB);color:#fff;border-color:var(--clrB);}
+#opt{background:var(--clrB);color:#fff;border-color:var(--clrB);}
 #opt:hover{background:#26c36c;} #opt:active{transform:scale(.96);}
 
 .leg-display{margin:6px 0 0 28px;font-size:16px;font-weight:600;color:#1b1b1b;
@@ -143,51 +135,108 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 .leg-H{background:rgba(141,110,99,.18);border-left:4px solid var(--clrH);}
 .leg-default{background:rgba(96,125,139,.18);border-left:4px solid var(--clrDefault);}
 
-#msg{margin:12px 0;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 28px;}
+#msg{margin:12px 0;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 0;}
+
+/* FRAME SECTIONS -------------------------------------------------- */
+.frame{
+  border:1px solid var(--clrPanelBorder);border-radius:6px;margin-bottom:14px;
+  background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.08);
+}
+.frame-header{
+  display:flex;align-items:center;gap:8px;padding:6px 10px;
+  font-size:15px;font-weight:500;color:#000;border-bottom:1px solid #e0e0e0;
+}
+.frame-header .swatch{
+  width:16px;height:16px;border-radius:3px;flex:none;
+}
+.frame-list{padding:6px 10px 8px 6px;min-height:8px;}
+.addRowBtn{
+  margin:6px 0 0 28px;background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
+  padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;
+}
+.addRowBtn:hover{background:#e7e7e7;}
+/* TIMELINE INSIDE LEFT COLUMN ------------------------------------ */
+.timeline{
+  position:relative;width:100%;height:var(--timeline-h);
+  background:#fafafa;border-radius:2px;box-shadow:inset 0 0 0 1px #e0e0e0;
+  overflow:hidden;margin:8px 0;padding-right:2px;
+}
+.timeline::before{
+  content:"";position:absolute;top:0;left:0;width:var(--axis-w);height:100%;
+  background:#000;border-radius:2px;z-index:5;
+}
+.tick{position:absolute;left:0;width:100%;pointer-events:none;z-index:4;}
+.tick::before{
+  content:"";position:absolute;left:var(--axis-w);width:6px;height:1px;background:var(--tick-minor);
+}
+.tick.bold::before{width:10px;background:var(--tick-major);}
+.tick span{
+  position:absolute;left:calc(var(--axis-w) + 6px);font-size:11px;color:#424242;line-height:1;
+}
+.segment{
+  position:absolute;left:calc(var(--gutter) + var(--gap));width:var(--bar-w);z-index:1;
+}
+.segment span{
+  position:absolute;left:6px;top:50%;transform:translateY(-50%);
+  font-size:15px;font-weight:400;color:#000;white-space:nowrap;
+}
+.nowMarker{
+  position:absolute;left:calc(var(--axis-w)/2);z-index:6;
+  width:12px;height:12px;border:2px solid #000;background:#fff;border-radius:50%;
+  transform:translateX(-50%) translateY(-50%);
+  box-shadow:0 0 4px rgba(0,0,0,.4);animation:pulse 2s infinite;
+}
+@keyframes pulse{
+  0%{box-shadow:0 0 0 0 rgba(0,0,0,.35);}
+  70%{box-shadow:0 0 0 6px rgba(0,0,0,0);}
+  100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}
+}
+#controls{display:flex;flex-direction:column;gap:6px;padding:8px 8px 6px;}
+.shiftToggle{padding:6px 14px;border:none;border-radius:4px;background:#e0e0e0;cursor:pointer;font-size:14px;transition:background .15s;}
+.shiftToggle:hover{background:#f1f1f1;}
+.shiftToggle.active{background:#90CAF9;font-weight:500;}
+.drawer{padding-left:8px;overflow:hidden;max-height:0;transition:max-height .3s ease;}
+.drawer.open{padding-top:10px;padding-bottom:10px;max-height:none;}
 </style>
 
-<!-- ── 1. stub so Google always finds a callback ── -->
 <script>
+  /* Google callback stub */
   function init(){
-    /* defer to real init once module has loaded */
     if(typeof window.routePlannerInit==='function'){ window.routePlannerInit(); }
     else{ window.__mapsApiReady=true; }
   }
 </script>
 
-<!-- Google Maps (JS v3) -->
 <script async defer
   src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co&callback=init&libraries=places,geometry">
 </script>
 
-<!-- SortableJS (ESM build) -->
 <script type="module" src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/modular/sortable.core.esm.js"></script>
 </head>
 <body>
-  
-  <!-- ☰  toggle tab – fixed on screen -->
-  <button id="tlToggle" title="Hide / show timeline">⯈</button>
 
-  <!-- ───── sliding TIMELINE column ───── -->
-  <div id="timelineDock">
-    <iframe src="TimeFrames.html"
-            title="TimeFrames"
-            loading="lazy"></iframe>
+<button id="tlToggle" title="Hide / show timeline">⯈</button>
+
+<!-- LEFT timeline column (no iframe now) -->
+<div id="timelineDock">
+  <div id="controls">
+    <button class="shiftToggle" data-shift="day">Day&nbsp;Shift</button>
+    <button class="shiftToggle" data-shift="night">Night&nbsp;Shift</button>
   </div>
+  <div id="day"   class="drawer"></div>
+  <div id="night" class="drawer"></div>
+</div>
 
-  <!-- ───── stop‑list panel ───── -->
-  <div id="panel">
-    <div id="stops"></div>
-    <button id="add">+ Add stop</button>
-    <button id="route">Route</button>
-    <button id="opt">Optimize</button>
-    <div id="msg"></div>
-  </div>
+<!-- Right panel with frame buckets -->
+<div id="panel">
+  <div id="framesContainer"></div>
+  <button id="route">Route</button>
+  <button id="opt">Optimize</button>
+  <div id="msg"></div>
+</div>
 
-  <!-- ───── Google map (fills the rest) ───── -->
-  <div id="map"></div>
+<div id="map"></div>
 
-<!-- ── 2. main planner ── -->
 <script type="module">
 import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm';
 
@@ -197,7 +246,22 @@ const colourCycle = ['A','B','C','D','E','F','G','H'];
 let map, dirSvc, dirRend, geocoder, acService, placeSvc;
 let autoTimer = null, routeVersion = 0, previewPins = [];
 
-/* ───────────────────────── geometry helpers ───────────────────────── */
+/* ───── FRAME DEFINITIONS (shared by timeline + buckets) ───── */
+const FRAMES = [
+  { id:0, key:'early',      name:'AM Early',     start:'07:00', end:'09:00',  color:'var(--f-early)'},
+  { id:1, key:'late',       name:'AM Late',      start:'09:00', end:'11:00',  color:'var(--f-late)'},
+  { id:2, key:'lunch',      name:'Lunch',        start:'11:00', end:'13:00',  color:'var(--f-lunch)'},
+  { id:3, key:'afternoon',  name:'Afternoon',    start:'13:00', end:'16:00',  color:'var(--f-afternoon)'},
+  { id:4, key:'supper',     name:'Supper',       start:'16:00', end:'18:30',  color:'var(--f-supper)'},
+  { id:5, key:'evening',    name:'Evening',      start:'18:30', end:'21:00',  color:'var(--f-evening)'},
+  { id:6, key:'lateev',     name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--f-lateev)'}
+];
+const SHIFTS = {
+  day:   {start:'07:00', end:'15:30'},
+  night: {start:'13:30', end:'22:30'}
+};
+
+/* ───────────────────────── geometry & area checks (unchanged) ───────────────────────── */
 const IHA_POLY = [
   {lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
   {lat:51.00,lng:-123.00},{lat:50.10,lng:-123.20},{lat:49.80,lng:-122.40},
@@ -217,7 +281,7 @@ function insidePoly(pt,poly){
 const CENTRAL_OK_BOUNDS = {south:49.60,north:50.30,west:-120.20,east:-118.90};
 const CENTRAL_OK_RX = /kelowna|west kelowna|lake country|oyama|peachland|fintry|joe rich|ellison|rutland|glenmore|glenrosa/i;
 
-/* ───────────────────────── smart geocoder ───────────────────────── */
+/* ───────────────────────── smart geocoder (unchanged) ───────────────────────── */
 function geocodeSmart(text){
   const cleaned = text.replace(/\s+/g,' ').trim();
   if(!cleaned) return Promise.resolve(null);
@@ -273,12 +337,12 @@ function ensureCoords(rows){
       return false;
     });
   });
-  return Promise.all(tasks).then(arr=>arr.every(Boolean));   // true if all rows good
+  return Promise.all(tasks).then(arr=>arr.every(Boolean));
 }
 
 /* ───────────────────────── DOM helpers ───────────────────────── */
-function makeRow(i){
-  const d = document.createElement('div'); d.className='row';
+function makeRow(i, frameId){
+  const d = document.createElement('div'); d.className='row'; d.dataset.frame=frameId;
   const clr = colourCycle[i%colourCycle.length] || 'defaultBullet';
   d.innerHTML = `
     <div class="bullet ${clr}">${labels[i]}</div>
@@ -289,20 +353,19 @@ function makeRow(i){
   return d;
 }
 function renumber(){
-  [...document.querySelectorAll('.row')].forEach((r,i)=>{
-    const b = r.querySelector('.bullet');
+  const allRows=[...document.querySelectorAll('.row')];
+  allRows.forEach((r,i)=>{
+    const b=r.querySelector('.bullet');
     b.textContent = labels[i] || '?';
     b.className   = 'bullet '+(colourCycle[i%colourCycle.length] || 'defaultBullet');
   });
 }
+/* preview pins etc */
 const clearPreviewPins = () => { previewPins.forEach(m=>m.setMap(null)); previewPins=[]; };
 const addPreviewPin   = (pos,label) => previewPins.push(new google.maps.Marker(
   {map,position:pos,label:{text:label,color:'#fff'}}));
 const clearLegDisplays = () => document.querySelectorAll('.leg-display').forEach(e=>e.remove());
-const markRowFocus = (input,focus) => {
-  const row = input.closest('.row'); if(!row) return;
-  row.classList.toggle('focused',focus);
-};
+const markRowFocus = (input,focus) => { const row=input.closest('.row'); if(!row)return; row.classList.toggle('focused',focus); };
 
 /* ───────────────────────── prediction filter ───────────────────────── */
 function installPredictionFilter(){
@@ -324,19 +387,14 @@ function installPredictionFilter(){
   }).observe(document.body,{childList:true,subtree:true});
 }
 
-/* ───────────────────────── TAB helper ───────────────────────── */
+/* TAB helper */
 function focusNextStop(curInput){
   const stops=[...document.querySelectorAll('input.stop')];
   const i=stops.indexOf(curInput);
   if(i>-1 && stops[i+1]){stops[i+1].focus();return;}
-  const addBtn=document.getElementById('add');
-  if(addBtn && document.getElementById('stops').children.length<labels.length){
-    addBtn.click();
-    requestAnimationFrame(()=>[...document.querySelectorAll('input.stop')].pop()?.focus());
-  }
 }
 
-/* ───────────────────────── accept top prediction ───────────────────────── */
+/* Accept top prediction */
 function acceptTopPrediction(inp){
   const q=inp.value.trim(); if(!q){focusNextStop(inp);return;}
   acService.getPlacePredictions({
@@ -366,7 +424,7 @@ function acceptTopPrediction(inp){
   });
 }
 
-/* ───────────────────────── helper: row => location ───────────────────────── */
+/* row => location */
 const rowToLocation = row => {
   const inp=row.querySelector('.stop');
   return (inp.dataset.lat && inp.dataset.lng)
@@ -374,18 +432,15 @@ const rowToLocation = row => {
     : inp.value.trim();
 };
 
-/* ───────────────────────── initialise everything ───────────────────────── */
+/* ───────────────────────── INIT ───────────────────────── */
 window.routePlannerInit = () => {
   installPredictionFilter();
 
-  map = new google.maps.Map(
-    document.getElementById('map'),
-    {center:{lat:49.8879,lng:-119.4960},zoom:10}
-  );
+  map = new google.maps.Map(document.getElementById('map'),
+    {center:{lat:49.8879,lng:-119.4960},zoom:10});
   new google.maps.KmlLayer({
     url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',
-    map,
-    preserveViewport:true
+    map, preserveViewport:true
   });
 
   dirSvc  = new google.maps.DirectionsService();
@@ -394,94 +449,9 @@ window.routePlannerInit = () => {
   acService = new google.maps.places.AutocompleteService();
   placeSvc  = new google.maps.places.PlacesService(map);
 
-  /* build initial two rows */
-  const list=document.getElementById('stops');
-  list.appendChild(makeRow(0)); list.appendChild(makeRow(1));
+  buildTimeline();           /* left column */
+  buildFrameBuckets();       /* right panel */
 
-  /* enable drag-reorder */
-  Sortable.create(list,{
-    handle:'.drag',
-    animation:150,
-    onEnd:()=>{renumber();autoCompute();}
-  });
-
-  /* shared autocomplete opts */
-  const acOpts={
-    fields:['formatted_address','geometry','place_id'],
-    types:['address'],
-    componentRestrictions:{country:'ca'},
-    bounds:CENTRAL_OK_BOUNDS,
-    strictBounds:true
-  };
-
-  /* attach events to each input */
-  const attach=input=>{
-    const ph='Enter stop'; input.placeholder=ph;
-
-    /* focus / blur */
-    input.addEventListener('focus',e=>{
-      markRowFocus(input,true); setTimeout(()=>e.target.select(),0);
-      const mu=ev=>{ev.preventDefault();input.removeEventListener('mouseup',mu);};
-      input.addEventListener('mouseup',mu);
-    });
-   input.addEventListener('blur',()=>{markRowFocus(input,false);} );  /* ← no auto‑compute */
-   input.addEventListener('change',()=>{/* no auto‑compute here */}); /* ← keep silent      */
-   input.addEventListener('input',()=>{                             /* just clear coords   */
-   input.dataset.lat='';input.dataset.lng='';
-});
-
-    /* TAB accept */
-    input.addEventListener('keydown',e=>{
-      if(e.key==='Tab' && !e.shiftKey){
-        if(input.dataset.lat && input.dataset.lng) return;
-        e.preventDefault(); acceptTopPrediction(input);
-      }
-    });
-
-    /* bulk-paste list */
-    input.addEventListener('paste',e=>{
-      const clip=(e.clipboardData||window.clipboardData).getData('text');
-      const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-      if(lines.length<=1) return; e.preventDefault();
-
-      const rows=[...list.querySelectorAll('.row')];
-      const start=rows.indexOf(input.closest('.row'));
-      while(list.children.length<start+lines.length && list.children.length<labels.length){
-        const r=makeRow(list.children.length); list.appendChild(r); attach(r.querySelector('.stop'));
-      }
-      lines.forEach((addr,i)=>{
-        if(start+i>=labels.length) return;
-        const el=list.children[start+i].querySelector('.stop');
-        el.value=addr; el.dataset.lat=''; el.dataset.lng='';
-      });
-      renumber(); autoCompute();
-    });
-
-    /* Google Places autocomplete instance */
-    const ac=new google.maps.places.Autocomplete(input,acOpts);
-    ac.addListener('place_changed',()=>{
-      const plc=ac.getPlace();
-      if(!plc.geometry){input.value='';return;}
-      const loc=plc.geometry.location,pt={lat:loc.lat(),lng:loc.lng()};
-      if(!insidePoly(pt,IHA_POLY)){
-        input.value='';input.placeholder='Outside Interior Health';
-        setTimeout(()=>{if(!input.value)input.placeholder=ph;},3000);return;
-      }
-      input.value=plc.formatted_address||plc.name;
-      input.dataset.lat=pt.lat;input.dataset.lng=pt.lng;
-      autoCompute();
-    });
-  };
-
-  [...list.querySelectorAll('input.stop')].forEach(attach);
-
-  /* buttons */
-  document.getElementById('add').onclick = () => {
-    if(list.children.length<labels.length){
-      const r=makeRow(list.children.length); list.appendChild(r);
-      attach(r.querySelector('.stop')); renumber();
-    }
-  };
   document.getElementById('route').onclick = rebuildRoute;
   document.getElementById('opt').onclick   = globalOptimizeRoute;
 };
@@ -489,17 +459,17 @@ window.routePlannerInit = () => {
 /* run init immediately if Maps already loaded */
 if(window.__mapsApiReady) window.routePlannerInit();
 
-/* ───────────────────────── debounce helper ───────────────────────── */
+/* debounce */
 const scheduleAutoCompute = (ms=250) => { clearTimeout(autoTimer); autoTimer=setTimeout(autoCompute,ms); };
 
-/* ───────────────────────── REAL renderer reset ───────────────────────── */
+/* directions reset */
 function clearDirections(){
-  dirRend.set('directions',null);  // wipe polyline + pins
-  dirRend.setMap(null);            // detach
-  dirRend.setMap(map);             // re-attach ready for next draw
+  dirRend.set('directions',null);
+  dirRend.setMap(null);
+  dirRend.setMap(map);
 }
 
-/* ───────────────────────── auto-compute (preview or route) ───────────────────────── */
+/* autoCompute */
 function autoCompute(){
   const rows=[...document.querySelectorAll('.row')];
   const filled=rows.filter(r=>r.querySelector('.stop').value.trim());
@@ -515,35 +485,27 @@ function autoCompute(){
       msg.textContent='One or more stops can’t be located – please edit.'; return; }
 
     clearPreviewPins();
-    filled.forEach((r,i)=>{
-      const inp=r.querySelector('.stop');
-      if(inp.dataset.lat && inp.dataset.lng){
-        addPreviewPin({lat:+inp.dataset.lat,lng:+inp.dataset.lng},labels[i]);
-      }
-    });
-
-     if(filled.length===1){                      /* only ONE stop ⇒ show preview */
-      clearPreviewPins();
+    /* 1 stop => preview, 2+ => route */
+    if(filled.length===1){
       const inp=filled[0].querySelector('.stop');
       addPreviewPin({lat:+inp.dataset.lat,lng:+inp.dataset.lng},labels[0]);
       clearLegDisplays(); clearDirections(); msg.textContent='';
       map.panTo({lat:+inp.dataset.lat,lng:+inp.dataset.lng});
-    }else{                                      /* 2+ stops ⇒ no preview pins  */
-      clearPreviewPins();                       /* make *sure* none survive    */
+    }else{
+      clearPreviewPins();
       rebuildRoute();
     }
   });
 }
 
-/* ───────────────────────── routing helpers ───────────────────────── */
+/* ROUTING */
 function rebuildRoute(){
-  const rows=[...document.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
+  const orderedRows=getOrderedRows();
   const msg=document.getElementById('msg');
   clearLegDisplays();
-  if(rows.length<2){ msg.textContent=''; clearDirections(); return; }
+  if(orderedRows.length<2){ msg.textContent=''; clearDirections(); return; }
 
-  /* build request */
-  const locs=rows.map(rowToLocation);
+  const locs=orderedRows.map(rowToLocation);
   const reqId=++routeVersion;
 
   dirSvc.route({
@@ -552,16 +514,15 @@ function rebuildRoute(){
     waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
     travelMode:'DRIVING'
   },(res,stat)=>{
-    if(reqId!==routeVersion) return;   // ignore stale
+    if(reqId!==routeVersion) return;
     displayLegs(res,stat);
   });
 }
 
-/* ───────────────────────── light optimizer ───────────────────────── */
+/* OPTIMIZER */
 async function globalOptimizeRoute(){
   const msg=document.getElementById('msg');
-  const list=document.getElementById('stops');
-  const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
+  const rows=getOrderedRows();
 
   if(rows.length<3){ rebuildRoute(); return; }
 
@@ -583,12 +544,24 @@ async function globalOptimizeRoute(){
     if(runId!==routeVersion) return;
     if(stat!=='OK'){ msg.textContent='Optimize failed'; return; }
 
-    /* re-order DOM to Google’s waypoint order */
+    /* reorder DOM according to Google order, but we keep frame membership */
     const order=[0,...res.routes[0].waypoint_order.map(i=>i+1),locs.length-1];
-    const rowNodes=[...list.querySelectorAll('.row')];
-    order.forEach(idx=>list.appendChild(rowNodes[idx]));
-    renumber();
+    const allRows=[...rows]; // copy
+    const container=document.createDocumentFragment();
+    order.forEach(idx=>container.appendChild(allRows[idx]));
+    // append back in visual order to first frame's list. Then redistribute equally?:
+    // Simpler: just append to current parent sequentially.
+    // We'll just move each row back to its current frame parent to preserve membership.
+    // (If you want auto-bucket after optimize, add logic here.)
+    document.body.appendChild(container); // temp detach
+    // re-append rows into their original frame-lists in new order:
+    getFrameLists().forEach(fl=>fl.innerHTML=""); // clear
+    order.forEach(idx=>{
+      const r=allRows[idx];
+      getFrameListById(+r.dataset.frame).appendChild(r);
+    });
 
+    renumber();
     dirRend.setDirections(res);
     displayLegs(res,'OK');
 
@@ -598,13 +571,14 @@ async function globalOptimizeRoute(){
   });
 }
 
-/* ───────────────────────── leg summaries ───────────────────────── */
+/* LEG DISPLAY */
 function displayLegs(res,stat){
   const msg=document.getElementById('msg');
   if(stat!=='OK'){ msg.textContent='Route error: '+stat; clearDirections(); return; }
 
   dirRend.setDirections(res);
-  const rows=[...document.getElementById('stops').querySelectorAll('.row')];
+
+  const rows=getOrderedRows();
 
   let kmTot=0,minTot=0; clearLegDisplays();
 
@@ -622,9 +596,205 @@ function displayLegs(res,stat){
   });
   msg.textContent=`Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
 }
-</script>
 
-  <script>
+/* ───── FRAME BUCKET BUILDERS ───── */
+function buildFrameBuckets(){
+  const container=document.getElementById('framesContainer');
+  FRAMES.forEach(fr=>{
+    const section=document.createElement('div');
+    section.className='frame'; section.dataset.frame=fr.id;
+
+    const head=document.createElement('div');
+    head.className='frame-header';
+    head.innerHTML=`<span class="swatch" style="background:${fr.color}"></span>${fr.name}`;
+    section.appendChild(head);
+
+    const list=document.createElement('div');
+    list.className='frame-list'; list.id='frame-'+fr.id;
+    section.appendChild(list);
+
+    const addBtn=document.createElement('button');
+    addBtn.className='addRowBtn';
+    addBtn.textContent='+ Add stop';
+    addBtn.onclick=()=>{ addRowToFrame(fr.id); };
+    section.appendChild(addBtn);
+
+    container.appendChild(section);
+
+    // Sortable per frame list (shared)
+    Sortable.create(list,{
+      group:'stops', handle:'.drag', animation:150,
+      onEnd:evt=>{
+        const row=evt.item;
+        row.dataset.frame = list.parentElement.dataset.frame;
+        renumber(); autoCompute();
+      }
+    });
+  });
+
+  /* create 4 rows per frame by default */
+  FRAMES.forEach(fr=>{
+    for(let i=0;i<4;i++) addRowToFrame(fr.id,false);
+  });
+  renumber();
+}
+
+/* utils for frame lists */
+const getFrameListById = id => document.getElementById('frame-'+id);
+const getFrameLists    = () => FRAMES.map(f=>getFrameListById(f.id));
+function addRowToFrame(frameId, focus=true){
+  const list=getFrameListById(frameId);
+  const row=makeRow(document.querySelectorAll('.row').length, frameId);
+  list.appendChild(row);
+  attachRowEvents(row.querySelector('.stop'));
+  if(focus) row.querySelector('.stop').focus();
+}
+
+/* get rows in visual order (frame order then within frame) */
+function getOrderedRows(){
+  const rows=[];
+  FRAMES.forEach(f=>{
+    rows.push(...getFrameListById(f.id).querySelectorAll('.row'));
+  });
+  return rows.filter(r=>r.querySelector('.stop').value.trim());
+}
+
+/* attach input events */
+function attachRowEvents(input){
+  const ph='Enter stop'; input.placeholder=ph;
+
+  input.addEventListener('focus',e=>{
+    markRowFocus(input,true); setTimeout(()=>e.target.select(),0);
+    const mu=ev=>{ev.preventDefault();input.removeEventListener('mouseup',mu);};
+    input.addEventListener('mouseup',mu);
+  });
+  input.addEventListener('blur',()=>{markRowFocus(input,false);} );
+  input.addEventListener('input',()=>{input.dataset.lat='';input.dataset.lng='';});
+
+  input.addEventListener('keydown',e=>{
+    if(e.key==='Tab' && !e.shiftKey){
+      if(input.dataset.lat && input.dataset.lng) return;
+      e.preventDefault(); acceptTopPrediction(input);
+    }
+  });
+
+  /* bulk paste */
+  input.addEventListener('paste',e=>{
+    const clip=(e.clipboardData||window.clipboardData).getData('text');
+    const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    if(lines.length<=1) return; e.preventDefault();
+
+    const allRows=[...document.querySelectorAll('.row')];
+    const start=allRows.indexOf(input.closest('.row'));
+    while(document.querySelectorAll('.row').length<start+lines.length && document.querySelectorAll('.row').length<labels.length){
+      addRowToFrame(+input.closest('.frame').dataset.frame,false);
+    }
+    lines.forEach((addr,i)=>{
+      const r=document.querySelectorAll('.row')[start+i]; if(!r) return;
+      const el=r.querySelector('.stop');
+      el.value=addr; el.dataset.lat=''; el.dataset.lng='';
+    });
+    renumber(); autoCompute();
+  });
+
+  /* Google Places autocomplete */
+  const ac=new google.maps.places.Autocomplete(input,{
+    fields:['formatted_address','geometry','place_id'],
+    types:['address'],
+    componentRestrictions:{country:'ca'},
+    bounds:CENTRAL_OK_BOUNDS,
+    strictBounds:true
+  });
+  ac.addListener('place_changed',()=>{
+    const plc=ac.getPlace();
+    if(!plc.geometry){input.value='';return;}
+    const loc=plc.geometry.location,pt={lat:loc.lat(),lng:loc.lng()};
+    if(!insidePoly(pt,IHA_POLY)){
+      input.value='';input.placeholder='Outside Interior Health';
+      setTimeout(()=>{if(!input.value)input.placeholder=ph;},3000);return;
+    }
+    input.value=plc.formatted_address||plc.name;
+    input.dataset.lat=pt.lat;input.dataset.lng=pt.lng;
+    autoCompute();
+  });
+}
+
+/* ───── TIMELINE BUILD ───── */
+const mins=(h,m)=>h*60+m;
+const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);}
+const pad=n=>n.toString().padStart(2,'0');
+
+function buildTimeline(){
+  const dayDrawer  = document.getElementById('day');
+  const nightDrawer= document.getElementById('night');
+
+  buildOneTimeline(dayDrawer,'day');
+  buildOneTimeline(nightDrawer,'night');
+
+  document.querySelectorAll('.shiftToggle').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const drawer=document.getElementById(btn.dataset.shift);
+      const open=drawer.classList.toggle('open');
+      btn.classList.toggle('active',open);
+    });
+  });
+
+  /* open day by default */
+  document.querySelector('.shiftToggle[data-shift="day"]').click();
+}
+
+function buildOneTimeline(drawer,key){
+  const {start,end}=SHIFTS[key];
+  const s=parseHM(start), e=parseHM(end), span=e-s;
+
+  const line=document.createElement('div');
+  line.className='timeline';
+  drawer.appendChild(line);
+
+  /* 30‑minute ticks */
+  for(let t=s;t<=e;t+=30){
+    const pct=((t-s)/span)*100;
+    const tick=document.createElement('div');
+    tick.className='tick'+(t%60===0?' bold':'');
+    tick.style.top=pct+'%';
+
+    if(t%30===0){
+      const lbl=document.createElement('span');
+      lbl.textContent=`${pad(Math.floor(t/60))}:${pad(t%60)}`;
+      tick.appendChild(lbl);
+    }
+    line.appendChild(tick);
+  }
+
+  /* coloured bars = intersection of frame with shift interval */
+  FRAMES.forEach(fr=>{
+    const segStart=Math.max(parseHM(fr.start),s);
+    const segEnd  =Math.min(parseHM(fr.end)  ,e);
+    if(segEnd<=segStart) return;
+
+    const seg=document.createElement('div');
+    seg.className='segment';
+    seg.style.top   =((segStart-s)/span)*100+'%';
+    seg.style.height=((segEnd-segStart)/span)*100+'%';
+    seg.style.background=fr.color;
+
+    const txt=document.createElement('span');
+    txt.textContent=fr.name;
+    seg.appendChild(txt);
+    line.appendChild(seg);
+  });
+
+  const mark=document.createElement('div'); mark.className='nowMarker'; line.appendChild(mark);
+  const tickNow=()=>{
+    const d=new Date(), m=d.getHours()*60+d.getMinutes();
+    const pct=((m-s)/span)*100;
+    mark.style.top=pct+'%';
+    mark.style.display=(m<s||m>e)?'none':'block';
+  };
+  tickNow(); setInterval(tickNow,60000);
+}
+
+/* DOMContentLoaded for TL toggle is handled by CSS button */
 document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('tlToggle')
           .addEventListener('click',()=>document.body.classList.toggle('timeline-hidden'));
