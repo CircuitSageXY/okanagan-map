@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap">
 
 <style>
+/* ------------- VARIABLES / BASE ------------- */
 :root{
   --clrA:#4285F4; --clrB:#0F9D58; --clrC:#F4B400; --clrD:#DB4437;
   --clrE:#ab47bc; --clrF:#00acc1; --clrG:#ff7043; --clrH:#8d6e63;
@@ -30,7 +31,7 @@
 }
 html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 
-/* ---------- SIDE PANEL ---------- */
+/* ------------- PANEL ------------- */
 #panel{
   position:absolute;top:0;left:0;z-index:5;width:520px;height:100%;
   background:var(--clrPanelBg);border-right:1px solid var(--clrPanelBorder);
@@ -40,7 +41,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 #scroller{flex:1;overflow:auto;position:relative;padding:12px 12px 96px 0;}
 #content{display:flex;align-items:flex-start;position:relative;}
 
-/* ---------- TIMELINE ---------- */
+/* ------------- TIMELINE ------------- */
 #timelineCol{width:var(--tlW);flex:none;position:sticky;top:0;}
 #timeline{position:relative;width:100%;}
 .tl-axis{position:absolute;left:0;top:0;width:var(--axis-w);background:#000;border-radius:2px;}
@@ -55,7 +56,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   transform:translate(-50%,-50%);box-shadow:0 0 4px rgba(0,0,0,.4);animation:pulse 2s infinite;z-index:3;}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(0,0,0,.35);}70%{box-shadow:0 0 0 6px rgba(0,0,0,0);}100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}}
 
-/* ---------- FRAMES ---------- */
+/* ------------- FRAMES ------------- */
 #framesContainer{flex:1;min-width:0;}
 .frame{
   border:1px solid var(--clrPanelBorder);border-radius:6px;margin-bottom:14px;background:#fff;
@@ -88,7 +89,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .frame[data-frame="5"]{border-left:4px solid var(--f-evening);}
 .frame[data-frame="6"]{border-left:4px solid var(--f-lateev);}
 
-/* ---------- ROWS ---------- */
+/* ------------- ROWS ------------- */
 .row{display:flex;align-items:center;margin:8px 0;padding:4px 6px 4px 0;
   border-radius:var(--radiusMd);transition:background var(--transFast),box-shadow var(--transFast),outline var(--transFast);}
 .row.focused{background:var(--clrInputBgAlt);box-shadow:0 0 0 2px rgba(33,150,243,.25);}
@@ -130,7 +131,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   transition:transform var(--transFast),background var(--transFast);}
 .remove:hover{background:#f75a4d;transform:scale(1.08);} .remove:active{transform:scale(.94);}
 
-/* ---------- ACTION BUTTONS ---------- */
+/* ------------- ACTION BUTTONS ------------- */
 #actions{
   position:absolute;bottom:12px;left:16px;right:16px;display:flex;gap:10px;flex-wrap:wrap;z-index:7;
 }
@@ -147,7 +148,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 
 #msg{margin:12px 0;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 0;}
 
-/* ---------- LEG SUMMARY ---------- */
+/* ------------- LEG SUMMARY ------------- */
 .leg-display{margin:6px 0 0 28px;font-size:16px;font-weight:600;color:#1b1b1b;
   padding:4px 10px;border-radius:6px;background:rgba(0,0,0,.06);
   display:inline-block;line-height:1.25;white-space:nowrap;}
@@ -161,14 +162,14 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .leg-H{background:rgba(141,110,99,.18);border-left:4px solid var(--clrH);}
 .leg-default{background:rgba(96,125,139,.18);border-left:4px solid var(--clrDefault);}
 
-/* ---------- StreetView back ---------- */
+/* ------------- STREETVIEW ------------- */
 #svBack{
   position:fixed;bottom:16px;right:16px;z-index:1200;
   padding:8px 14px;border:none;border-radius:6px;background:#455a64;color:#fff;
   font-size:14px;cursor:pointer;display:none;box-shadow:0 2px 6px rgba(0,0,0,.35);}
 #svBack:hover{background:#546e7a;}
 
-/* ---------- FLAT MODE ---------- */
+/* ------------- FLAT MODE ------------- */
 #panel.flat{width:auto;background:transparent;border:none;box-shadow:none;pointer-events:none;}
 #panel.flat #content{display:none;}
 #panel.flat #scroller{padding:12px;}
@@ -226,7 +227,6 @@ function init(){ if(typeof window.routePlannerInit==='function'){window.routePla
 
 <button id="svBack">Back to Map</button>
 
-<!-- NORMAL PANEL -->
 <div id="panel">
   <div id="scroller">
     <div id="content">
@@ -243,7 +243,7 @@ function init(){ if(typeof window.routePlannerInit==='function'){window.routePla
   </div>
 </div>
 
-<!-- FLAT DIRECTIONS -->
+<!-- FLAT -->
 <div id="addrBar">
   <div id="addrBarHeader">
     <span id="addrTitle">Directions</span>
@@ -268,16 +268,18 @@ function init(){ if(typeof window.routePlannerInit==='function'){window.routePla
 <div id="map"></div>
 
 <script>
-/* ---------- CONFIG ---------- */
+/* ------------ CONFIG / FLAGS ------------ */
 const colourCycle=['A','B','C','D','E','F','G','H'];
-const BASE_EMPTY_PER_FRAME = 4;
-const OPT_UNLOCK_ENDS = true;
-
+const BASE_EMPTY_PER_FRAME=4;
+const OPT_UNLOCK_ENDS=true;
+const AUTO_FOCUS_ENABLED=true; // only when YOU add a row
 let map,dirSvc,dirRend,geocoder,acService,placeSvc;
-let autoTimer=null,routeVersion=0,previewPins=[],routeMarkers=[];
+let previewPins=[],routeMarkers=[];
+let autoTimer=null,routeVersion=0;
 let dayVisible=false,nightVisible=false,flatMode=false;
+let userHasFocusedOnce=false;
 
-/* ---------- FRAMES / SHIFTS ---------- */
+/* ------------ FRAMES ------------ */
 const FRAMES=[
   {id:0,key:'early',     name:'AM Early',     start:'07:00', end:'09:00',  color:'var(--f-early)',     shift:'day'},
   {id:1,key:'late',      name:'AM Late',      start:'09:00', end:'11:00',  color:'var(--f-late)',      shift:'day'},
@@ -289,7 +291,7 @@ const FRAMES=[
 ];
 const SHIFTS={ day:{start:'07:00',end:'15:30'}, night:{start:'13:30',end:'22:30'} };
 
-/* ---------- GEO HELPERS ---------- */
+/* ------------ GEO HELPERS ------------ */
 const IHA_POLY=[{lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
   {lat:51.00,lng:-123.00},{lat:50.10,lng:-123.20},{lat:49.80,lng:-122.40},
   {lat:49.00,lng:-120.00},{lat:49.00,lng:-114.00},{lat:51.20,lng:-114.00},
@@ -335,7 +337,7 @@ function geocodeSmart(text){
   });
 }
 
-/* ---------- LABEL / ROW HELPERS ---------- */
+/* ------------ LABEL / ROW UTIL ------------ */
 function idxToLabel(i){let s='',n=i+1;while(n>0){const rem=(n-1)%26;s=String.fromCharCode(65+rem)+s;n=Math.floor((n-1)/26);}return s;}
 function currentRowsForNumbering(){
   if(flatMode) return [...document.querySelectorAll('#addrList .row')];
@@ -351,9 +353,9 @@ function renumber(){
   const rows=currentRowsForNumbering();
   rows.forEach((r,i)=>{
     const b=r.querySelector('.bullet');
-    const labelText=idxToLabel(i);
+    const txt=idxToLabel(i);
     const clr=colourCycle[i%colourCycle.length] || 'defaultBullet';
-    b.textContent=labelText;
+    b.textContent=txt;
     b.className='bullet '+clr;
   });
 }
@@ -361,31 +363,25 @@ const clearPreviewPins=()=>{previewPins.forEach(m=>m.setMap(null));previewPins=[
 const addPreviewPin=(pos,label)=>previewPins.push(new google.maps.Marker({map,position:pos,label:{text:label,color:'#fff'}}));
 const clearLegDisplays=()=>document.querySelectorAll('.leg-display').forEach(e=>e.remove());
 const markRowFocus=(input,focus)=>{const row=input.closest('.row');if(!row)return;row.classList.toggle('focused',focus);};
+function safeFocus(el){ if(!AUTO_FOCUS_ENABLED || !el || userHasFocusedOnce) return; el.focus(); }
 
-/* ---------- OUR OWN MARKERS ---------- */
+/* ------------ OUR MARKERS ------------ */
 function clearRouteMarkers(){routeMarkers.forEach(m=>m.setMap(null));routeMarkers=[];}
 function drawRouteMarkers(latLngs, rows){
   clearRouteMarkers();
   latLngs.forEach((pt,i)=>{
     if(!pt) return;
-    const lbl = rows[i]?.querySelector('.bullet')?.textContent.trim() || '';
-    routeMarkers.push(new google.maps.Marker({
-      map, position:pt,
-      label:{text:lbl,color:'#fff',fontWeight:'700'},
-    }));
+    const lbl=rows[i]?.querySelector('.bullet')?.textContent.trim()||'';
+    routeMarkers.push(new google.maps.Marker({map,position:pt,label:{text:lbl,color:'#fff',fontWeight:'700'}}));
   });
 }
 
-/* ---------- LOCAL DISTANCE MATRIX + TSP (instant) ---------- */
+/* ------------ LOCAL TSP ------------ */
 function buildDistanceMatrix(points){
   const n=points.length;
   const D=Array.from({length:n},()=>Array(n).fill(0));
-  for(let i=0;i<n;i++){
-    for(let j=0;j<n;j++){
-      if(i===j) continue;
-      D[i][j]=google.maps.geometry.spherical.computeDistanceBetween(points[i],points[j]);
-    }
-  }
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++) if(i!==j)
+    D[i][j]=google.maps.geometry.spherical.computeDistanceBetween(points[i],points[j]);
   return D;
 }
 function solveTSPWithMatrix(D){
@@ -395,38 +391,32 @@ function solveTSPWithMatrix(D){
   let path=[0]; used[0]=true;
   for(let i=1;i<n;i++){
     let last=path[path.length-1],best=-1,bestD=Infinity;
-    for(let j=0;j<n;j++) if(!used[j] && D[last][j]<bestD){best=j;bestD=D[last][j];}
+    for(let j=0;j<n;j++) if(!used[j]&&D[last][j]<bestD){best=j;bestD=D[last][j];}
     path.push(best); used[best]=true;
   }
   let improved=true;
   while(improved){
     improved=false;
-    for(let i=1;i<n-2;i++){
-      for(let k=i+1;k<n-1;k++){
-        const delta=-D[path[i-1]][path[i]]-D[path[k]][path[k+1]]+D[path[i-1]][path[k]]+D[path[i]][path[k+1]];
-        if(delta<0){
-          const rev=path.slice(i,k+1).reverse();
-          path=[...path.slice(0,i),...rev,...path.slice(k+1)];
-          improved=true;
-        }
+    for(let i=1;i<n-2;i++)for(let k=i+1;k<n-1;k++){
+      const delta=-D[path[i-1]][path[i]]-D[path[k]][path[k+1]]+D[path[i-1]][path[k]]+D[path[i]][path[k+1]];
+      if(delta<0){
+        const rev=path.slice(i,k+1).reverse();
+        path=[...path.slice(0,i),...rev,...path.slice(k+1)];
+        improved=true;
       }
     }
   }
   return path;
 }
-function reattachInOrder(order, rows){
+function reattachInOrder(order,rows){
   if(flatMode){
-    const list=document.getElementById('addrList');
-    order.forEach(i=>list.appendChild(rows[i]));
+    const list=document.getElementById('addrList'); order.forEach(i=>list.appendChild(rows[i]));
   }else{
-    order.forEach(i=>{
-      const r=rows[i];
-      getFrameListById(+r.dataset.frame).appendChild(r);
-    });
+    order.forEach(i=>getFrameListById(+rows[i].dataset.frame).appendChild(rows[i]));
   }
 }
 
-/* ---------- PREDICTION FILTER ---------- */
+/* ------------ AUTOCOMP FILTER ------------ */
 function installPredictionFilter(){
   new MutationObserver(muts=>{
     muts.forEach(m=>m.addedNodes.forEach(node=>{
@@ -478,7 +468,7 @@ const rowToLocation=row=>{
     : inp.value.trim();
 };
 
-/* ---------- MULTI-SELECT DELETE ---------- */
+/* ------------ MULTI SELECT DELETE ------------ */
 function rowClickSelect(e){
   if(!(e.ctrlKey||e.metaKey)) return;
   e.currentTarget.classList.toggle('selected');
@@ -491,8 +481,7 @@ function showDelButtonsIfNeeded(){
 }
 function deleteSelected(){
   document.querySelectorAll('.row.selected').forEach(r=>r.remove());
-  showDelButtonsIfNeeded();
-  renumber();autoCompute();buildTimelineFromDOM();
+  showDelButtonsIfNeeded(); renumber(); autoCompute(); buildTimelineFromDOM();
 }
 document.addEventListener('keydown',e=>{
   if((e.key==='Delete'||e.key==='Backspace') && document.querySelector('.row.selected')){
@@ -507,7 +496,7 @@ document.addEventListener('click',e=>{
   showDelButtonsIfNeeded();
 }, true);
 
-/* ---------- INIT ---------- */
+/* ------------ INIT ------------ */
 window.routePlannerInit=()=>{
   installPredictionFilter();
 
@@ -518,7 +507,7 @@ window.routePlannerInit=()=>{
   new google.maps.KmlLayer({url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',map,preserveViewport:true});
 
   dirSvc=new google.maps.DirectionsService();
-  dirRend=new google.maps.DirectionsRenderer({map, suppressMarkers:true}); // custom markers
+  dirRend=new google.maps.DirectionsRenderer({map,suppressMarkers:true});
   geocoder=new google.maps.Geocoder();
   acService=new google.maps.places.AutocompleteService();
   placeSvc =new google.maps.places.PlacesService(map);
@@ -527,11 +516,11 @@ window.routePlannerInit=()=>{
   buildTimelineFromDOM();
   buildAddrBar();
 
+  // buttons
   document.getElementById('route').onclick=rebuildRoute;
   document.getElementById('optAll').onclick=globalOptimizeRoute;
   document.getElementById('optFrames').onclick=optimizeByFrames;
   document.getElementById('delSel').onclick=deleteSelected;
-
   document.getElementById('flatRoute').onclick=rebuildRoute;
   document.getElementById('flatOpt').onclick=globalOptimizeRoute;
   document.getElementById('flatDelSel').onclick=deleteSelected;
@@ -547,13 +536,21 @@ window.routePlannerInit=()=>{
     if(e.key==='F3'){e.preventDefault();clearAllStops();}
   });
 
-  applyShiftVisibility();
+  // show both by default? choose one; here: start in flat (both off)
+  applyShiftVisibility();           // sets mode + renumbers
+  // focus very first input once (no jumping afterwards)
+  const first=document.querySelector('input.stop');
+  safeFocus(first);
+
+  // user focus detection
+  document.addEventListener('focusin',e=>{
+    if(e.target.matches('input.stop')) userHasFocusedOnce=true;
+  });
 };
 
-/* ---------- ROUTING ---------- */
+/* ------------ ROUTING ------------ */
 const scheduleAutoCompute=(ms=250)=>{clearTimeout(autoTimer);autoTimer=setTimeout(autoCompute,ms);};
 function clearDirections(){dirRend.set('directions',null);dirRend.setMap(null);dirRend.setMap(map);clearRouteMarkers();}
-
 function ensureCoords(rows){
   const tasks=rows.map(row=>{
     const inp=row.querySelector('.stop');
@@ -566,21 +563,17 @@ function ensureCoords(rows){
   });
   return Promise.all(tasks).then(a=>a.every(Boolean));
 }
-
 function autoCompute(){
   const rows=[...document.querySelectorAll('.row')];
   const filled=rows.filter(r=>r.querySelector('.stop').value.trim());
-  const msg=document.getElementById('msg');
-  const flatMsg=document.getElementById('flatMsg');
+  const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
 
   if(filled.length===0){
     clearPreviewPins();clearLegDisplays();msg.textContent='';flatMsg.textContent='';clearDirections();return;
   }
-
   if(filled.some(r=>!r.querySelector('.stop').dataset.lat)){
     clearDirections();clearLegDisplays();msg.textContent='';flatMsg.textContent='';return;
   }
-
   if(filled.length===1){
     clearDirections();clearLegDisplays();clearPreviewPins();
     const inp=filled[0].querySelector('.stop');
@@ -590,15 +583,11 @@ function autoCompute(){
     clearPreviewPins();rebuildRoute();
   }
 }
-
 function rebuildRoute(){
   const rows=getOrderedRows();
-  const msg=document.getElementById('msg');
-  const flatMsg=document.getElementById('flatMsg');
+  const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
   clearLegDisplays(); clearRouteMarkers();
-
   if(rows.length<2){msg.textContent='';flatMsg.textContent='';clearDirections();return;}
-
   ensureCoords(rows).then(ok=>{
     if(!ok){msg.textContent='One or more stops can’t be located – please edit.';flatMsg.textContent=msg.textContent;return;}
     const locs=rows.map(rowToLocation);
@@ -611,58 +600,43 @@ function rebuildRoute(){
       if(reqId!==routeVersion) return;
       displayLegs(res,stat);
       if(stat==='OK'){
-        // convert to LatLng array in order: origin, waypoints..., destination
-        const pts=[locs[0], ...locs.slice(1,-1), locs[locs.length-1]].map(l=> (typeof l==='string')?null:l);
-        drawRouteMarkers(pts, rows);
+        const pts=[locs[0],...locs.slice(1,-1),locs[locs.length-1]].map(l=>typeof l==='string'?null:l);
+        drawRouteMarkers(pts,rows);
       }
     });
   });
 }
 
-/* ---------- GLOBAL OPT ---------- */
+/* ------------ OPTIMIZE ------------ */
 async function globalOptimizeRoute(){
-  const msg=document.getElementById('msg');
-  const flatMsg=document.getElementById('flatMsg');
+  const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
   clearLegDisplays();
-
   const rows=getOrderedRows();
   if(rows.length<3){rebuildRoute();return;}
-
   const ok=await ensureCoords(rows);
   if(!ok){msg.textContent='One or more stops can’t be located – please edit.';flatMsg.textContent=msg.textContent;return;}
-
-  const locs=rows.map(rowToLocation);
   msg.textContent='Optimizing…'; flatMsg.textContent='Optimizing…';
-
-  const pts=locs.map(l=> (typeof l==='string')?null:l);
+  const pts=rows.map(rowToLocation).map(l=>typeof l==='string'?null:l);
   const D=buildDistanceMatrix(pts);
   const order=solveTSPWithMatrix(D);
-
-  reattachInOrder(order, rows);
+  reattachInOrder(order,rows);
   renumber();
   rebuildRoute();
   msg.textContent='Optimized.'; flatMsg.textContent='Optimized.';
 }
-
-/* ---------- OPT BY FRAMES ---------- */
 async function optimizeByFrames(){
   const msg=document.getElementById('msg'); msg.textContent='Optimizing by frames…';
   clearLegDisplays();
-
   const visFrames=FRAMES.filter(f=>{
     const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
     return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) && !sec.classList.contains('collapsed');
   });
-
   for(const fr of visFrames){
     const list=getFrameListById(fr.id);
     const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
     if(rows.length<3) continue;
-
     const ok=await ensureCoords(rows); if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
-
-    const locs=rows.map(rowToLocation);
-    const pts=locs.map(l=> (typeof l==='string')?null:l);
+    const pts=rows.map(rowToLocation).map(l=>typeof l==='string'?null:l);
     const D=buildDistanceMatrix(pts);
     const order=solveTSPWithMatrix(D);
     order.forEach(i=>list.appendChild(rows[i]));
@@ -670,10 +644,9 @@ async function optimizeByFrames(){
   renumber(); rebuildRoute(); msg.textContent='Optimized by frames.';
 }
 
-/* ---------- LEG display ---------- */
+/* ------------ LEG DISPLAY ------------ */
 function displayLegs(res,stat){
-  const msg=document.getElementById('msg');
-  const flatMsg=document.getElementById('flatMsg');
+  const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
   if(stat!=='OK'){msg.textContent='Route error: '+stat;flatMsg.textContent=msg.textContent;clearDirections();return;}
   dirRend.setDirections(res);
   const rows=getOrderedRows();
@@ -688,11 +661,10 @@ function displayLegs(res,stat){
     rows[i].after(div);
   });
   const text=`Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
-  msg.textContent=text;
-  flatMsg.textContent=text;
+  msg.textContent=text; flatMsg.textContent=text;
 }
 
-/* ---------- FRAMES ---------- */
+/* ------------ FRAMES / ROW CREATION ------------ */
 function buildFrameBuckets(){
   const container=document.getElementById('framesContainer');
   FRAMES.forEach(fr=>{
@@ -703,20 +675,17 @@ function buildFrameBuckets(){
     head.className='frame-header';
     head.innerHTML=`<span class="swatch" style="background:${fr.color}"></span>${fr.name}`;
     const hideBtn=document.createElement('span');
-    hideBtn.className='material-icons frame-hide';
-    hideBtn.title='Hide / show this time frame';
+    hideBtn.className='material-icons frame-hide';hideBtn.title='Hide / show this time frame';
     hideBtn.textContent='visibility_off';
     hideBtn.onclick=()=>toggleFrame(fr.id);
     head.appendChild(hideBtn);
     sec.appendChild(head);
 
-    const list=document.createElement('div');
-    list.className='frame-list';list.id='frame-'+fr.id;
-    sec.appendChild(list);
+    const list=document.createElement('div');list.className='frame-list';list.id='frame-'+fr.id;sec.appendChild(list);
 
     const addBtn=document.createElement('button');
     addBtn.className='addRowBtn';addBtn.textContent='+ Add stop';
-    addBtn.onclick=()=>{addRowToFrame(fr.id,true,true);}; // select new
+    addBtn.onclick=()=>addRowToFrame(fr.id,true,true);
     sec.appendChild(addBtn);
 
     container.appendChild(sec);
@@ -741,26 +710,11 @@ function buildFrameBuckets(){
 }
 const getFrameListById=id=>document.getElementById('frame-'+id);
 
-/* selection helper */
-function setSelected(row, on){
-  if(!row) return;
-  if(on){
-    document.querySelectorAll('.row.selected').forEach(r=>r.classList.remove('selected'));
-    row.classList.add('selected');
-    showDelButtonsIfNeeded();
-  }else{
-    row.classList.remove('selected');
-    showDelButtonsIfNeeded();
-  }
-}
-
 function makeRow(i,frameId){
   const d=document.createElement('div');
   d.className='row'; d.dataset.frame=frameId;
-  const labelText=idxToLabel(i);
-  const clr=colourCycle[i%colourCycle.length] || 'defaultBullet';
   d.innerHTML=`
-    <div class="bullet ${clr}">${labelText}</div>
+    <div class="bullet defaultBullet">A</div>
     <input class="stop" placeholder="Enter stop" autocomplete="off" autocorrect="off" spellcheck="false">
     <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
     <span class="remove" title="Remove stop">×</span>`;
@@ -768,30 +722,36 @@ function makeRow(i,frameId){
   d.addEventListener('click',rowClickSelect);
   return d;
 }
-
-/* flags: focus (bool), selectFlag (bool) */
-function addRowToFrame(frameId, focus=true, selectFlag=false){
-  const list = getFrameListById(frameId);
-  const row  = makeRow(0, frameId);
+function setSelected(row,on){
+  if(!row) return;
+  if(on){
+    document.querySelectorAll('.row.selected').forEach(r=>r.classList.remove('selected'));
+    row.classList.add('selected');
+  }else row.classList.remove('selected');
+  showDelButtonsIfNeeded();
+}
+function addRowToFrame(frameId,focus=true,selectFlag=false){
+  const list=getFrameListById(frameId);
+  const row=makeRow(0,frameId);
   list.appendChild(row);
   attachRowEvents(row.querySelector('.stop'));
   renumber();buildTimelineFromDOM();
-  if(focus) row.querySelector('.stop').focus();
-  if(selectFlag) setSelected(row,true);     // only when user initiated
+  if(focus) safeFocus(row.querySelector('.stop'));
+  if(selectFlag) setSelected(row,true);
 }
 function addRowToAddrBar(selectFlag=true){
   const list=document.getElementById('addrList');
-  const row=makeRow(0, 0);
+  const row=makeRow(0,0);
   list.appendChild(row);
   attachRowEvents(row.querySelector('.stop'));
   renumber();
-  row.querySelector('.stop').focus();
+  safeFocus(row.querySelector('.stop'));
   if(selectFlag) setSelected(row,true);
 }
 function emptyRowsIn(list){return [...list.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());}
 function ensurePlaceholdersForFrame(frameId){
   const list=getFrameListById(frameId);
-  const need=BASE_EMPTY_PER_FRAME - emptyRowsIn(list).length;
+  const need=BASE_EMPTY_PER_FRAME-emptyRowsIn(list).length;
   for(let i=0;i<need;i++) addRowToFrame(frameId,false,false);
 }
 function ensureAllFramesHaveBaseline(){
@@ -802,9 +762,7 @@ function ensureAllFramesHaveBaseline(){
   });
 }
 function getOrderedRows(includeHidden=false){
-  if(flatMode){
-    return [...document.querySelectorAll('#addrList .row')].filter(r=>r.querySelector('.stop').value.trim());
-  }
+  if(flatMode) return [...document.querySelectorAll('#addrList .row')].filter(r=>r.querySelector('.stop').value.trim());
   const rows=[];
   FRAMES.forEach(f=>{
     const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
@@ -837,7 +795,6 @@ function attachRowEvents(input){
     const clip=(e.clipboardData||window.clipboardData).getData('text');
     const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
     if(lines.length<=1)return;e.preventDefault();
-
     const allRows=[...document.querySelectorAll('.row')];
     const start=allRows.indexOf(input.closest('.row'));
     for(let i=0;i<lines.length;i++){
@@ -855,10 +812,10 @@ function attachRowEvents(input){
     fields:['formatted_address','geometry','place_id'],types:['address'],
     componentRestrictions:{country:'ca'},bounds:CENTRAL_OK_BOUNDS,strictBounds:true
   });
-  ac.addListener('place_changed',()=>{/* ignore auto fill */});
+  ac.addListener('place_changed',()=>{/* ignore autofill */});
 }
 
-/* ---------- FLAT BAR ---------- */
+/* ------------ FLAT BAR ------------ */
 function buildAddrBar(){
   const list=document.getElementById('addrList');
   Sortable.create(list,{handle:'.drag',animation:150,onEnd:()=>{renumber();autoCompute();}});
@@ -867,35 +824,26 @@ function buildAddrBar(){
   document.getElementById('toggleNight').onclick=()=>toggleShift('night');
 }
 function enterFlatMode(){
-  if(flatMode)return;
-  flatMode=true;
-
+  if(flatMode)return; flatMode=true;
   document.getElementById('panel').classList.add('flat');
   document.getElementById('addrBar').classList.add('active');
-
   const addrList=document.getElementById('addrList');
   const filled=[...document.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
   filled.forEach(r=>addrList.appendChild(r));
-
   let blanks=[...addrList.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());
-  for(let i=blanks.length;i<2;i++) addRowToAddrBar(false); // do not auto select on mode change
-
+  for(let i=blanks.length;i<2;i++) addRowToAddrBar(false);
   renumber();buildTimelineFromDOM();
   updateToggleChips();updateButtons();showDelButtonsIfNeeded();
 }
 function exitFlatMode(){
-  if(!flatMode)return;
-  flatMode=false;
-
+  if(!flatMode)return; flatMode=false;
   const addrList=document.getElementById('addrList');
   addrList.querySelectorAll('.row').forEach(r=>{
-    const fid=+r.dataset.frame || 0;
+    const fid=+r.dataset.frame||0;
     getFrameListById(fid).appendChild(r);
   });
-
   document.getElementById('addrBar').classList.remove('active');
   document.getElementById('panel').classList.remove('flat');
-
   ensureAllFramesHaveBaseline();
   buildTimelineFromDOM();
   updateButtons();showDelButtonsIfNeeded();
@@ -905,99 +853,58 @@ function updateToggleChips(){
   document.getElementById('toggleNight').classList.toggle('active',nightVisible);
 }
 function updateButtons(){
-  const optFrames=document.getElementById('optFrames');
-  optFrames.style.display = (!flatMode && (dayVisible||nightVisible)) ? 'inline-block' : 'none';
+  document.getElementById('optFrames').style.display=(!flatMode && (dayVisible||nightVisible))?'inline-block':'none';
 }
 
-/* ---------- TIMELINE ---------- */
+/* ------------ TIMELINE ------------ */
 const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);}
 const pad=n=>n.toString().padStart(2,'0');
 
 function buildTimelineFromDOM(){
-  const tl=document.getElementById('timeline');
-  tl.innerHTML='';
-  if(flatMode) return;
-
+  const tl=document.getElementById('timeline'); tl.innerHTML=''; if(flatMode) return;
   const visibleFrames=FRAMES.filter(f=>{
     const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
     return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) && !sec.classList.contains('collapsed');
   });
   if(!visibleFrames.length) return;
-
   const firstFrame=document.querySelector(`.frame[data-frame="${visibleFrames[0].id}"]`);
   const lastFrame =document.querySelector(`.frame[data-frame="${visibleFrames[visibleFrames.length-1].id}"]`);
   if(!firstFrame||!lastFrame) return;
-
   const topY=firstFrame.offsetTop;
   const bottomY=lastFrame.offsetTop+lastFrame.offsetHeight;
   const height=bottomY-topY;
-
   tl.style.height=bottomY+'px';
 
-  const axis=document.createElement('div');
-  axis.className='tl-axis';
-  axis.style.top=topY+'px';
-  axis.style.height=height+'px';
-  tl.appendChild(axis);
+  const axis=document.createElement('div');axis.className='tl-axis';axis.style.top=topY+'px';axis.style.height=height+'px';tl.appendChild(axis);
 
   ['day','night'].forEach(shift=>{
     if(shift==='day'&&!dayVisible) return;
     if(shift==='night'&&!nightVisible) return;
-
-    const fInShift=visibleFrames.filter(f=>f.shift===shift);
-    if(!fInShift.length) return;
-
-    const s=parseHM(SHIFTS[shift].start);
-    const e=parseHM(SHIFTS[shift].end);
-
+    const fInShift=visibleFrames.filter(f=>f.shift===shift); if(!fInShift.length) return;
+    const s=parseHM(SHIFTS[shift].start), e=parseHM(SHIFTS[shift].end);
     const sTop=document.querySelector(`.frame[data-frame="${fInShift[0].id}"]`).offsetTop;
-    const eBot=(()=>{const lf=fInShift[fInShift.length-1];
-      const dom=document.querySelector(`.frame[data-frame="${lf.id}"]`);return dom.offsetTop+dom.offsetHeight;})();
-
-    const pxSpan=eBot-sTop;
-    const minSpan=e-s;
-    const pxPerMin=pxSpan/minSpan;
-
+    const eBot=(()=>{const lf=fInShift[fInShift.length-1];const dom=document.querySelector(`.frame[data-frame="${lf.id}"]`);return dom.offsetTop+dom.offsetHeight;})();
+    const pxSpan=eBot-sTop, minSpan=e-s, pxPerMin=pxSpan/minSpan;
     for(let t=s;t<=e;t+=30){addTick(t,sTop+(t-s)*pxPerMin, t%60===0);}
     if((e-s)%30!==0) addTick(e,sTop+(e-s)*pxPerMin,true);
-
     fInShift.forEach(fr=>{
       const dom=document.querySelector(`.frame[data-frame="${fr.id}"]`);
-      const seg=document.createElement('div');
-      seg.className='tl-seg';
-      seg.style.background=fr.color;
-      seg.style.top=dom.offsetTop+'px';
-      seg.style.height=dom.offsetHeight+'px';
-      tl.appendChild(seg);
+      const seg=document.createElement('div');seg.className='tl-seg';seg.style.background=fr.color;
+      seg.style.top=dom.offsetTop+'px';seg.style.height=dom.offsetHeight+'px';tl.appendChild(seg);
     });
-
-    const mark=document.createElement('div');
-    mark.className='nowMarker';
-    tl.appendChild(mark);
-    const tickNow=()=>{
-      const d=new Date(),m=d.getHours()*60+d.getMinutes();
-      const show=(m>=s && m<=e);
-      mark.style.display=show?'block':'none';
-      if(show) mark.style.top=(sTop+(m-s)*pxPerMin)+'px';
-    };
+    const mark=document.createElement('div');mark.className='nowMarker';tl.appendChild(mark);
+    const tickNow=()=>{const d=new Date(),m=d.getHours()*60+d.getMinutes();const show=(m>=s && m<=e);mark.style.display=show?'block':'none';if(show) mark.style.top=(sTop+(m-s)*pxPerMin)+'px';};
     tickNow(); setInterval(tickNow,60000);
   });
-
   function addTick(totalMins,y,bold=false){
-    const tick=document.createElement('div');
-    tick.className='tl-tick'+(bold?' bold':'');
-    tick.style.top=y+'px';
-    const lbl=document.createElement('div');
-    lbl.className='tl-label';
-    lbl.textContent=`${pad(Math.floor(totalMins/60))}:${pad(totalMins%60)}`;
-    lbl.style.top='-6px';
-    tick.appendChild(lbl);
-    tl.appendChild(tick);
+    const tick=document.createElement('div');tick.className='tl-tick'+(bold?' bold':'');tick.style.top=y+'px';
+    const lbl=document.createElement('div');lbl.className='tl-label';lbl.textContent=`${pad(Math.floor(totalMins/60))}:${pad(totalMins%60)}`;
+    lbl.style.top='-6px';tick.appendChild(lbl);tl.appendChild(tick);
   }
 }
 
-/* ---------- SHIFT / CLEAR ---------- */
+/* ------------ SHIFT / CLEAR ------------ */
 function toggleShift(which){
   if(which==='day') dayVisible=!dayVisible;
   if(which==='night') nightVisible=!nightVisible;
@@ -1005,17 +912,16 @@ function toggleShift(which){
 }
 function applyShiftVisibility(){
   FRAMES.forEach(fr=>{
-    const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
-    const vis = (fr.shift === 'day' && dayVisible) || (fr.shift === 'night' && nightVisible);
-    sec.style.display = vis ? 'block' : 'none';
+    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
+    const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
+    sec.style.display=vis?'block':'none';
   });
 
-  if(!dayVisible && !nightVisible){
-    enterFlatMode();
-  }else{
+  if(!dayVisible && !nightVisible){ enterFlatMode(); }
+  else{
     exitFlatMode();
     FRAMES.forEach(fr=>{
-      const vis = (fr.shift === 'day' && dayVisible) || (fr.shift === 'night' && nightVisible);
+      const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
       if(vis && !document.querySelector(`.frame[data-frame="${fr.id}"]`).classList.contains('collapsed'))
         ensurePlaceholdersForFrame(fr.id);
     });
@@ -1024,12 +930,12 @@ function applyShiftVisibility(){
   updateToggleChips();
   updateButtons();
   buildTimelineFromDOM();
+  renumber();           // <<< ensure letters are correct
   autoCompute();
 }
+
 function clearAllStops(){
-  document.querySelectorAll('.row input.stop').forEach(inp=>{
-    inp.value='';inp.dataset.lat='';inp.dataset.lng='';
-  });
+  document.querySelectorAll('.row input.stop').forEach(inp=>{inp.value='';inp.dataset.lat='';inp.dataset.lng='';});
   clearPreviewPins();clearDirections();clearLegDisplays();
   document.getElementById('msg').textContent='';
   document.getElementById('flatMsg').textContent='';
