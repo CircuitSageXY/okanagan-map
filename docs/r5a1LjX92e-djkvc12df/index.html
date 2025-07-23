@@ -16,6 +16,7 @@
   --clrPanelBg:#ffffff; --clrPanelBorder:#d7d7d7; --clrPanelStripe:#2196f3;
   --clrPanelShadow:0 2px 8px rgba(0,0,0,.25);
   --clrInputBorder:#c7c7c7; --clrInputBg:#fff; --clrInputBgAlt:#fafafa;
+
   --radiusSm:4px; --radiusMd:6px; --radiusLg:10px;
   --transFast:.12s; --fontMain:Roboto,Arial,sans-serif;
 
@@ -24,71 +25,54 @@
   --f-afternoon:#03A9F4; --f-supper:#FF9800;
   --f-evening:#BA68C8; --f-lateev:#F44336;
 
-  /* timeline column width */
-  --tlW:70px;
-
-  /* tick colours */
+  /* timeline */
+  --tlW:74px;
   --tick-minor:#9e9e9e; --tick-major:#424242;
+  --axis-w:4px;
 }
 html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 
-/* MAIN LAYOUT ----------------------------------------------------- */
+/* LAYOUT -------------------------------------------------------- */
 #panel{
-  position:absolute;top:0;left:0;z-index:5;width:480px;height:100%;
-  background:var(--clrPanelBg);
-  border-right:1px solid var(--clrPanelBorder);box-shadow:var(--clrPanelShadow);
-  border-top-right-radius:var(--radiusLg);border-bottom-right-radius:var(--radiusLg);
-  display:flex;flex-direction:column;
+  position:absolute;top:0;left:0;z-index:5;width:520px;height:100%;
+  background:var(--clrPanelBg);border-right:1px solid var(--clrPanelBorder);
+  box-shadow:var(--clrPanelShadow);border-top-right-radius:var(--radiusLg);
+  border-bottom-right-radius:var(--radiusLg);display:flex;flex-direction:column;
 }
-#scroller{
-  flex:1;overflow:auto;position:relative;padding:16px 12px 80px 0; /* bottom padding for buttons */
-}
-#content{
-  display:flex;align-items:flex-start;position:relative;
-}
+#scroller{flex:1;overflow:auto;position:relative;padding:12px 12px 96px 0;}
+#content{display:flex;align-items:flex-start;position:relative;}
 
-/* TIMELINE COLUMN ------------------------------------------------- */
-#timelineCol{
-  position:sticky;top:0;left:0;width:var(--tlW);flex:none;
-  margin-left:8px;margin-right:6px;
+/* TIMELINE COLUMN ----------------------------------------------- */
+#timelineCol{width:var(--tlW);flex:none;position:sticky;top:0;}
+#timeline{position:relative;width:100%;}
+.tl-axis{
+  position:absolute;left:0;top:0;width:var(--axis-w);background:#000;border-radius:2px;
 }
-.timeline{
-  position:relative;width:100%;
-  background:#fafafa;border-radius:2px;box-shadow:inset 0 0 0 1px #e0e0e0;
-  overflow:hidden;
+.tl-seg{
+  position:absolute;left:20px;width:44px;border-radius:3px;opacity:.45;
 }
-.timeline::before{
-  content:"";position:absolute;top:0;left:0;width:4px;height:100%;
-  background:#000;border-radius:2px;z-index:3;
+.tl-seg[data-name]::after{
+  content:attr(data-name);
+  position:absolute;left:4px;top:2px;font-size:10px;color:#000;background:rgba(255,255,255,.75);padding:0 2px;border-radius:2px;
 }
-.tick{position:absolute;left:0;width:100%;pointer-events:none;z-index:2;}
-.tick::before{
-  content:"";position:absolute;left:4px;width:6px;height:1px;background:var(--tick-minor);
+.tl-tick{
+  position:absolute;left:0;width:100%;pointer-events:none;
 }
-.tick.bold::before{width:10px;background:var(--tick-major);}
-.tick span{
-  position:absolute;left:14px;font-size:11px;color:#424242;line-height:1;
-  background:rgba(255,255,255,.8);padding:0 2px;border-radius:2px;
+.tl-tick::before{
+  content:"";position:absolute;left:var(--axis-w);width:6px;height:1px;background:var(--tick-minor);
 }
-.seg{
-  position:absolute;left:20px;width:42px;border-radius:2px;opacity:.45;z-index:1;
+.tl-tick.bold::before{width:10px;background:var(--tick-major);}
+.tl-label{
+  position:absolute;left:14px;font-size:11px;color:#424242;background:rgba(255,255,255,.85);
+  padding:0 2px;border-radius:2px;line-height:1;
 }
-.seg[data-name]::after{
-  content:attr(data-name);position:absolute;left:2px;top:2px;font-size:10px;color:#000;
-}
-
-/* NOW dot */
 .nowMarker{
-  position:absolute;left:2px;z-index:4;width:12px;height:12px;border:2px solid #000;background:#fff;border-radius:50%;
-  transform:translate(-50%,-50%);box-shadow:0 0 4px rgba(0,0,0,.4);animation:pulse 2s infinite;
+  position:absolute;left:2px;width:12px;height:12px;border:2px solid #000;background:#fff;border-radius:50%;
+  transform:translate(-50%,-50%);box-shadow:0 0 4px rgba(0,0,0,.4);animation:pulse 2s infinite;z-index:3;
 }
-@keyframes pulse{
-  0%{box-shadow:0 0 0 0 rgba(0,0,0,.35);}
-  70%{box-shadow:0 0 0 6px rgba(0,0,0,0);}
-  100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}
-}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(0,0,0,.35);}70%{box-shadow:0 0 0 6px rgba(0,0,0,0);}100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}}
 
-/* FRAMES COLUMN --------------------------------------------------- */
+/* FRAMES COLUMN -------------------------------------------------- */
 #framesContainer{flex:1;min-width:0;}
 
 .frame{
@@ -97,22 +81,23 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 }
 .frame-header{
   display:flex;align-items:center;gap:8px;padding:6px 10px;
-  font-size:15px;font-weight:500;color:#000;border-bottom:1px solid #e0e0e0;
+  font-size:15px;font-weight:500;color:#000;border-bottom:1px solid #e0e0e0;background:#fafafa;
 }
 .frame-header .swatch{width:16px;height:16px;border-radius:3px;flex:none;}
 .frame-list{padding:6px 10px 8px 6px;min-height:8px;}
 .addRowBtn{
-  margin:6px 0 0 28px;background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
+  margin:6px 0 8px 28px;background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
   padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;
 }
 .addRowBtn:hover{background:#e7e7e7;}
 
-/* ROWS ------------------------------------------------------------ */
+/* ROWS ----------------------------------------------------------- */
 .row{display:flex;align-items:center;margin:8px 0;padding:4px 6px 4px 0;
   border-radius:var(--radiusMd);transition:background var(--transFast),box-shadow var(--transFast);}
 .row.focused{background:var(--clrInputBgAlt);box-shadow:0 0 0 2px rgba(33,150,243,.25);}
 .row:hover:not(.focused){background:rgba(0,0,0,.04);}
 .row.invalid input.stop{border-color:#e53935;background:#fff7f7;}
+
 .bullet{
   width:24px;height:24px;border-radius:50%;line-height:24px;text-align:center;
   font-weight:600;font-size:13px;color:#fff;margin-right:8px;flex:none;
@@ -130,7 +115,7 @@ input.stop{flex:1;height:38px;border:1px solid var(--clrInputBorder);
 input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
   box-shadow:0 0 0 3px rgba(33,150,243,.25);}
 
-/* frame stripe on inputs */
+/* coloured stripes by frame */
 .row[data-frame="0"] input.stop{border-left:4px solid var(--f-early);    padding-left:6px;}
 .row[data-frame="1"] input.stop{border-left:4px solid var(--f-late);     padding-left:6px;}
 .row[data-frame="2"] input.stop{border-left:4px solid var(--f-lunch);    padding-left:6px;}
@@ -147,9 +132,9 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
   transition:transform var(--transFast),background var(--transFast);}
 .remove:hover{background:#f75a4d;transform:scale(1.08);} .remove:active{transform:scale(.94);}
 
-/* bottom buttons */
+/* ACTION BUTTONS ------------------------------------------------- */
 #actions{
-  position:absolute;bottom:12px;left:16px;right:16px;display:flex;gap:10px;justify-content:flex-start;
+  position:absolute;bottom:12px;left:16px;right:16px;display:flex;gap:10px;flex-wrap:wrap;
 }
 #actions button{
   padding:8px 14px;font-size:14px;border-radius:var(--radiusMd);
@@ -161,6 +146,8 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 #optAll:hover{background:#26c36c;} #optAll:active{transform:scale(.96);}
 #optFrames{background:#795548;color:#fff;border-color:#795548;}
 #optFrames:hover{background:#8d6e63;} #optFrames:active{transform:scale(.96);}
+
+#msg{margin:12px 0;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 0;}
 
 .leg-display{margin:6px 0 0 28px;font-size:16px;font-weight:600;color:#1b1b1b;
   padding:4px 10px;border-radius:6px;background:rgba(0,0,0,.06);
@@ -174,8 +161,6 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 .leg-G{background:rgba(255,112,67,.18);border-left:4px solid var(--clrG);}
 .leg-H{background:rgba(141,110,99,.18);border-left:4px solid var(--clrH);}
 .leg-default{background:rgba(96,125,139,.18);border-left:4px solid var(--clrDefault);}
-
-#msg{margin:12px 0;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 0;}
 
 #svBack{
   position:fixed;bottom:16px;right:16px;z-index:1200;
@@ -202,13 +187,11 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 <div id="panel">
   <div id="scroller">
     <div id="content">
-      <div id="timelineCol"></div>
+      <div id="timelineCol"><div id="timeline"></div></div>
       <div id="framesContainer"></div>
     </div>
-
     <div id="msg"></div>
   </div>
-
   <div id="actions">
     <button id="route">Route</button>
     <button id="optAll"    title="Optimize entire day">Optimize</button>
@@ -232,7 +215,7 @@ const FRAMES=[
   {id:0,key:'early',     name:'AM Early',     start:'07:00', end:'09:00',  color:'var(--f-early)',     shift:'day'},
   {id:1,key:'late',      name:'AM Late',      start:'09:00', end:'11:00',  color:'var(--f-late)',      shift:'day'},
   {id:2,key:'lunch',     name:'Lunch',        start:'11:00', end:'13:00',  color:'var(--f-lunch)',     shift:'day'},
-  {id:3,key:'afternoon', name:'Afternoon',    start:'13:30', end:'15:30',  color:'var(--f-afternoon)', shift:'day'},  // aligns at 13:30
+  {id:3,key:'afternoon', name:'Afternoon',    start:'13:30', end:'15:30',  color:'var(--f-afternoon)', shift:'day'},
   {id:4,key:'supper',    name:'Supper',       start:'16:00', end:'18:30',  color:'var(--f-supper)',    shift:'night'},
   {id:5,key:'evening',   name:'Evening',      start:'18:30', end:'21:00',  color:'var(--f-evening)',   shift:'night'},
   {id:6,key:'lateev',    name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--f-lateev)',    shift:'night'}
@@ -242,7 +225,6 @@ const SHIFTS={
   night:{start:'13:30',end:'22:30'}
 };
 
-/* geometry / filters (unchanged) */
 const IHA_POLY=[{lat:53.40,lng:-118.50},{lat:53.50,lng:-122.00},{lat:52.50,lng:-123.00},
   {lat:51.00,lng:-123.00},{lat:50.10,lng:-123.20},{lat:49.80,lng:-122.40},
   {lat:49.00,lng:-120.00},{lat:49.00,lng:-114.00},{lat:51.20,lng:-114.00},
@@ -258,7 +240,7 @@ function insidePoly(pt,poly){
 const CENTRAL_OK_BOUNDS={south:49.60,north:50.30,west:-120.20,east:-118.90};
 const CENTRAL_OK_RX=/kelowna|west kelowna|lake country|oyama|peachland|fintry|joe rich|ellison|rutland|glenmore|glenrosa/i;
 
-/* geocoder helpers */
+/* Geocode helpers */
 function geocodeSmart(text){
   const cleaned=text.replace(/\s+/g,' ').trim();
   if(!cleaned) return Promise.resolve(null);
@@ -272,9 +254,10 @@ function geocodeSmart(text){
           if(stat2===google.maps.places.PlacesServiceStatus.OK&&plc?.geometry){
             const loc=plc.geometry.location;
             return res({lat:loc.lat(),lng:loc.lng(),formatted:plc.formatted_address});
-          } geoFallback();
+          }
+          geoFallback();
         });
-      } else geoFallback();
+      }else geoFallback();
     });
     function geoFallback(){
       geocoder.geocode({address:`${cleaned}, BC, Canada`,componentRestrictions:{country:'ca'}},
@@ -282,7 +265,7 @@ function geocodeSmart(text){
         if(s==='OK'&&r[0]){
           const loc=r[0].geometry.location;
           res({lat:loc.lat(),lng:loc.lng(),formatted:r[0].formatted_address});
-        } else res(null);
+        }else res(null);
       });
     }
   });
@@ -370,8 +353,8 @@ function acceptTopPrediction(inp){
 const rowToLocation=row=>{
   const inp=row.querySelector('.stop');
   return (inp.dataset.lat && inp.dataset.lng)
-      ? new google.maps.LatLng(+inp.dataset.lat,+inp.dataset.lng)
-      : inp.value.trim();
+    ? new google.maps.LatLng(+inp.dataset.lat,+inp.dataset.lng)
+    : inp.value.trim();
 };
 
 /* INIT */
@@ -388,18 +371,16 @@ window.routePlannerInit=()=>{
   placeSvc =new google.maps.places.PlacesService(map);
 
   buildFrameBuckets();
-  buildTimelines();             // after buckets
+  buildTimelineFromDOM();
 
   document.getElementById('route').onclick=rebuildRoute;
   document.getElementById('optAll').onclick=globalOptimizeRoute;
   document.getElementById('optFrames').onclick=optimizeByFrames;
 
-  // Pegman back
   const sv=map.getStreetView();
   sv.addListener('visible_changed',()=>{document.getElementById('svBack').style.display=sv.getVisible()?'block':'none';});
   document.getElementById('svBack').onclick=()=>sv.setVisible(false);
 
-  // Hotkeys
   window.addEventListener('keydown',e=>{
     if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
     if(e.key==='F1'){e.preventDefault();toggleShift('day');}
@@ -410,7 +391,7 @@ window.routePlannerInit=()=>{
   applyShiftVisibility();
 };
 
-/* helpers */
+/* debounce/reset */
 const scheduleAutoCompute=(ms=250)=>{clearTimeout(autoTimer);autoTimer=setTimeout(autoCompute,ms);};
 function clearDirections(){dirRend.set('directions',null);dirRend.setMap(null);dirRend.setMap(map);}
 
@@ -419,26 +400,23 @@ function autoCompute(){
   const rows=[...document.querySelectorAll('.row')];
   const filled=rows.filter(r=>r.querySelector('.stop').value.trim());
   const msg=document.getElementById('msg');
-
   if(filled.length===0){
     clearPreviewPins();clearLegDisplays();msg.textContent='';clearDirections();return;
   }
-  ensureCoords(filled).then(allOK=>{
-    if(!allOK){clearPreviewPins();clearLegDisplays();clearDirections();msg.textContent='One or more stops can’t be located – please edit.';return;}
+  ensureCoords(filled).then(ok=>{
+    if(!ok){clearPreviewPins();clearLegDisplays();clearDirections();msg.textContent='One or more stops can’t be located – please edit.';return;}
     if(filled.length===1){
       clearDirections();clearLegDisplays();clearPreviewPins();
       const inp=filled[0].querySelector('.stop');
       addPreviewPin({lat:+inp.dataset.lat,lng:+inp.dataset.lng},labels[0]);
-      msg.textContent='';
-      map.panTo({lat:+inp.dataset.lat,lng:+inp.dataset.lng});
+      msg.textContent='';map.panTo({lat:+inp.dataset.lat,lng:+inp.dataset.lng});
     }else{
-      clearPreviewPins();
-      rebuildRoute();
+      clearPreviewPins();rebuildRoute();
     }
   });
 }
 
-/* ROUTING */
+/* ROUTE + OPTIMIZE ----------------------------------------------- */
 function rebuildRoute(){
   const rows=getOrderedRows();
   const msg=document.getElementById('msg');
@@ -448,32 +426,24 @@ function rebuildRoute(){
   const locs=rows.map(rowToLocation);
   const reqId=++routeVersion;
   dirSvc.route({
-    origin:locs[0],
-    destination:locs[locs.length-1],
+    origin:locs[0],destination:locs[locs.length-1],
     waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
     travelMode:'DRIVING'
-  },(res,stat)=>{
-    if(reqId!==routeVersion)return;
-    displayLegs(res,stat);
-  });
+  },(res,stat)=>{ if(reqId!==routeVersion) return; displayLegs(res,stat); });
 }
 
-/* GLOBAL optimize */
 async function globalOptimizeRoute(){
   const msg=document.getElementById('msg');
   const rows=getOrderedRows();
   if(rows.length<3){rebuildRoute();return;}
-
-  const ok=await ensureCoords(rows);
-  if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
+  const ok=await ensureCoords(rows); if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
 
   const locs=rows.map(rowToLocation);
   routeVersion++;const runId=routeVersion;
   msg.textContent='Optimizing…';
 
   dirSvc.route({
-    origin:locs[0],
-    destination:locs[locs.length-1],
+    origin:locs[0],destination:locs[locs.length-1],
     waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
     optimizeWaypoints:true,travelMode:'DRIVING'
   },(res,stat)=>{
@@ -489,58 +459,48 @@ async function globalOptimizeRoute(){
     renumber();
     dirRend.setDirections(res);
     displayLegs(res,'OK');
-
     const km=res.routes[0].legs.reduce((s,l)=>s+l.distance.value,0)/1000;
     const mins=Math.round(res.routes[0].legs.reduce((s,l)=>s+l.duration.value,0)/60);
     msg.textContent=`Optimized distance ${km.toFixed(1)} km | ≈ ${mins} min`;
   });
 }
 
-/* per-frame optimize */
 async function optimizeByFrames(){
   const msg=document.getElementById('msg'); msg.textContent='Optimizing by frames…';
-  const visFrames=FRAMES.filter(f=> (f.shift==='day' && dayVisible) || (f.shift==='night' && nightVisible));
-
+  const visFrames=FRAMES.filter(f=>(f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible));
   for(const fr of visFrames){
     const list=getFrameListById(fr.id);
     const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
-    if(rows.length<3){continue;}
-    const ok=await ensureCoords(rows);
-    if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
+    if(rows.length<3) continue;
+    const ok=await ensureCoords(rows); if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
 
     const locs=rows.map(rowToLocation);
     routeVersion++;const runId=routeVersion;
     await new Promise(resolve=>{
       dirSvc.route({
-        origin:locs[0],
-        destination:locs[locs.length-1],
+        origin:locs[0],destination:locs[locs.length-1],
         waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
         optimizeWaypoints:true,travelMode:'DRIVING'
       },(res,stat)=>{
         if(runId!==routeVersion){resolve();return;}
         if(stat!=='OK'){resolve();return;}
         const order=[0,...res.routes[0].waypoint_order.map(i=>i+1),locs.length-1];
-        const currentRows=[...rows];
-        order.forEach(idx=>list.appendChild(currentRows[idx]));
+        const cur=[...rows];
+        order.forEach(i=>list.appendChild(cur[i]));
         resolve();
       });
     });
   }
-
-  renumber();
-  rebuildRoute();
-  msg.textContent='Optimized by frames.';
+  renumber(); rebuildRoute(); msg.textContent='Optimized by frames.';
 }
 
-/* leg display */
+/* LEG summaries */
 function displayLegs(res,stat){
   const msg=document.getElementById('msg');
   if(stat!=='OK'){msg.textContent='Route error: '+stat;clearDirections();return;}
   dirRend.setDirections(res);
-
   const rows=getOrderedRows();
   let kmTot=0,minTot=0;clearLegDisplays();
-
   res.routes[0].legs.forEach((leg,i)=>{
     const km=leg.distance.value/1000,min=Math.round(leg.duration.value/60);
     kmTot+=km;minTot+=min;
@@ -554,50 +514,60 @@ function displayLegs(res,stat){
   msg.textContent=`Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
 }
 
-/* frame buckets */
+/* Frames --------------------------------------------------------- */
 function buildFrameBuckets(){
   const container=document.getElementById('framesContainer');
   FRAMES.forEach(fr=>{
-    const section=document.createElement('div');
-    section.className='frame';section.dataset.frame=fr.id;section.dataset.shift=fr.shift;
+    const sec=document.createElement('div');
+    sec.className='frame';sec.dataset.frame=fr.id;sec.dataset.shift=fr.shift;
 
     const head=document.createElement('div');
     head.className='frame-header';
     head.innerHTML=`<span class="swatch" style="background:${fr.color}"></span>${fr.name}`;
-    section.appendChild(head);
+    sec.appendChild(head);
 
     const list=document.createElement('div');
     list.className='frame-list';list.id='frame-'+fr.id;
-    section.appendChild(list);
+    sec.appendChild(list);
 
     const addBtn=document.createElement('button');
     addBtn.className='addRowBtn';addBtn.textContent='+ Add stop';
-    addBtn.onclick=()=>addRowToFrame(fr.id);
-    section.appendChild(addBtn);
+    addBtn.onclick=()=>{addRowToFrame(fr.id);};
+    sec.appendChild(addBtn);
 
-    container.appendChild(section);
+    container.appendChild(sec);
 
     Sortable.create(list,{
       group:'stops',handle:'.drag',animation:150,
       onEnd:evt=>{
         const row=evt.item;
         row.dataset.frame=list.parentElement.dataset.frame;
-        renumber();autoCompute();
+        renumber();autoCompute();buildTimelineFromDOM();
       }
     });
   });
-
+  // preload 4 rows each
   FRAMES.forEach(fr=>{for(let i=0;i<4;i++)addRowToFrame(fr.id,false);});
   renumber();
+
+  // observers to rebuild timeline
+  const ro=new ResizeObserver(()=>buildTimelineFromDOM());
+  document.querySelectorAll('.frame').forEach(f=>ro.observe(f));
+  const mo=new MutationObserver(()=>buildTimelineFromDOM());
+  document.querySelectorAll('.frame-list').forEach(fl=>mo.observe(fl,{childList:true,subtree:true}));
 }
+
 const getFrameListById=id=>document.getElementById('frame-'+id);
+
 function addRowToFrame(frameId,focus=true){
   const list=getFrameListById(frameId);
   const row=makeRow(document.querySelectorAll('.row').length,frameId);
   list.appendChild(row);
   attachRowEvents(row.querySelector('.stop'));
   if(focus) row.querySelector('.stop').focus();
+  buildTimelineFromDOM();
 }
+
 function getOrderedRows(){
   const rows=[];
   FRAMES.forEach(f=>{
@@ -607,11 +577,11 @@ function getOrderedRows(){
   });
   return rows.filter(r=>r.querySelector('.stop').value.trim());
 }
+
 function attachRowEvents(input){
-  const ph='Enter stop';
-  input.placeholder=ph;
+  const ph='Enter stop'; input.placeholder=ph;
   input.addEventListener('focus',e=>{
-    markRowFocus(input,true);setTimeout(()=>e.target.select(),0);
+    markRowFocus(input,true); setTimeout(()=>e.target.select(),0);
     const mu=ev=>{ev.preventDefault();input.removeEventListener('mouseup',mu);};
     input.addEventListener('mouseup',mu);
   });
@@ -619,8 +589,8 @@ function attachRowEvents(input){
   input.addEventListener('input',()=>{input.dataset.lat='';input.dataset.lng='';});
   input.addEventListener('keydown',e=>{
     if(e.key==='Tab'&&!e.shiftKey){
-      if(input.dataset.lat&&input.dataset.lng)return;
-      e.preventDefault();acceptTopPrediction(input);
+      if(input.dataset.lat&&input.dataset.lng) return;
+      e.preventDefault(); acceptTopPrediction(input);
     }
   });
   input.addEventListener('paste',e=>{
@@ -636,7 +606,7 @@ function attachRowEvents(input){
       const r=document.querySelectorAll('.row')[start+i];if(!r)return;
       const el=r.querySelector('.stop');el.value=addr;el.dataset.lat='';el.dataset.lng='';
     });
-    renumber();autoCompute();
+    renumber();autoCompute();buildTimelineFromDOM();
   });
 
   const ac=new google.maps.places.Autocomplete(input,{
@@ -657,109 +627,128 @@ function attachRowEvents(input){
   });
 }
 
-/* TIMELINE build (inside panel) ---------------------------------- */
+/* TIMELINE from DOM ---------------------------------------------- */
 const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);}
 const pad=n=>n.toString().padStart(2,'0');
 
-function buildTimelines(){
-  const tlCol=document.getElementById('timelineCol');
-  tlCol.innerHTML='';
-  const dayLine = buildOneTimeline('day');
-  const nightLine= buildOneTimeline('night');
-  tlCol.appendChild(dayLine);
-  tlCol.appendChild(nightLine);
-  // hide based on initial flags
-  dayLine.style.display  = dayVisible  ? 'block':'none';
-  nightLine.style.display= nightVisible? 'block':'none';
-}
-function buildOneTimeline(key){
-  const {start,end}=SHIFTS[key];
-  const s=parseHM(start),e=parseHM(end),span=e-s;
-  const pxPerMin=2.0;  // adjust to taste
-  const h=span*pxPerMin;
-  const line=document.createElement('div');
-  line.className='timeline';
-  line.dataset.shift=key;
-  line.style.height=h+'px';
-  line.style.marginBottom='16px';
+function buildTimelineFromDOM(){
+  const tl=document.getElementById('timeline');
+  tl.innerHTML='';
+  const visibleFrames=FRAMES.filter(f=>(f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible));
 
-  // ticks every 30 min
-  for(let t=s;t<=e;t+=30){
-    const y=((t-s)/span)*100;
-    const tick=document.createElement('div');
-    tick.className='tick'+(t%60===0?' bold':'');
-    tick.style.top=y+'%';
-    const lbl=document.createElement('span');
-    lbl.textContent=`${pad(Math.floor(t/60))}:${pad(t%60)}`;
-    tick.appendChild(lbl);
-    line.appendChild(tick);
-  }
-  // make sure final label at exact end if not 00/30 step
-  if((e-s)%30!==0){
-    const y=100;
-    const tick=document.createElement('div');
-    tick.className='tick bold';tick.style.top=y+'%';
-    const lbl=document.createElement('span');
-    lbl.textContent=`${pad(Math.floor(e/60))}:${pad(e%60)}`;
-    tick.appendChild(lbl);
-    line.appendChild(tick);
-  }
+  if(!visibleFrames.length) return;
 
-  // thin segments to mark frames on this shift
-  FRAMES.filter(f=>f.shift===key).forEach(fr=>{
-    const fs=parseHM(fr.start),fe=parseHM(fr.end);
-    const segStart=Math.max(fs,s),segEnd=Math.min(fe,e);
-    if(segEnd<=segStart)return;
-    const seg=document.createElement('div');
-    seg.className='seg';
-    seg.dataset.name=fr.name;
-    seg.style.background=fr.color;
-    seg.style.top=((segStart-s)/span)*100+'%';
-    seg.style.height=((segEnd-segStart)/span)*100+'%';
-    line.appendChild(seg);
+  // axis height == total frames height
+  const firstFrame=document.querySelector(`.frame[data-frame="${visibleFrames[0].id}"]`);
+  const lastFrame =document.querySelector(`.frame[data-frame="${visibleFrames[visibleFrames.length-1].id}"]`);
+  const topY = firstFrame.offsetTop;
+  const bottomY = lastFrame.offsetTop + lastFrame.offsetHeight;
+  const height = bottomY - topY;
+
+  tl.style.height = bottomY+'px'; // ensure big enough
+  // axis
+  const axis=document.createElement('div');
+  axis.className='tl-axis';
+  axis.style.top=topY+'px';
+  axis.style.height=height+'px';
+  tl.appendChild(axis);
+
+  // build per shift ticks (every 30 mins)
+  ['day','night'].forEach(shift=>{
+    if(shift==='day'&&!dayVisible) return;
+    if(shift==='night'&&!nightVisible) return;
+    const s=parseHM(SHIFTS[shift].start);
+    const e=parseHM(SHIFTS[shift].end);
+
+    // find DOM range for that shift (frames inside)
+    const fInShift=visibleFrames.filter(f=>f.shift===shift);
+    if(!fInShift.length) return;
+    const sTop = document.querySelector(`.frame[data-frame="${fInShift[0].id}"]`).offsetTop;
+    const eBot = (()=>{const lf=fInShift[fInShift.length-1];
+      const dom=document.querySelector(`.frame[data-frame="${lf.id}"]`);
+      return dom.offsetTop+dom.offsetHeight;})();
+
+    const pxSpan = eBot - sTop;
+    const minSpan = e - s;
+    const pxPerMin = pxSpan / minSpan;
+
+    // ticks
+    for(let t=s;t<=e;t+=30){
+      const y=sTop + (t - s)*pxPerMin;
+      addTick(t,y);
+    }
+    // ensure final label
+    if((e-s)%30!==0){
+      const y=sTop + (e-s)*pxPerMin;
+      addTick(e,y,true);
+    }
+
+    // segments (frames)
+    fInShift.forEach(fr=>{
+      const dom=document.querySelector(`.frame[data-frame="${fr.id}"]`);
+      const top=dom.offsetTop;
+      const h=dom.offsetHeight;
+      const seg=document.createElement('div');
+      seg.className='tl-seg';
+      seg.dataset.name=fr.name;
+      seg.style.background=fr.color;
+      seg.style.top=top+'px';
+      seg.style.height=h+'px';
+      tl.appendChild(seg);
+    });
+
+    // now marker
+    const mark=document.createElement('div');
+    mark.className='nowMarker';
+    tl.appendChild(mark);
+    const tickNow=()=>{
+      const d=new Date(),m=d.getHours()*60+d.getMinutes();
+      const show=(m>=s && m<=e);
+      mark.style.display=show?'block':'none';
+      if(show){
+        const y=sTop + (m - s)*pxPerMin;
+        mark.style.top=y+'px';
+      }
+    };
+    tickNow(); setInterval(tickNow,60000);
   });
 
-  // now marker
-  const mark=document.createElement('div');mark.className='nowMarker';line.appendChild(mark);
-  const tickNow=()=>{
-    const d=new Date(),m=d.getHours()*60+d.getMinutes();
-    const show=(m>=s && m<=e);
-    mark.style.display=show?'block':'none';
-    if(show){mark.style.top=((m-s)/span)*100+'%';}
-  };
-  tickNow();setInterval(tickNow,60000);
-
-  return line;
+  function addTick(totalMins,y,bold=false){
+    const tick=document.createElement('div');
+    tick.className='tl-tick'+(bold?' bold':'');
+    tick.style.top=y+'px';
+    const lbl=document.createElement('div');
+    lbl.className='tl-label';
+    lbl.textContent=`${pad(Math.floor(totalMins/60))}:${pad(totalMins%60)}`;
+    lbl.style.top='-6px';
+    tick.appendChild(lbl);
+    tl.appendChild(tick);
+  }
 }
 
-/* Shift visibility */
+/* Shift visibility & clear --------------------------------------- */
 function toggleShift(which){
   if(which==='day') dayVisible=!dayVisible;
   if(which==='night') nightVisible=!nightVisible;
   applyShiftVisibility();
 }
 function applyShiftVisibility(){
-  // frames
   FRAMES.forEach(fr=>{
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
     const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
     sec.style.display=vis?'block':'none';
   });
-  // timelines
-  document.querySelectorAll('.timeline[data-shift="day"]').forEach(el=>el.style.display=dayVisible?'block':'none');
-  document.querySelectorAll('.timeline[data-shift="night"]').forEach(el=>el.style.display=nightVisible?'block':'none');
-
+  buildTimelineFromDOM();
   autoCompute();
 }
-
-/* clear all */
 function clearAllStops(){
   document.querySelectorAll('.row input.stop').forEach(inp=>{
     inp.value='';inp.dataset.lat='';inp.dataset.lng='';
   });
   clearPreviewPins();clearDirections();clearLegDisplays();
   document.getElementById('msg').textContent='';
+  buildTimelineFromDOM();
 }
 </script>
 </body>
