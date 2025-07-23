@@ -176,9 +176,50 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);
 #svBack:hover{background:#546e7a;}
 
 /* Flat mode plain list ------------------------------------------ */
-#plainList.plain-list{
-  padding:0 12px 8px 12px;border:none;box-shadow:none;
+#panel.flat{
+  width:340px;
+  background:transparent;
+  border:none;
+  box-shadow:none;
 }
+
+#panel.flat #content{display:none;}   /* hide timeline + frames column   */
+#panel.flat #scroller{padding:12px;}  /* tighter padding inside scroller */
+
+/* The plain list container */
+#plainList,
+#plainList.plain-list{
+  background:#fff;
+  border:1px solid #d7d7d7;
+  border-radius:10px;
+  box-shadow:0 2px 6px rgba(0,0,0,.25);
+  padding:12px;
+}
+
+  /* ===== Flat floating mode (both shifts hidden) ===== */
+#panel.flat{
+  width:auto;
+  background:transparent;
+  border:none;
+  box-shadow:none;
+  pointer-events:none;          /* clicks go through to the map */
+}
+#panel.flat #content{display:none;}   /* hide timeline + frames column */
+#panel.flat #scroller{padding:12px;}  /* tighter padding */
+
+#plainList,
+#plainList.plain-list{
+  position:absolute;
+  top:12px;left:12px;
+  width:360px;
+  background:#fff;
+  border:1px solid #d7d7d7;
+  border-radius:10px;
+  box-shadow:0 2px 6px rgba(0,0,0,.25);
+  padding:12px;
+  pointer-events:auto;          /* keep the list interactive */
+}
+
 </style>
 
 <script>
@@ -219,7 +260,7 @@ const BASE_EMPTY_PER_FRAME = 4;
 
 let map,dirSvc,dirRend,geocoder,acService,placeSvc;
 let autoTimer=null,routeVersion=0,previewPins=[];
-let dayVisible=true,nightVisible=false;
+let dayVisible=false,nightVisible=false;
 let flatMode=false;
 
 const FRAMES=[
@@ -677,66 +718,61 @@ function attachRowEvents(input){
 /* -------------------- FLAT MODE -------------------- */
 function enterFlatMode(){
   if(flatMode) return;
-  flatMode=true;
+  flatMode = true;
 
-  document.getElementById('framesContainer').style.display='none';
-  document.getElementById('timelineCol').style.display    ='none';
+  document.getElementById('panel').classList.add('flat');
+  document.getElementById('framesContainer').style.display = 'none';
+  document.getElementById('timelineCol').style.display     = 'none';
 
-  let list=document.getElementById('plainList');
+  let list = document.getElementById('plainList');
   if(!list){
-    list=document.createElement('div');
-    list.id='plainList';
-    list.className='plain-list';
-    const scroller=document.getElementById('scroller');
-    const msg=document.getElementById('msg');
-    scroller.insertBefore(list,msg);
+    list = document.createElement('div');
+    list.id = 'plainList';
+    const scroller = document.getElementById('scroller');
+    const msg = document.getElementById('msg');
+    scroller.insertBefore(list, msg);
 
     Sortable.create(list,{
       handle:'.drag',animation:150,
-      onEnd:()=>{renumber();autoCompute();}
+      onEnd:()=>{ renumber(); autoCompute(); }
     });
   }
 
-  const filled=[...document.querySelectorAll('.row')]
-    .filter(r=>r.querySelector('.stop').value.trim());
+  // move only filled rows
+  const filled = [...document.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
   filled.forEach(r=>list.appendChild(r));
 
-  // remove any stray empties from frames
-  [...document.querySelectorAll('.row')]
-    .filter(r=>!r.querySelector('.stop').value.trim())
-    .forEach(r=>r.remove());
-
-  const need=Math.max(0,2-list.querySelectorAll('.row').length);
+  // ensure exactly 2 empties
+  const empties = [...document.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());
+  empties.slice(2).forEach(r=>r.remove());
+  const need = Math.max(0, 2 - list.querySelectorAll('.row').length);
   for(let i=0;i<need;i++) addRowToFlatList();
 
   renumber();
-  buildTimelineFromDOM(); // will be cleared
+  buildTimelineFromDOM();      // will render nothing in flat mode
 }
-function addRowToFlatList(){
-  const row=makeRow(document.querySelectorAll('.row').length,0);
-  row.dataset.frame=0;
-  document.getElementById('plainList').appendChild(row);
-  attachRowEvents(row.querySelector('.stop'));
-}
+
 function exitFlatMode(){
   if(!flatMode) return;
-  flatMode=false;
+  flatMode = false;
 
-  const list=document.getElementById('plainList');
+  const list = document.getElementById('plainList');
   if(list){
     list.querySelectorAll('.row').forEach(r=>{
-      const fid=+r.dataset.frame || 0;
+      const fid = +r.dataset.frame || 0;
       getFrameListById(fid).appendChild(r);
     });
     list.remove();
   }
 
-  document.getElementById('framesContainer').style.display='';
-  document.getElementById('timelineCol').style.display    ='';
+  document.getElementById('panel').classList.remove('flat');
+  document.getElementById('framesContainer').style.display = '';
+  document.getElementById('timelineCol').style.display     = '';
 
   ensureAllFramesHaveBaseline();
   buildTimelineFromDOM();
 }
+
 
 /* -------------------- TIMELINE -------------------- */
 const mins=(h,m)=>h*60+m;
