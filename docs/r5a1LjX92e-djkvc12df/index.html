@@ -547,12 +547,54 @@ function multiPaste(e){
   renumber();autoCompute();buildTimelineFromDOM();
 }
 
-/* Dummy acceptTopPrediction – stub (autocomplete UI already handles selection) */
+/* ------------------------------------------------------------------
+   Accept first autocomplete prediction on Tab / Enter
+------------------------------------------------------------------ */
 function acceptTopPrediction(input){
-  // No-op: Google Places autocomplete popup handles Enter/Tab selection
-  // We still trigger autoCompute to try geocoding on raw text.
-  scheduleAutoCompute(100);
+  // If we already have coords, just hop to the next box
+  if (input.dataset.lat && input.dataset.lng){
+    focusNextInput(input);
+    return;
+  }
+
+  // Ask Places AutocompleteService for predictions
+  acService.getPlacePredictions(
+    {
+      input: input.value,
+      componentRestrictions: {country: 'ca'},
+      types: ['address']
+    },
+    (preds, status)=>{
+      if (status !== google.maps.places.PlacesServiceStatus.OK || !preds?.length){
+        focusNextInput(input);           // nothing found – just move on
+        return;
+      }
+      const first = preds[0];
+      // Fetch full details for that prediction
+      placeSvc.getDetails(
+        {placeId: first.place_id, fields: ['formatted_address','geometry']},
+        (place, st)=>{
+          if (st === google.maps.places.PlacesServiceStatus.OK){
+            input.value         = place.formatted_address;
+            input.dataset.lat   = place.geometry.location.lat();
+            input.dataset.lng   = place.geometry.location.lng();
+          }
+          scheduleAutoCompute();         // update pins / route
+          focusNextInput(input);         // hop to next box either way
+        }
+      );
+    }
+  );
 }
+
+/* Move caret to the next .stop input (wrap-around ignored) */
+function focusNextInput(current){
+  const all   = [...document.querySelectorAll('input.stop')];
+  const idx   = all.indexOf(current);
+  const next  = all[idx+1];
+  if(next) safeFocus(next);
+}
+
 
 /* ====================================================================== */
 /*  SHIFT VISIBILITY & FLAT MODE                                          */
