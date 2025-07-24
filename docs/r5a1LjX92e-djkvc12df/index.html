@@ -286,8 +286,8 @@ const FRAMES=[
   {id:0,key:'early',     name:'AM Early',     start:'07:00', end:'09:00',  color:'var(--f-early)',     shift:'day'},
   {id:1,key:'late',      name:'AM Late',      start:'09:00', end:'11:00',  color:'var(--f-late)',      shift:'day'},
   {id:2,key:'lunch',     name:'Lunch',        start:'11:00', end:'13:00',  color:'var(--f-lunch)',     shift:'day'},
-  {id:3,key:'afternoon', name:'Afternoon',    start:'13:30', end:'15:30',  color:'var(--f-afternoon)', shift:'day'},
-  {id:4,key:'aftNight',  name:'Afternoon',    start:'13:30', end:'16:00',  color:'var(--f-afternoon)', shift:'night'},/* ★ FIX */
+  {id:3,key:'afternoon', name:'Afternoon',    start:'13:00', end:'15:30',  color:'var(--f-afternoon)', shift:'day'}, /* ★ FIX – shifted start to 13:00 */
+  {id:4,key:'aftNight',  name:'Afternoon',    start:'13:30', end:'16:00',  color:'var(--f-afternoon)', shift:'night'},
   {id:5,key:'supper',    name:'Supper',       start:'16:00', end:'18:30',  color:'var(--f-supper)',    shift:'night'},
   {id:6,key:'evening',   name:'Evening',      start:'18:30', end:'21:00',  color:'var(--f-evening)',   shift:'night'},
   {id:7,key:'lateev',    name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--f-lateev)',    shift:'night'}
@@ -760,7 +760,7 @@ function ensurePlaceholdersForFrame(frameId){
 }
 function ensureAllFramesHaveBaseline(){
   FRAMES.forEach(fr=>{
-    const sec=document.querySelector(.frame[data-frame="${fr.id}"]);
+    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
     if(sec && !sec.classList.contains('collapsed') && sec.style.display!=='none')
       ensurePlaceholdersForFrame(fr.id);
   });
@@ -778,7 +778,7 @@ function getOrderedRows(includeHidden=false){
   return rows.filter(r=>r.querySelector('.stop').value.trim());
 }
 function toggleFrame(id){
-  const sec=document.querySelector(.frame[data-frame="${id}"]);
+  const sec=document.querySelector(`.frame[data-frame="${id}"]`); /* ★ FIX – added back‑ticks */
   sec.classList.toggle('collapsed');
   renumber();autoCompute();buildTimelineFromDOM();
 }
@@ -891,13 +891,13 @@ const lastFrame  = document.querySelector(
     if(shift==='night'&&!nightVisible) return;
     const fInShift=visibleFrames.filter(f=>f.shift===shift); if(!fInShift.length) return;
     const s=parseHM(SHIFTS[shift].start), e=parseHM(SHIFTS[shift].end);
-    const sTop=document.querySelector(.frame[data-frame="${fInShift[0].id}"]).offsetTop;
-    const eBot=(()=>{const lf=fInShift[fInShift.length-1];const dom=document.querySelector(.frame[data-frame="${lf.id}"]);return dom.offsetTop+dom.offsetHeight;})();
+    const sTop=document.querySelector(`.frame[data-frame="${fInShift[0].id}"]`).offsetTop;  /* ★ FIX */
+    const eBot=(()=>{const lf=fInShift[fInShift.length-1];const dom=document.querySelector(`.frame[data-frame="${lf.id}"]`);return dom.offsetTop+dom.offsetHeight;})(); /* ★ FIX */
     const pxSpan=eBot-sTop, minSpan=e-s, pxPerMin=pxSpan/minSpan;
     for(let t=s;t<=e;t+=30){addTick(t,sTop+(t-s)*pxPerMin, t%60===0);}
     if((e-s)%30!==0) addTick(e,sTop+(e-s)*pxPerMin,true);
     fInShift.forEach(fr=>{
-      const dom=document.querySelector(.frame[data-frame="${fr.id}"]);
+      const dom=document.querySelector(`.frame[data-frame="${fr.id}"]`); /* ★ FIX */
       const seg=document.createElement('div');seg.className='tl-seg';seg.style.background=fr.color;
       seg.style.top=dom.offsetTop+'px';seg.style.height=dom.offsetHeight+'px';tl.appendChild(seg);
     });
@@ -920,7 +920,7 @@ function toggleShift(which){
 }
 function applyShiftVisibility(){
   FRAMES.forEach(fr=>{
-    const sec=document.querySelector(.frame[data-frame="${fr.id}"]);
+    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`); /* ★ FIX */
     const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
     sec.style.display=vis?'block':'none';
   });
@@ -930,7 +930,7 @@ function applyShiftVisibility(){
     exitFlatMode();
     FRAMES.forEach(fr=>{
       const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
-      if(vis && !document.querySelector(.frame[data-frame="${fr.id}"]).classList.contains('collapsed'))
+      if(vis && !document.querySelector(`.frame[data-frame="${fr.id}"]`).classList.contains('collapsed')) /* ★ FIX */
         ensurePlaceholdersForFrame(fr.id);
     });
   }
