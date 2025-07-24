@@ -256,19 +256,19 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 <div id="map"></div>
 
 <script>
-/* ---------- CONFIG ---------- */
-const PX_PER_MIN=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxPerMin'));
-const colourCycle=['A','B','C','D','E','F','G','H'];
-const BASE_EMPTY_PER_FRAME=4;
-const AUTO_FOCUS_ENABLED=false;      // no initial caret jump
-let map,dirSvc,dirRend,geocoder,acService,placeSvc;
-let previewPins=[],routeMarkers=[];
-let autoTimer=null,routeVersion=0;
-let dayVisible=false,nightVisible=false,flatMode=false;
-let userHasFocusedOnce=false;
+/* ---------- CONFIG & CONSTANTS ---------- */
+const PX_PER_MIN = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxPerMin'));
+const colourCycle = ['A','B','C','D','E','F','G','H'];
+const BASE_EMPTY_PER_FRAME = 4;
+const AUTO_FOCUS_ENABLED = false;        // no initial caret jump
+
+let map, dirSvc, dirRend, geocoder, acService, placeSvc;
+let previewPins = [], routeMarkers = [];
+let autoTimer = null, routeVersion = 0;
+let dayVisible = false, nightVisible = false, flatMode = false;
 
 /* ---------- FRAME DEFINITIONS ---------- */
-const FRAMES=[
+const FRAMES = [
   {id:0,key:'early',     name:'AM Early',     start:'07:00', end:'09:00',  color:'var(--f-early)',     shift:'day'},
   {id:1,key:'late',      name:'AM Late',      start:'09:00', end:'11:00',  color:'var(--f-late)',      shift:'day'},
   {id:2,key:'lunch',     name:'Lunch',        start:'11:00', end:'13:00',  color:'var(--f-lunch)',     shift:'day'},
@@ -278,47 +278,51 @@ const FRAMES=[
   {id:6,key:'evening',   name:'Evening',      start:'18:30', end:'21:00',  color:'var(--f-evening)',   shift:'night'},
   {id:7,key:'lateev',    name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--f-lateev)',    shift:'night'}
 ];
-const SHIFTS={ day:{start:'07:00',end:'15:30'}, night:{start:'13:30',end:'22:30'} };
+const SHIFTS = { day:{start:'07:00',end:'15:30'}, night:{start:'13:30',end:'22:30'} };
 
 /* ---------- UTILS ---------- */
-const mins=(h,m)=>h*60+m;
-const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);}
-const pad=n=>n.toString().padStart(2,'0');
+const mins       = (h,m)=>h*60+m;
+const parseHM    = t => {const [h,m]=t.split(':').map(Number); return mins(h,m);};
+const pad        = n => n.toString().padStart(2,'0');
 function idxToLabel(i){let s='',n=i+1;while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;}
 
-/* ---------- BUILD FRAMES ---------- */
+/* ---------- FRAME & ROW CREATION ---------- */
 function buildFrameBuckets(){
-  const container=document.getElementById('framesContainer');
+  const container = document.getElementById('framesContainer');
 
   FRAMES.forEach(fr=>{
-    const dur=parseHM(fr.end)-parseHM(fr.start);
-    const frame=document.createElement('div');
-    frame.className='frame';frame.dataset.frame=fr.id;frame.dataset.shift=fr.shift;
-    frame.style.height=(dur*PX_PER_MIN+72)+'px';    // 72 = header+button
+    const dur  = parseHM(fr.end) - parseHM(fr.start);
+    const sec  = document.createElement('div');
+    sec.className = 'frame';
+    sec.dataset.frame = fr.id;
+    sec.dataset.shift = fr.shift;
+    sec.style.height = (dur*PX_PER_MIN + 72) + 'px';    // header + button
 
-    /* header */
-    const head=document.createElement('div');
-    head.className='frame-header';
-    head.innerHTML=`<span class="swatch" style="background:${fr.color}"></span>${fr.name}`;
-    const hide=document.createElement('span');
-    hide.className='material-icons frame-hide';hide.textContent='visibility_off';hide.title='Hide / show this time frame';
-    hide.onclick=()=>toggleFrame(fr.id);
-    head.appendChild(hide);frame.appendChild(head);
+    const head = document.createElement('div');
+    head.className = 'frame-header';
+    head.innerHTML = `<span class="swatch" style="background:${fr.color}"></span>${fr.name}`;
+    const hideBtn = document.createElement('span');
+    hideBtn.className = 'material-icons frame-hide';
+    hideBtn.textContent = 'visibility_off';
+    hideBtn.title = 'Hide / show this time frame';
+    hideBtn.onclick = () => toggleFrame(fr.id);
+    head.appendChild(hideBtn);
+    sec.appendChild(head);
 
-    /* list */
-    const list=document.createElement('div');
-    list.className='frame-list';list.id='frame-'+fr.id;
-    list.style.maxHeight=(dur*PX_PER_MIN)+'px';
-    frame.appendChild(list);
+    const list  = document.createElement('div');
+    list.className = 'frame-list';
+    list.id = 'frame-'+fr.id;
+    list.style.maxHeight = (dur*PX_PER_MIN) + 'px';
+    sec.appendChild(list);
 
-    /* + Add stop */
-    const add=document.createElement('button');
-    add.className='addRowBtn';add.textContent='+ Add stop';add.onclick=()=>addRowToFrame(fr.id,true,true);
-    frame.appendChild(add);
+    const addBtn = document.createElement('button');
+    addBtn.className='addRowBtn';
+    addBtn.textContent='+ Add stop';
+    addBtn.onclick=()=>addRowToFrame(fr.id,true,true);
+    sec.appendChild(addBtn);
 
-    container.appendChild(frame);
+    container.appendChild(sec);
 
-    /* drag‑drop */
     Sortable.create(list,{group:'stops',handle:'.drag',animation:150,
       onEnd:evt=>{
         evt.item.dataset.frame=list.parentElement.dataset.frame;
@@ -330,25 +334,40 @@ function buildFrameBuckets(){
   renumber();
 }
 
-/* ---------- ROW FACTORY ---------- */
 function makeRow(frameId){
-  const d=document.createElement('div');
-  d.className='row';d.dataset.frame=frameId;
-  d.innerHTML=`
+  const d = document.createElement('div');
+  d.className='row';
+  d.dataset.frame = frameId;
+  d.innerHTML = `
     <div class="bullet defaultBullet">A</div>
     <input class="stop" placeholder="Enter stop" autocomplete="off" autocorrect="off" spellcheck="false">
     <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
     <span class="remove" title="Remove stop">×</span>`;
-  d.querySelector('.remove').onclick=()=>{d.remove();renumber();autoCompute();buildTimelineFromDOM();showDeleteBtns();}
+  d.querySelector('.remove').onclick = ()=>{d.remove();renumber();autoCompute();buildTimelineFromDOM();showDeleteBtns();}
   d.addEventListener('click',rowSelectToggle);
   attachInputEvents(d.querySelector('.stop'));
   return d;
 }
 
-/* ---------- INPUT EVENTS ---------- */
+function addRowToFrame(frameId,focus=true,select=false){
+  const list = document.getElementById('frame-'+frameId);
+  const row  = makeRow(frameId);
+  list.appendChild(row);
+  renumber();buildTimelineFromDOM();
+  if(focus)  row.querySelector('.stop').focus();
+  if(select) setSelected(row,true);
+}
+function ensurePlaceholders(frameId){
+  const list   = document.getElementById('frame-'+frameId);
+  const blanks = [...list.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim()).length;
+  for(let i=0;i<BASE_EMPTY_PER_FRAME-blanks;i++) addRowToFrame(frameId,false,false);
+}
+
+/* ---------- INPUT AUTOCOMPLETE / EVENTS ---------- */
 function attachInputEvents(inp){
   inp.addEventListener('focus',e=>{
-    inp.closest('.row').classList.add('focused');setTimeout(()=>e.target.select(),0);
+    inp.closest('.row').classList.add('focused');
+    setTimeout(()=>e.target.select(),0);
     const mu=ev=>{ev.preventDefault();inp.removeEventListener('mouseup',mu);};
     inp.addEventListener('mouseup',mu);
   });
@@ -366,74 +385,95 @@ function attachInputEvents(inp){
   }).addListener('place_changed',()=>{});
 }
 
-/* ---------- ADD / PLACEHOLDERS ---------- */
-function addRowToFrame(frameId,focus=true,select=false){
-  const list=document.getElementById('frame-'+frameId);
-  const row=makeRow(frameId);list.appendChild(row);
-  renumber();buildTimelineFromDOM();
-  if(focus) row.querySelector('.stop').focus();
-  if(select) setSelected(row,true);
-}
-function ensurePlaceholders(frameId){
-  const list=document.getElementById('frame-'+frameId);
-  const blanks=[...list.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim()).length;
-  for(let i=0;i<BASE_EMPTY_PER_FRAME-blanks;i++) addRowToFrame(frameId,false,false);
-}
-
-/* ---------- TIMELINE BUILD ---------- */
+/* ---------- TIMELINE ---------- */
 function buildTimelineFromDOM(){
-  const tl=document.getElementById('timeline');tl.innerHTML='';
+  const tl = document.getElementById('timeline');
+  tl.innerHTML='';
   if(flatMode) return;
 
-  const visible=FRAMES.filter(fr=>{
-    const dom=document.querySelector(`.frame[data-frame="${fr.id}"]`);
-    const show=(fr.shift==='day'?dayVisible:nightVisible)&&!dom.classList.contains('collapsed');
-    return show;
+  const visibleFrames = FRAMES.filter(f=>{
+    const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
+    return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) && !sec.classList.contains('collapsed');
   });
-  if(!visible.length) return;
+  if(!visibleFrames.length) return;
 
-  const top=visible[0],bottom=visible[visible.length-1];
-  const tlTop=document.querySelector(`.frame[data-frame="${top.id}"]`).offsetTop;
-  const tlBottom=document.querySelector(`.frame[data-frame="${bottom.id}"]`).offsetTop+
-                  document.querySelector(`.frame[data-frame="${bottom.id}"]`).offsetHeight;
-  const height=tlBottom-tlTop;tl.style.height=tlBottom+'px';
+  const firstFrame=document.querySelector(`.frame[data-frame="${visibleFrames[0].id}"]`);
+  const lastFrame =document.querySelector(`.frame[data-frame="${visibleFrames[visibleFrames.length-1].id}"]`);
+  if(!firstFrame||!lastFrame) return;
 
-  const axis=document.createElement('div');axis.className='tl-axis';axis.style.top=tlTop+'px';axis.style.height=height+'px';tl.appendChild(axis);
+  const topY    = firstFrame.offsetTop;
+  const bottomY = lastFrame.offsetTop + lastFrame.offsetHeight;
+  tl.style.height = bottomY + 'px';
+
+  const axis = document.createElement('div');
+  axis.className='tl-axis';
+  axis.style.top=topY+'px';
+  axis.style.height=(bottomY-topY)+'px';
+  tl.appendChild(axis);
 
   ['day','night'].forEach(shift=>{
-    if(shift==='day'&&!dayVisible) return;
-    if(shift==='night'&&!nightVisible) return;
-    const fVis=visible.filter(f=>f.shift===shift);if(!fVis.length) return;
+    if(shift==='day'  && !dayVisible)  return;
+    if(shift==='night'&& !nightVisible) return;
 
-    const s=parseHM(SHIFTS[shift].start),e=parseHM(SHIFTS[shift].end);
-    const firstDom=document.querySelector(`.frame[data-frame="${fVis[0].id}"]`);
-    const pxStart=firstDom.offsetTop;
-    const pxPerMin=(PX_PER_MIN);
-    for(let t=s;t<=e;t+=30) addTick(t,pxStart+(t-s)*pxPerMin,t%60===0);
-    if((e-s)%30) addTick(e,pxStart+(e-s)*pxPerMin,true);
+    const fInShift = visibleFrames.filter(f=>f.shift===shift);
+    if(!fInShift.length) return;
 
-    fVis.forEach(fr=>{
+    const s      = parseHM(SHIFTS[shift].start);
+    const e      = parseHM(SHIFTS[shift].end);
+    const sTop   = document.querySelector(`.frame[data-frame="${fInShift[0].id}"]`).offsetTop;
+    const eBot   = (()=>{const lf=fInShift[fInShift.length-1];
+                   const dom=document.querySelector(`.frame[data-frame="${lf.id}"]`);
+                   return dom.offsetTop+dom.offsetHeight})();
+    const pxSpan = eBot - sTop;
+    const minSpan= e - s;
+    const pxPerMin = pxSpan/minSpan;
+
+    for(let t=s;t<=e;t+=30){
+      addTick(t, sTop+(t-s)*pxPerMin, t%60===0);
+    }
+    if((e-s)%30) addTick(e, sTop+(e-s)*pxPerMin, true);
+
+    fInShift.forEach(fr=>{
       const dom=document.querySelector(`.frame[data-frame="${fr.id}"]`);
-      const seg=document.createElement('div');seg.className='tl-seg';seg.style.background=fr.color;
-      seg.style.top=dom.offsetTop+'px';seg.style.height=dom.offsetHeight+'px';tl.appendChild(seg);
+      const seg=document.createElement('div');
+      seg.className='tl-seg';
+      seg.style.background=fr.color;
+      seg.style.top=dom.offsetTop+'px';
+      seg.style.height=dom.offsetHeight+'px';
+      tl.appendChild(seg);
     });
 
-    const mark=document.createElement('div');mark.className='nowMarker';tl.appendChild(mark);
-    const tickNow=()=>{const d=new Date(),m=d.getHours()*60+d.getMinutes();const show=(m>=s&&m<=e);mark.style.display=show?'block':'none';if(show) mark.style.top=(pxStart+(m-s)*pxPerMin)+'px';};
-    tickNow();setInterval(tickNow,60000);
+    const mark=document.createElement('div');
+    mark.className='nowMarker';
+    tl.appendChild(mark);
+    const tickNow=()=>{
+      const d=new Date(), m=d.getHours()*60+d.getMinutes();
+      const show=(m>=s && m<=e);
+      mark.style.display=show?'block':'none';
+      if(show) mark.style.top=(sTop+(m-s)*pxPerMin)+'px';
+    };
+    tickNow();
+    setInterval(tickNow,60000);
   });
 
-  function addTick(total,y,bold){
-    const tk=document.createElement('div');tk.className='tl-tick'+(bold?' bold':'');tk.style.top=y+'px';
-    const lbl=document.createElement('div');lbl.className='tl-label';lbl.textContent=`${pad(total/60|0)}:${pad(total%60)}`;
-    lbl.style.top='-6px';tk.appendChild(lbl);tl.appendChild(tk);
+  function addTick(totalMins,y,bold=false){
+    const tick=document.createElement('div');
+    tick.className='tl-tick'+(bold?' bold':'');
+    tick.style.top=y+'px';
+    const lbl=document.createElement('div');
+    lbl.className='tl-label';
+    lbl.textContent=`${pad(Math.floor(totalMins/60))}:${pad(totalMins%60)}`;
+    lbl.style.top='-6px';
+    tick.appendChild(lbl);
+    tl.appendChild(tick);
   }
 }
 
-/* ---------- FOCUS / SELECT ---------- */
+/* ---------- SELECTION & DELETE ---------- */
 function rowSelectToggle(e){
   if(!(e.ctrlKey||e.metaKey)) return;
-  e.currentTarget.classList.toggle('selected');showDeleteBtns();
+  e.currentTarget.classList.toggle('selected');
+  showDeleteBtns();
 }
 function setSelected(row,on){
   document.querySelectorAll('.row.selected').forEach(r=>r.classList.remove('selected'));
@@ -442,11 +482,9 @@ function setSelected(row,on){
 }
 function showDeleteBtns(){
   const any=document.querySelector('.row.selected');
-  document.getElementById('delSel').style.display=any&&!flatMode?'inline-block':'none';
-  document.getElementById('flatDelSel').style.display=any&&flatMode?'inline-block':'none';
+  document.getElementById('delSel').style.display  = any&&!flatMode ? 'inline-block':'none';
+  document.getElementById('flatDelSel').style.display = any&&flatMode ? 'inline-block':'none';
 }
-
-/* ---------- DELETE ---------- */
 function deleteSelected(){
   document.querySelectorAll('.row.selected').forEach(r=>r.remove());
   showDeleteBtns();renumber();autoCompute();buildTimelineFromDOM();
@@ -460,7 +498,8 @@ document.addEventListener('click',e=>{
   if(e.ctrlKey||e.metaKey) return;
   if(!document.querySelector('.row.selected')) return;
   if(e.target.closest('.row')&&e.target.tagName==='INPUT') return;
-  document.querySelectorAll('.row.selected').forEach(r=>r.classList.remove('selected'));showDeleteBtns();
+  document.querySelectorAll('.row.selected').forEach(r=>r.classList.remove('selected'));
+  showDeleteBtns();
 },true);
 
 /* ---------- NUMBERING ---------- */
@@ -483,18 +522,24 @@ function renumber(){
 window.routePlannerInit=()=>{
   map=new google.maps.Map(document.getElementById('map'),{center:{lat:49.8879,lng:-119.4960},zoom:10,mapTypeControl:false,streetViewControl:true,fullscreenControl:true});
   new google.maps.KmlLayer({url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',map,preserveViewport:true});
-  dirSvc=new google.maps.DirectionsService();dirRend=new google.maps.DirectionsRenderer({map,suppressMarkers:true});
-  geocoder=new google.maps.Geocoder();acService=new google.maps.places.AutocompleteService();placeSvc=new google.maps.places.PlacesService(map);
+  dirSvc=new google.maps.DirectionsService();
+  dirRend=new google.maps.DirectionsRenderer({map,suppressMarkers:true});
+  geocoder=new google.maps.Geocoder();
+  acService=new google.maps.places.AutocompleteService();
+  placeSvc=new google.maps.places.PlacesService(map);
 
-  buildFrameBuckets();buildTimelineFromDOM();buildAddrBar();applyShiftVisibility();
+  buildFrameBuckets();
+  buildTimelineFromDOM();
+  buildAddrBar();
+  applyShiftVisibility();
 
   /* buttons */
-  document.getElementById('route').onclick=rebuildRoute;
-  document.getElementById('optAll').onclick=globalOptimizeRoute;
-  document.getElementById('optFrames').onclick=optimizeByFrames;
-  document.getElementById('delSel').onclick=deleteSelected;
-  document.getElementById('flatRoute').onclick=rebuildRoute;
-  document.getElementById('flatOpt').onclick=globalOptimizeRoute;
+  document.getElementById('route')     .onclick=rebuildRoute;
+  document.getElementById('optAll')    .onclick=globalOptimizeRoute;
+  document.getElementById('optFrames') .onclick=optimizeByFrames;
+  document.getElementById('delSel')    .onclick=deleteSelected;
+  document.getElementById('flatRoute') .onclick=rebuildRoute;
+  document.getElementById('flatOpt')   .onclick=globalOptimizeRoute;
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
   /* street view */
@@ -509,57 +554,69 @@ window.routePlannerInit=()=>{
     if(e.key==='F2'){e.preventDefault();toggleShift('night');}
     if(e.key==='F3'){e.preventDefault();clearAllStops();}
   });
+
+  /* stop the initial caret jump */
+  setTimeout(()=>document.activeElement && document.activeElement.blur(),0);
 };
 
 /* ---------- SHIFT VISIBILITY ---------- */
-function toggleShift(w){if(w==='day')dayVisible=!dayVisible;if(w==='night')nightVisible=!nightVisible;applyShiftVisibility();}
+function toggleShift(w){
+  if(w==='day')  dayVisible   = !dayVisible;
+  if(w==='night')nightVisible = !nightVisible;
+  applyShiftVisibility();
+}
 function applyShiftVisibility(){
   FRAMES.forEach(fr=>{
     const dom=document.querySelector(`.frame[data-frame="${fr.id}"]`);
     const vis=(fr.shift==='day'?dayVisible:nightVisible);
     dom.style.display=vis?'block':'none';
-    if(vis&&!dom.classList.contains('collapsed')) ensurePlaceholders(fr.id);
+    if(vis && !dom.classList.contains('collapsed')) ensurePlaceholders(fr.id);
   });
-  if(!dayVisible&&!nightVisible) enterFlatMode(); else exitFlatMode();
+
+  if(!dayVisible && !nightVisible) enterFlatMode();
+  else exitFlatMode();
+
   document.getElementById('toggleDay').classList.toggle('active',dayVisible);
   document.getElementById('toggleNight').classList.toggle('active',nightVisible);
   document.getElementById('optFrames').style.display=!flatMode&&(dayVisible||nightVisible)?'inline-block':'none';
-  buildTimelineFromDOM();renumber();autoCompute();
+
+  buildTimelineFromDOM();
+  renumber();
+  autoCompute();
 }
 
-/* ---------- FLAT MODE ---------- */
+/* ---------- FLAT MODE (brief) ---------- */
 function buildAddrBar(){
   Sortable.create(document.getElementById('addrList'),{handle:'.drag',animation:150,onEnd:()=>{renumber();autoCompute();}});
   document.getElementById('addrAdd').onclick=()=>addRowToAddrBar(true);
-  document.getElementById('toggleDay').onclick=()=>toggleShift('day');
+  document.getElementById('toggleDay')  .onclick=()=>toggleShift('day');
   document.getElementById('toggleNight').onclick=()=>toggleShift('night');
 }
 function addRowToAddrBar(select){
-  const list=document.getElementById('addrList');const row=makeRow(0);list.appendChild(row);renumber();
-  if(select) setSelected(row,true);row.querySelector('.stop').focus();
+  const list=document.getElementById('addrList');
+  const row=makeRow(0);
+  list.appendChild(row);
+  renumber();
+  if(select){setSelected(row,true);row.querySelector('.stop').focus();}
 }
 function enterFlatMode(){
-  if(flatMode) return;flatMode=true;
+  if(flatMode) return;
+  flatMode=true;
   document.getElementById('panel').classList.add('flat');
   document.getElementById('addrBar').classList.add('active');
   document.querySelectorAll('.row').forEach(r=>document.getElementById('addrList').appendChild(r));
   renumber();buildTimelineFromDOM();showDeleteBtns();
 }
 function exitFlatMode(){
-  if(!flatMode) return;flatMode=false;
+  if(!flatMode) return;
+  flatMode=false;
   document.querySelectorAll('#addrList .row').forEach(r=>{
-    const fid=+r.dataset.frame||0;document.getElementById('frame-'+fid).appendChild(r);
+    const fid=+r.dataset.frame||0;
+    document.getElementById('frame-'+fid).appendChild(r);
   });
-  document.getElementById('panel').classList.remove('flat');document.getElementById('addrBar').classList.remove('active');
-  ensurePlaceholdersForVisible();buildTimelineFromDOM();showDeleteBtns();
-}
-function ensurePlaceholdersForVisible(){FRAMES.forEach(fr=>{const dom=document.querySelector(`.frame[data-frame="${fr.id}"]`);if(dom.style.display!=='none'&&!dom.classList.contains('collapsed'))ensurePlaceholders(fr.id);});}
-
-/* ---------- CLEAR ---------- */
-function clearAllStops(){
-  document.querySelectorAll('.row input.stop').forEach(inp=>{inp.value='';inp.dataset.lat='';inp.dataset.lng='';});
-  clearPreviewPins();clearDirections();clearLegDisplays();document.getElementById('msg').textContent='';document.getElementById('flatMsg').textContent='';
-  buildTimelineFromDOM();
+  document.getElementById('panel').classList.remove('flat');
+  document.getElementById('addrBar').classList.remove('active');
+  buildTimelineFromDOM();showDeleteBtns();
 }
 
 /* ------------ ROUTING ------------ */
