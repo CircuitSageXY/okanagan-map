@@ -75,7 +75,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .frame.collapsed{opacity:.55;}
 .frame.collapsed .frame-hide{color:#c00;}
 
-.frame-list{padding:6px 10px 8px 6px;min-height:8px;overflow-y:auto;}
+.frame-list{padding:6px 10px 8px 6px;min-height:8px;overflow-y:auto;} /* ★ FIX */
 .addRowBtn{
   margin:6px 0 8px 28px;background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
   padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;}
@@ -85,9 +85,10 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .frame[data-frame="1"]{border-left:4px solid var(--f-late);}
 .frame[data-frame="2"]{border-left:4px solid var(--f-lunch);}
 .frame[data-frame="3"]{border-left:4px solid var(--f-afternoon);}
-.frame[data-frame="4"]{border-left:4px solid var(--f-supper);}
-.frame[data-frame="5"]{border-left:4px solid var(--f-evening);}
-.frame[data-frame="6"]{border-left:4px solid var(--f-lateev);}
+.frame[data-frame="4"]{border-left:4px solid var(--f-afternoon);} /* ★ FIX – Night afternoon */
+.frame[data-frame="5"]{border-left:4px solid var(--f-supper);}
+.frame[data-frame="6"]{border-left:4px solid var(--f-evening);}
+.frame[data-frame="7"]{border-left:4px solid var(--f-lateev);}
 
 /* ------------- ROWS ------------- */
 .row{display:flex;align-items:center;margin:8px 0;padding:4px 6px 4px 0;
@@ -118,9 +119,10 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .row[data-frame="1"] input.stop{border-left:4px solid var(--f-late);     padding-left:6px;}
 .row[data-frame="2"] input.stop{border-left:4px solid var(--f-lunch);    padding-left:6px;}
 .row[data-frame="3"] input.stop{border-left:4px solid var(--f-afternoon);padding-left:6px;}
-.row[data-frame="4"] input.stop{border-left:4px solid var(--f-supper);   padding-left:6px;}
-.row[data-frame="5"] input.stop{border-left:4px solid var(--f-evening);  padding-left:6px;}
-.row[data-frame="6"] input.stop{border-left:4px solid var(--f-lateev);   padding-left:6px;}
+.row[data-frame="4"] input.stop{border-left:4px solid var(--f-afternoon);padding-left:6px;} /* ★ FIX */
+.row[data-frame="5"] input.stop{border-left:4px solid var(--f-supper);   padding-left:6px;}
+.row[data-frame="6"] input.stop{border-left:4px solid var(--f-evening);  padding-left:6px;}
+.row[data-frame="7"] input.stop{border-left:4px solid var(--f-lateev);   padding-left:6px;}
 
 .drag{cursor:grab;margin-left:6px;color:#666;font-size:22px;line-height:22px;padding:2px;border-radius:var(--radiusSm);transition:background var(--transFast);}
 .drag:hover{background:rgba(0,0,0,.08);} .drag:active{cursor:grabbing;}
@@ -285,9 +287,10 @@ const FRAMES=[
   {id:1,key:'late',      name:'AM Late',      start:'09:00', end:'11:00',  color:'var(--f-late)',      shift:'day'},
   {id:2,key:'lunch',     name:'Lunch',        start:'11:00', end:'13:00',  color:'var(--f-lunch)',     shift:'day'},
   {id:3,key:'afternoon', name:'Afternoon',    start:'13:30', end:'15:30',  color:'var(--f-afternoon)', shift:'day'},
-  {id:4,key:'supper',    name:'Supper',       start:'16:00', end:'18:30',  color:'var(--f-supper)',    shift:'night'},
-  {id:5,key:'evening',   name:'Evening',      start:'18:30', end:'21:00',  color:'var(--f-evening)',   shift:'night'},
-  {id:6,key:'lateev',    name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--f-lateev)',    shift:'night'}
+  {id:4,key:'aftNight',  name:'Afternoon',    start:'13:30', end:'16:00',  color:'var(--f-afternoon)', shift:'night'},/* ★ FIX */
+  {id:5,key:'supper',    name:'Supper',       start:'16:00', end:'18:30',  color:'var(--f-supper)',    shift:'night'},
+  {id:6,key:'evening',   name:'Evening',      start:'18:30', end:'21:00',  color:'var(--f-evening)',   shift:'night'},
+  {id:7,key:'lateev',    name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--f-lateev)',    shift:'night'}
 ];
 const SHIFTS={ day:{start:'07:00',end:'15:30'}, night:{start:'13:30',end:'22:30'} };
 
@@ -326,9 +329,9 @@ function geocodeSmart(text){
       }else geoFallback();
     });
     function geoFallback(){
-      geocoder.geocode({address:`${cleaned}, BC, Canada`,componentRestrictions:{country:'ca'}},
-      (r,s)=>{
-        if(s==='OK'&&r[0]){
+         geocoder.geocode({address: `${cleaned}, BC, Canada`, componentRestrictions:{country:'ca'}},
+    (r,s)=>{
+      if(s==='OK' && r[0]){
           const loc=r[0].geometry.location;
           res({lat:loc.lat(),lng:loc.lng(),formatted:r[0].formatted_address});
         }else res(null);
@@ -363,8 +366,7 @@ const clearPreviewPins=()=>{previewPins.forEach(m=>m.setMap(null));previewPins=[
 const addPreviewPin=(pos,label)=>previewPins.push(new google.maps.Marker({map,position:pos,label:{text:label,color:'#fff'}}));
 const clearLegDisplays=()=>document.querySelectorAll('.leg-display').forEach(e=>e.remove());
 const markRowFocus=(input,focus)=>{const row=input.closest('.row');if(!row)return;row.classList.toggle('focused',focus);};
-function safeFocus(el){ if(!AUTO_FOCUS_ENABLED || !el || userHasFocusedOnce) return; requestAnimationFrame(()=>el.focus());        // ★ FIX
-}
+function safeFocus(el){ if(!AUTO_FOCUS_ENABLED || !el || userHasFocusedOnce) return;  requestAnimationFrame(()=>el.focus()); }
 
 /* ------------ OUR MARKERS ------------ */
 function clearRouteMarkers(){routeMarkers.forEach(m=>m.setMap(null));routeMarkers=[];}
@@ -629,7 +631,7 @@ async function optimizeByFrames(){
   const msg=document.getElementById('msg'); msg.textContent='Optimizing by frames…';
   clearLegDisplays();
   const visFrames=FRAMES.filter(f=>{
-    const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
+   const sec = document.querySelector(`.frame[data-frame="${f.id}"]`);
     return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) && !sec.classList.contains('collapsed');
   });
   for(const fr of visFrames){
@@ -657,13 +659,14 @@ function displayLegs(res,stat){
     kmTot+=km;minTot+=min;
     const startLetter=rows[i]?.querySelector('.bullet')?.textContent.trim()||'';
     const cls=colourCycle.includes(startLetter)?('leg-'+startLetter):'leg-default';
-    const div=document.createElement('div');div.className='leg-display '+cls;
-    div.textContent=`Distance ${km.toFixed(1)} km | ≈ ${min} min`;
-    rows[i].after(div);
+          const div = document.createElement('div'); div.className = 'leg-display ' + cls;
+      div.textContent = `Distance ${km.toFixed(1)} km | ≈ ${min} min`;
+          rows[i].after(div);
   });
-  const text=`Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
-  msg.textContent=text; flatMsg.textContent=text;
+  const text = `Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
+  msg.textContent = text;  flatMsg.textContent = text;
 }
+
 
 /* ------------ FRAMES / ROW CREATION ------------ */
 function buildFrameBuckets(){
@@ -674,8 +677,8 @@ function buildFrameBuckets(){
 
     const head=document.createElement('div');
     head.className='frame-header';
-    head.innerHTML=`<span class="swatch" style="background:${fr.color}"></span>${fr.name}`;
-    const hideBtn=document.createElement('span');
+    head.innerHTML = `<span class="swatch" style="background:${fr.color}"></span>${fr.name}`;
+    const hideBtn = document.createElement('span');
     hideBtn.className='material-icons frame-hide';hideBtn.title='Hide / show this time frame';
     hideBtn.textContent='visibility_off';
     hideBtn.onclick=()=>toggleFrame(fr.id);
@@ -714,11 +717,11 @@ const getFrameListById=id=>document.getElementById('frame-'+id);
 function makeRow(i,frameId){
   const d=document.createElement('div');
   d.className='row'; d.dataset.frame=frameId;
-  d.innerHTML=`
-    <div class="bullet defaultBullet">A</div>
-    <input class="stop" placeholder="Enter stop" autocomplete="off" autocorrect="off" spellcheck="false">
-    <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
-    <span class="remove" title="Remove stop">×</span>`;
+ d.innerHTML = `
+  <div class="bullet defaultBullet">A</div>
+  <input class="stop" placeholder="Enter stop" autocomplete="off" autocorrect="off" spellcheck="false">
+  <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
+  <span class="remove" title="Remove stop">×</span>`;
   d.querySelector('.remove').onclick=()=>{d.remove();renumber();autoCompute();buildTimelineFromDOM();showDelButtonsIfNeeded();};
   d.addEventListener('click',rowClickSelect);
   return d;
@@ -757,7 +760,9 @@ function ensurePlaceholdersForFrame(frameId){
 }
 function ensureAllFramesHaveBaseline(){
   FRAMES.forEach(fr=>{
-    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
+    const sec = document.querySelector(
+  `.frame[data-frame="${fr.id}"]`
+);
     if(sec && !sec.classList.contains('collapsed') && sec.style.display!=='none')
       ensurePlaceholdersForFrame(fr.id);
   });
@@ -766,7 +771,7 @@ function getOrderedRows(includeHidden=false){
   if(flatMode) return [...document.querySelectorAll('#addrList .row')].filter(r=>r.querySelector('.stop').value.trim());
   const rows=[];
   FRAMES.forEach(f=>{
-    const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
+    const sec = document.querySelector(`.frame[data-frame="${f.id}"]`);
     const vis=(f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)||includeHidden;
     if(!vis) return;
     if(sec.classList.contains('collapsed') && !includeHidden) return;
@@ -775,7 +780,9 @@ function getOrderedRows(includeHidden=false){
   return rows.filter(r=>r.querySelector('.stop').value.trim());
 }
 function toggleFrame(id){
-  const sec=document.querySelector(`.frame[data-frame="${id}"]`);
+const sec = document.querySelector(
+  `.frame[data-frame="${f.id}"]`
+);
   sec.classList.toggle('collapsed');
   renumber();autoCompute();buildTimelineFromDOM();
 }
@@ -863,15 +870,18 @@ const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);}
 const pad=n=>n.toString().padStart(2,'0');
 
 function buildTimelineFromDOM(){
-  setFrameHeights(); 
   const tl=document.getElementById('timeline'); tl.innerHTML=''; if(flatMode) return;
   const visibleFrames=FRAMES.filter(f=>{
-    const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
+    const sec = document.querySelector(`.frame[data-frame="${f.id}"]`);
     return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) && !sec.classList.contains('collapsed');
   });
   if(!visibleFrames.length) return;
-  const firstFrame=document.querySelector(`.frame[data-frame="${visibleFrames[0].id}"]`);
-  const lastFrame =document.querySelector(`.frame[data-frame="${visibleFrames[visibleFrames.length-1].id}"]`);
+  const firstFrame = document.querySelector(
+  `.frame[data-frame="${visibleFrames[0].id}"]`
+);
+const lastFrame  = document.querySelector(
+  `.frame[data-frame="${visibleFrames[visibleFrames.length-1].id}"]`
+);
   if(!firstFrame||!lastFrame) return;
   const topY=firstFrame.offsetTop;
   const bottomY=lastFrame.offsetTop+lastFrame.offsetHeight;
@@ -885,13 +895,22 @@ function buildTimelineFromDOM(){
     if(shift==='night'&&!nightVisible) return;
     const fInShift=visibleFrames.filter(f=>f.shift===shift); if(!fInShift.length) return;
     const s=parseHM(SHIFTS[shift].start), e=parseHM(SHIFTS[shift].end);
-    const sTop=document.querySelector(`.frame[data-frame="${fInShift[0].id}"]`).offsetTop;
-    const eBot=(()=>{const lf=fInShift[fInShift.length-1];const dom=document.querySelector(`.frame[data-frame="${lf.id}"]`);return dom.offsetTop+dom.offsetHeight;})();
+   const sTop = document
+  .querySelector(`.frame[data-frame="${fInShift[0].id}"]`)
+  .offsetTop;
+
+const eBot = (() => {
+  const lf  = fInShift[fInShift.length - 1];
+  const dom = document.querySelector(
+    `.frame[data-frame="${lf.id}"]`
+  );
+  return dom.offsetTop + dom.offsetHeight;
+})();
     const pxSpan=eBot-sTop, minSpan=e-s, pxPerMin=pxSpan/minSpan;
     for(let t=s;t<=e;t+=30){addTick(t,sTop+(t-s)*pxPerMin, t%60===0);}
     if((e-s)%30!==0) addTick(e,sTop+(e-s)*pxPerMin,true);
     fInShift.forEach(fr=>{
-      const dom=document.querySelector(`.frame[data-frame="${fr.id}"]`);
+      const dom=document.querySelector(.frame[data-frame="${fr.id}"]);
       const seg=document.createElement('div');seg.className='tl-seg';seg.style.background=fr.color;
       seg.style.top=dom.offsetTop+'px';seg.style.height=dom.offsetHeight+'px';tl.appendChild(seg);
     });
@@ -901,7 +920,7 @@ function buildTimelineFromDOM(){
   });
   function addTick(totalMins,y,bold=false){
     const tick=document.createElement('div');tick.className='tl-tick'+(bold?' bold':'');tick.style.top=y+'px';
-    const lbl=document.createElement('div');lbl.className='tl-label';lbl.textContent=`${pad(Math.floor(totalMins/60))}:${pad(totalMins%60)}`;
+    const lbl=document.createElement('div');lbl.className='tl-label';lbl.textContent = `${pad(Math.floor(totalMins/60))}:${pad(totalMins%60)}`;
     lbl.style.top='-6px';tick.appendChild(lbl);tl.appendChild(tick);
   }
 }
@@ -914,7 +933,9 @@ function toggleShift(which){
 }
 function applyShiftVisibility(){
   FRAMES.forEach(fr=>{
-    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
+    const sec = document.querySelector(
+  `.frame[data-frame="${id}"]`
+);
     const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
     sec.style.display=vis?'block':'none';
   });
@@ -924,7 +945,12 @@ function applyShiftVisibility(){
     exitFlatMode();
     FRAMES.forEach(fr=>{
       const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
-      if(vis && !document.querySelector(`.frame[data-frame="${fr.id}"]`).classList.contains('collapsed'))
+     if (
+  vis &&
+  !document
+    .querySelector(`.frame[data-frame="${fr.id}"]`)
+    .classList.contains('collapsed')
+)
         ensurePlaceholdersForFrame(fr.id);
     });
   }
