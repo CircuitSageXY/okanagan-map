@@ -329,9 +329,9 @@ function geocodeSmart(text){
       }else geoFallback();
     });
     function geoFallback(){
-      geocoder.geocode({address:${cleaned}, BC, Canada,componentRestrictions:{country:'ca'}},
-      (r,s)=>{
-        if(s==='OK'&&r[0]){
+         geocoder.geocode({address: `${cleaned}, BC, Canada`, componentRestrictions:{country:'ca'}},
+    (r,s)=>{
+      if(s==='OK' && r[0]){
           const loc=r[0].geometry.location;
           res({lat:loc.lat(),lng:loc.lng(),formatted:r[0].formatted_address});
         }else res(null);
@@ -659,13 +659,14 @@ function displayLegs(res,stat){
     kmTot+=km;minTot+=min;
     const startLetter=rows[i]?.querySelector('.bullet')?.textContent.trim()||'';
     const cls=colourCycle.includes(startLetter)?('leg-'+startLetter):'leg-default';
-    const div=document.createElement('div');div.className='leg-display '+cls;
-    div.textContent=Distance ${km.toFixed(1)} km | ≈ ${min} min;
-    rows[i].after(div);
+          const div = document.createElement('div'); div.className = 'leg-display ' + cls;
+      div.textContent = `Distance ${km.toFixed(1)} km | ≈ ${min} min`;
+      rows[i].after(div);
   });
-  const text=Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min;
-  msg.textContent=text; flatMsg.textContent=text;
-}
+      const text = `Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
+    msg.textContent = text; flatMsg.textContent = text;
+  }
+
 
 /* ------------ FRAMES / ROW CREATION ------------ */
 function buildFrameBuckets(){
@@ -676,8 +677,8 @@ function buildFrameBuckets(){
 
     const head=document.createElement('div');
     head.className='frame-header';
-    head.innerHTML=<span class="swatch" style="background:${fr.color}"></span>${fr.name};
-    const hideBtn=document.createElement('span');
+    head.innerHTML = `<span class="swatch" style="background:${fr.color}"></span>${fr.name}`;
+    const hideBtn = document.createElement('span');
     hideBtn.className='material-icons frame-hide';hideBtn.title='Hide / show this time frame';
     hideBtn.textContent='visibility_off';
     hideBtn.onclick=()=>toggleFrame(fr.id);
@@ -716,7 +717,7 @@ const getFrameListById=id=>document.getElementById('frame-'+id);
 function makeRow(i,frameId){
   const d=document.createElement('div');
   d.className='row'; d.dataset.frame=frameId;
-  d.innerHTML=
+ d.innerHTML = `
     <div class="bullet defaultBullet">A</div>
     <input class="stop" placeholder="Enter stop" autocomplete="off" autocorrect="off" spellcheck="false">
     <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
