@@ -760,9 +760,7 @@ function ensurePlaceholdersForFrame(frameId){
 }
 function ensureAllFramesHaveBaseline(){
   FRAMES.forEach(fr=>{
-    const sec = document.querySelector(
-  `.frame[data-frame="${fr.id}"]`
-);
+    const sec=document.querySelector(.frame[data-frame="${fr.id}"]);
     if(sec && !sec.classList.contains('collapsed') && sec.style.display!=='none')
       ensurePlaceholdersForFrame(fr.id);
   });
@@ -780,9 +778,7 @@ function getOrderedRows(includeHidden=false){
   return rows.filter(r=>r.querySelector('.stop').value.trim());
 }
 function toggleFrame(id){
-const sec = document.querySelector(
-  `.frame[data-frame="${f.id}"]`
-);
+  const sec=document.querySelector(.frame[data-frame="${id}"]);
   sec.classList.toggle('collapsed');
   renumber();autoCompute();buildTimelineFromDOM();
 }
@@ -876,11 +872,11 @@ function buildTimelineFromDOM(){
     return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) && !sec.classList.contains('collapsed');
   });
   if(!visibleFrames.length) return;
-  const firstFrame = document.querySelector(
+ const firstFrame = document.querySelector(
   `.frame[data-frame="${visibleFrames[0].id}"]`
 );
 const lastFrame  = document.querySelector(
-  `.frame[data-frame="${visibleFrames[visibleFrames.length-1].id}"]`
+  `.frame[data-frame="${visibleFrames[visibleFrames.length - 1].id}"]`
 );
   if(!firstFrame||!lastFrame) return;
   const topY=firstFrame.offsetTop;
@@ -895,17 +891,8 @@ const lastFrame  = document.querySelector(
     if(shift==='night'&&!nightVisible) return;
     const fInShift=visibleFrames.filter(f=>f.shift===shift); if(!fInShift.length) return;
     const s=parseHM(SHIFTS[shift].start), e=parseHM(SHIFTS[shift].end);
-   const sTop = document
-  .querySelector(`.frame[data-frame="${fInShift[0].id}"]`)
-  .offsetTop;
-
-const eBot = (() => {
-  const lf  = fInShift[fInShift.length - 1];
-  const dom = document.querySelector(
-    `.frame[data-frame="${lf.id}"]`
-  );
-  return dom.offsetTop + dom.offsetHeight;
-})();
+    const sTop=document.querySelector(.frame[data-frame="${fInShift[0].id}"]).offsetTop;
+    const eBot=(()=>{const lf=fInShift[fInShift.length-1];const dom=document.querySelector(.frame[data-frame="${lf.id}"]);return dom.offsetTop+dom.offsetHeight;})();
     const pxSpan=eBot-sTop, minSpan=e-s, pxPerMin=pxSpan/minSpan;
     for(let t=s;t<=e;t+=30){addTick(t,sTop+(t-s)*pxPerMin, t%60===0);}
     if((e-s)%30!==0) addTick(e,sTop+(e-s)*pxPerMin,true);
@@ -933,9 +920,7 @@ function toggleShift(which){
 }
 function applyShiftVisibility(){
   FRAMES.forEach(fr=>{
-    const sec = document.querySelector(
-  `.frame[data-frame="${id}"]`
-);
+    const sec=document.querySelector(.frame[data-frame="${fr.id}"]);
     const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
     sec.style.display=vis?'block':'none';
   });
@@ -945,12 +930,7 @@ function applyShiftVisibility(){
     exitFlatMode();
     FRAMES.forEach(fr=>{
       const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
-     if (
-  vis &&
-  !document
-    .querySelector(`.frame[data-frame="${fr.id}"]`)
-    .classList.contains('collapsed')
-)
+      if(vis && !document.querySelector(.frame[data-frame="${fr.id}"]).classList.contains('collapsed'))
         ensurePlaceholdersForFrame(fr.id);
     });
   }
