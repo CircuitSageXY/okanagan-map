@@ -75,7 +75,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .frame.collapsed{opacity:.55;}
 .frame.collapsed .frame-hide{color:#c00;}
 
-.frame-list{padding:6px 10px 8px 6px;min-height:8px;}
+.frame-list{padding:6px 10px 8px 6px;min-height:8px;overflow-y:auto;} /* ★ FIX */
 .addRowBtn{
   margin:6px 0 8px 28px;background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
   padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;}
@@ -85,9 +85,10 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .frame[data-frame="1"]{border-left:4px solid var(--f-late);}
 .frame[data-frame="2"]{border-left:4px solid var(--f-lunch);}
 .frame[data-frame="3"]{border-left:4px solid var(--f-afternoon);}
-.frame[data-frame="4"]{border-left:4px solid var(--f-supper);}
-.frame[data-frame="5"]{border-left:4px solid var(--f-evening);}
-.frame[data-frame="6"]{border-left:4px solid var(--f-lateev);}
+.frame[data-frame="4"]{border-left:4px solid var(--f-afternoon);} /* ★ FIX – Night afternoon */
+.frame[data-frame="5"]{border-left:4px solid var(--f-supper);}
+.frame[data-frame="6"]{border-left:4px solid var(--f-evening);}
+.frame[data-frame="7"]{border-left:4px solid var(--f-lateev);}
 
 /* ------------- ROWS ------------- */
 .row{display:flex;align-items:center;margin:8px 0;padding:4px 6px 4px 0;
@@ -118,9 +119,10 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .row[data-frame="1"] input.stop{border-left:4px solid var(--f-late);     padding-left:6px;}
 .row[data-frame="2"] input.stop{border-left:4px solid var(--f-lunch);    padding-left:6px;}
 .row[data-frame="3"] input.stop{border-left:4px solid var(--f-afternoon);padding-left:6px;}
-.row[data-frame="4"] input.stop{border-left:4px solid var(--f-supper);   padding-left:6px;}
-.row[data-frame="5"] input.stop{border-left:4px solid var(--f-evening);  padding-left:6px;}
-.row[data-frame="6"] input.stop{border-left:4px solid var(--f-lateev);   padding-left:6px;}
+.row[data-frame="4"] input.stop{border-left:4px solid var(--f-afternoon);padding-left:6px;} /* ★ FIX */
+.row[data-frame="5"] input.stop{border-left:4px solid var(--f-supper);   padding-left:6px;}
+.row[data-frame="6"] input.stop{border-left:4px solid var(--f-evening);  padding-left:6px;}
+.row[data-frame="7"] input.stop{border-left:4px solid var(--f-lateev);   padding-left:6px;}
 
 .drag{cursor:grab;margin-left:6px;color:#666;font-size:22px;line-height:22px;padding:2px;border-radius:var(--radiusSm);transition:background var(--transFast);}
 .drag:hover{background:rgba(0,0,0,.08);} .drag:active{cursor:grabbing;}
@@ -285,9 +287,10 @@ const FRAMES=[
   {id:1,key:'late',      name:'AM Late',      start:'09:00', end:'11:00',  color:'var(--f-late)',      shift:'day'},
   {id:2,key:'lunch',     name:'Lunch',        start:'11:00', end:'13:00',  color:'var(--f-lunch)',     shift:'day'},
   {id:3,key:'afternoon', name:'Afternoon',    start:'13:30', end:'15:30',  color:'var(--f-afternoon)', shift:'day'},
-  {id:4,key:'supper',    name:'Supper',       start:'16:00', end:'18:30',  color:'var(--f-supper)',    shift:'night'},
-  {id:5,key:'evening',   name:'Evening',      start:'18:30', end:'21:00',  color:'var(--f-evening)',   shift:'night'},
-  {id:6,key:'lateev',    name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--f-lateev)',    shift:'night'}
+  {id:4,key:'aftNight',  name:'Afternoon',    start:'13:30', end:'16:00',  color:'var(--f-afternoon)', shift:'night'},/* ★ FIX */
+  {id:5,key:'supper',    name:'Supper',       start:'16:00', end:'18:30',  color:'var(--f-supper)',    shift:'night'},
+  {id:6,key:'evening',   name:'Evening',      start:'18:30', end:'21:00',  color:'var(--f-evening)',   shift:'night'},
+  {id:7,key:'lateev',    name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--f-lateev)',    shift:'night'}
 ];
 const SHIFTS={ day:{start:'07:00',end:'15:30'}, night:{start:'13:30',end:'22:30'} };
 
@@ -363,7 +366,7 @@ const clearPreviewPins=()=>{previewPins.forEach(m=>m.setMap(null));previewPins=[
 const addPreviewPin=(pos,label)=>previewPins.push(new google.maps.Marker({map,position:pos,label:{text:label,color:'#fff'}}));
 const clearLegDisplays=()=>document.querySelectorAll('.leg-display').forEach(e=>e.remove());
 const markRowFocus=(input,focus)=>{const row=input.closest('.row');if(!row)return;row.classList.toggle('focused',focus);};
-function safeFocus(el){ if(!AUTO_FOCUS_ENABLED || !el || userHasFocusedOnce) return; el.focus(); }
+function safeFocus(el){ if(!AUTO_FOCUS_ENABLED || !el || userHasFocusedOnce) return;  requestAnimationFrame(()=>el.focus()); }
 
 /* ------------ OUR MARKERS ------------ */
 function clearRouteMarkers(){routeMarkers.forEach(m=>m.setMap(null));routeMarkers=[];}
