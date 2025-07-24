@@ -631,7 +631,7 @@ async function optimizeByFrames(){
   const msg=document.getElementById('msg'); msg.textContent='Optimizing by frames…';
   clearLegDisplays();
   const visFrames=FRAMES.filter(f=>{
-    const sec=document.querySelector(.frame[data-frame="${f.id}"]);
+   const sec = document.querySelector(`.frame[data-frame="${f.id}"]`);
     return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) && !sec.classList.contains('collapsed');
   });
   for(const fr of visFrames){
@@ -661,11 +661,11 @@ function displayLegs(res,stat){
     const cls=colourCycle.includes(startLetter)?('leg-'+startLetter):'leg-default';
           const div = document.createElement('div'); div.className = 'leg-display ' + cls;
       div.textContent = `Distance ${km.toFixed(1)} km | ≈ ${min} min`;
-      rows[i].after(div);
+          rows[i].after(div);
   });
-      const text = `Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
-    msg.textContent = text; flatMsg.textContent = text;
-  }
+  const text = `Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
+  msg.textContent = text;  flatMsg.textContent = text;
+}
 
 
 /* ------------ FRAMES / ROW CREATION ------------ */
@@ -718,10 +718,10 @@ function makeRow(i,frameId){
   const d=document.createElement('div');
   d.className='row'; d.dataset.frame=frameId;
  d.innerHTML = `
-    <div class="bullet defaultBullet">A</div>
-    <input class="stop" placeholder="Enter stop" autocomplete="off" autocorrect="off" spellcheck="false">
-    <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
-    <span class="remove" title="Remove stop">×</span>;
+  <div class="bullet defaultBullet">A</div>
+  <input class="stop" placeholder="Enter stop" autocomplete="off" autocorrect="off" spellcheck="false">
+  <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
+  <span class="remove" title="Remove stop">×</span>`;
   d.querySelector('.remove').onclick=()=>{d.remove();renumber();autoCompute();buildTimelineFromDOM();showDelButtonsIfNeeded();};
   d.addEventListener('click',rowClickSelect);
   return d;
@@ -769,7 +769,7 @@ function getOrderedRows(includeHidden=false){
   if(flatMode) return [...document.querySelectorAll('#addrList .row')].filter(r=>r.querySelector('.stop').value.trim());
   const rows=[];
   FRAMES.forEach(f=>{
-    const sec=document.querySelector(.frame[data-frame="${f.id}"]);
+    const sec = document.querySelector(`.frame[data-frame="${f.id}"]`);
     const vis=(f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)||includeHidden;
     if(!vis) return;
     if(sec.classList.contains('collapsed') && !includeHidden) return;
@@ -868,7 +868,7 @@ const pad=n=>n.toString().padStart(2,'0');
 function buildTimelineFromDOM(){
   const tl=document.getElementById('timeline'); tl.innerHTML=''; if(flatMode) return;
   const visibleFrames=FRAMES.filter(f=>{
-    const sec=document.querySelector(.frame[data-frame="${f.id}"]);
+    const sec = document.querySelector(`.frame[data-frame="${f.id}"]`);
     return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) && !sec.classList.contains('collapsed');
   });
   if(!visibleFrames.length) return;
@@ -903,7 +903,7 @@ function buildTimelineFromDOM(){
   });
   function addTick(totalMins,y,bold=false){
     const tick=document.createElement('div');tick.className='tl-tick'+(bold?' bold':'');tick.style.top=y+'px';
-    const lbl=document.createElement('div');lbl.className='tl-label';lbl.textContent=${pad(Math.floor(totalMins/60))}:${pad(totalMins%60)};
+    const lbl=document.createElement('div');lbl.className='tl-label';lbl.textContent = `${pad(Math.floor(totalMins/60))}:${pad(totalMins%60)}`;
     lbl.style.top='-6px';tick.appendChild(lbl);tl.appendChild(tick);
   }
 }
