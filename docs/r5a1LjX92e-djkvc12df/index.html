@@ -265,8 +265,10 @@ const AUTO_FOCUS_ENABLED = false;
 let map,dirSvc,dirRend,geocoder,acService,placeSvc;
 let previewPins=[],routeMarkers=[];
 let autoTimer=null,routeVersion=0;
-let dayVisible=true,nightVisible=false,flatMode=false;   // <<< start with day only
-let userHasFocusedOnce=false;
+let dayVisible   = false;   // declare, don't use yet
+let nightVisible = false;
+let flatMode     = false;
+let userHasFocusedOnce = false;
 
 /* ---------- FRAME DEFINITIONS ---------- */
 const FRAMES=[
@@ -991,7 +993,11 @@ window.routePlannerInit=()=>{
   buildFrameBuckets();
   buildTimelineFromDOM();
   buildAddrBar();
-  applyShiftVisibility(); // uses default dayVisible=true
+  // Force startup in flat view
+  dayVisible = false;
+  nightVisible = false;
+  applyShiftVisibility();   // this will enter flat mode
+  focusFirstInput(true);    // caret in first field (A)
 
   /* buttons */
   document.getElementById('route').onclick=rebuildRoute;
@@ -1002,33 +1008,32 @@ window.routePlannerInit=()=>{
   document.getElementById('flatOpt').onclick=globalOptimizeRoute;
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
-  /* street view */
-  const sv=map.getStreetView();
-  sv.addListener('visible_changed',()=>document.getElementById('svBack').style.display=sv.getVisible()?'block':'none');
-  document.getElementById('svBack').onclick=()=>sv.setVisible(false);
+/* street view */
+const sv = map.getStreetView();
+sv.addListener('visible_changed', () =>
+  document.getElementById('svBack').style.display = sv.getVisible() ? 'block' : 'none'
+);
+document.getElementById('svBack').onclick = () => sv.setVisible(false);
 
-  /* shortcuts */
- /* Global shortcuts – ALWAYS catch F1/F2 */
-window.addEventListener('keydown', e=>{
-  if(e.key === 'F1'){
-    e.preventDefault(); e.stopPropagation();
-    toggleShift('day');
-    return false;
+/* ----------------- GLOBAL SHORTCUTS (F1/F2/F3) ----------------- */
+function handleFunctionKeys(e){
+  const k = e.key;
+  if(k === 'F1' || k === 'F2' || k === 'F3'){
+    e.preventDefault();               // block Edge help, etc.
+    e.stopImmediatePropagation();     // stop other listeners
+    if(k === 'F1')      toggleShift('day');
+    else if(k === 'F2') toggleShift('night');
+    else                clearAllStops();
   }
-  if(e.key === 'F2'){
-    e.preventDefault(); e.stopPropagation();
-    toggleShift('night');
-    return false;
-  }
-  if(e.key === 'F3'){
-    e.preventDefault(); e.stopPropagation();
-    clearAllStops();
-    return false;
-  }
-});
+}
 
-  if(window.__mapsApiReady){/* no-op, just symmetry */}
-};
+window.addEventListener('keydown', handleFunctionKeys, {capture:true, passive:false});
+window.addEventListener('keyup',   handleFunctionKeys, {capture:true, passive:false}); // Edge sometimes fires help on keyup
+window.onhelp = () => false;  // legacy fallback (IE/old Edge)
+
+// keep this if you had it:
+if(window.__mapsApiReady){ /* no-op */ }
+}; //
 
 /* ====================================================================== */
 </script>
