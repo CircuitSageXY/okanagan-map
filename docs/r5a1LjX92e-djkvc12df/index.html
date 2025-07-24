@@ -266,6 +266,7 @@ let map,dirSvc,dirRend,geocoder,acService,placeSvc;
 let previewPins=[],routeMarkers=[];
 let autoTimer=null,routeVersion=0;
 let dayVisible=true,nightVisible=false,flatMode=false;   // <<< start with day only
+applyShiftVisibility();   // this will call enterFlatMode() and then focus A
 let userHasFocusedOnce=false;
 
 /* ---------- FRAME DEFINITIONS ---------- */
@@ -280,6 +281,38 @@ const FRAMES=[
   {id:7,key:'lateev',    name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--f-lateev)',    shift:'night'}
 ];
 const SHIFTS={ day:{start:'07:00',end:'15:30'}, night:{start:'13:30',end:'22:30'} };
+  
+/* ---------------- FOCUS CONTROL ---------------- */
+let initialFocusDone = false;    // focus first box only once per load
+let focusIsMuted     = false;    // pause focusing while DOM is being reshuffled
+
+function safeFocus(el){
+  if(!el || focusIsMuted) return;
+  requestAnimationFrame(()=>{
+    try{
+      el.focus({ preventScroll: true });
+      // place caret at end (harmless for empty inputs)
+      if (el.setSelectionRange) {
+        const len = el.value.length;
+        el.setSelectionRange(len, len);
+      }
+    }catch(_){}
+  });
+}
+
+function focusFirstInput(force = false){
+  if(force) initialFocusDone = false;
+  if(initialFocusDone) return;
+
+  // Prefer the flat list if it's visible, otherwise first .stop anywhere
+  const first = document.querySelector('#addrList input.stop') ||
+                document.querySelector('input.stop');
+
+  if(first){
+    initialFocusDone = true;
+    safeFocus(first);
+  }
+}
 
 /* ---------- UTILS ---------- */
 const mins=(h,m)=>h*60+m;
@@ -607,25 +640,33 @@ function toggleShift(which){
 }
 
 function applyShiftVisibility(){
+  focusIsMuted = true;        // << freeze any programmatic focus
+
   FRAMES.forEach(fr=>{
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
     const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
     sec.style.display=vis?'block':'none';
   });
 
-  if(!dayVisible && !nightVisible){ enterFlatMode(); }
-  else{
+  if(!dayVisible && !nightVisible){
+    enterFlatMode();
+  }else{
     exitFlatMode();
-    FRAMES.forEach(fr=>ensurePlaceholdersForFrame(fr.id));
+    FRAMES.forEach(fr=>{
+      const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
+      if(vis && !document.querySelector(`.frame[data-frame="${fr.id}"]`).classList.contains('collapsed'))
+        ensurePlaceholdersForFrame(fr.id);
+    });
   }
 
-  document.getElementById('toggleDay').classList.toggle('active',dayVisible);
-  document.getElementById('toggleNight').classList.toggle('active',nightVisible);
-  document.getElementById('optFrames').style.display=(!flatMode && (dayVisible||nightVisible))?'inline-block':'none';
-
+  updateToggleChips();
+  updateButtons();
   buildTimelineFromDOM();
   renumber();
   autoCompute();
+
+  focusIsMuted = false;        // << thaw focus
+  if(flatMode) focusFirstInput(); // restore caret to A if we’re in flat mode
 }
 
 /* Flat bar setup */
@@ -661,6 +702,7 @@ function enterFlatMode(){
   for(let i=blanks;i<INITIAL_FLAT_ROWS;i++) addRowToAddrBar(false);
 
   renumber();buildTimelineFromDOM();showDeleteBtns();
+  focusFirstInput(true);   // make sure A is focused when we land in flat view
 }
 
 function exitFlatMode(){
@@ -968,12 +1010,24 @@ window.routePlannerInit=()=>{
   document.getElementById('svBack').onclick=()=>sv.setVisible(false);
 
   /* shortcuts */
-  window.addEventListener('keydown',e=>{
-    if(['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
-    if(e.key==='F1'){e.preventDefault();toggleShift('day');}
-    if(e.key==='F2'){e.preventDefault();toggleShift('night');}
-    if(e.key==='F3'){e.preventDefault();clearAllStops();}
-  });
+ /* Global shortcuts – ALWAYS catch F1/F2 */
+window.addEventListener('keydown', e=>{
+  if(e.key === 'F1'){
+    e.preventDefault(); e.stopPropagation();
+    toggleShift('day');
+    return false;
+  }
+  if(e.key === 'F2'){
+    e.preventDefault(); e.stopPropagation();
+    toggleShift('night');
+    return false;
+  }
+  if(e.key === 'F3'){
+    e.preventDefault(); e.stopPropagation();
+    clearAllStops();
+    return false;
+  }
+});
 
   if(window.__mapsApiReady){/* no-op, just symmetry */}
 };
