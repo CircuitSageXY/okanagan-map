@@ -75,7 +75,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .frame.collapsed{opacity:.55;}
 .frame.collapsed .frame-hide{color:#c00;}
 
-.frame-list{padding:6px 10px 8px 6px;min-height:8px;}
+.frame-list{padding:6px 10px 8px 6px;min-height:8px;overflow-y:auto;}
 .addRowBtn{
   margin:6px 0 8px 28px;background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
   padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;}
@@ -363,7 +363,8 @@ const clearPreviewPins=()=>{previewPins.forEach(m=>m.setMap(null));previewPins=[
 const addPreviewPin=(pos,label)=>previewPins.push(new google.maps.Marker({map,position:pos,label:{text:label,color:'#fff'}}));
 const clearLegDisplays=()=>document.querySelectorAll('.leg-display').forEach(e=>e.remove());
 const markRowFocus=(input,focus)=>{const row=input.closest('.row');if(!row)return;row.classList.toggle('focused',focus);};
-function safeFocus(el){ if(!AUTO_FOCUS_ENABLED || !el || userHasFocusedOnce) return; el.focus(); }
+function safeFocus(el){ if(!AUTO_FOCUS_ENABLED || !el || userHasFocusedOnce) return; requestAnimationFrame(()=>el.focus());        // ★ FIX
+}
 
 /* ------------ OUR MARKERS ------------ */
 function clearRouteMarkers(){routeMarkers.forEach(m=>m.setMap(null));routeMarkers=[];}
@@ -862,6 +863,7 @@ const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);}
 const pad=n=>n.toString().padStart(2,'0');
 
 function buildTimelineFromDOM(){
+  setFrameHeights(); 
   const tl=document.getElementById('timeline'); tl.innerHTML=''; if(flatMode) return;
   const visibleFrames=FRAMES.filter(f=>{
     const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
