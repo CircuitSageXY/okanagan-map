@@ -266,7 +266,6 @@ let map,dirSvc,dirRend,geocoder,acService,placeSvc;
 let previewPins=[],routeMarkers=[];
 let autoTimer=null,routeVersion=0;
 let dayVisible=true,nightVisible=false,flatMode=false;   // <<< start with day only
-applyShiftVisibility();   // this will call enterFlatMode() and then focus A
 let userHasFocusedOnce=false;
 
 /* ---------- FRAME DEFINITIONS ---------- */
@@ -319,7 +318,6 @@ const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);};
 const pad=n=>n.toString().padStart(2,'0');
 function idxToLabel(i){let s='',n=i+1;while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;}
-function safeFocus(el){try{el.focus();}catch(_){/* noop */}}
 function rowToLocation(row){
   const inp=row.querySelector('.stop');
   return {lat:parseFloat(inp.dataset.lat),lng:parseFloat(inp.dataset.lng)};
