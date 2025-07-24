@@ -1008,32 +1008,44 @@ window.routePlannerInit=()=>{
   document.getElementById('flatOpt').onclick=globalOptimizeRoute;
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
-/* street view */
+/* ---------------- STREET VIEW ---------------- */
 const sv = map.getStreetView();
-sv.addListener('visible_changed', () =>
-  document.getElementById('svBack').style.display = sv.getVisible() ? 'block' : 'none'
-);
+sv.addListener('visible_changed', () => {
+  document.getElementById('svBack').style.display = sv.getVisible() ? 'block' : 'none';
+});
 document.getElementById('svBack').onclick = () => sv.setVisible(false);
 
-/* ----------------- GLOBAL SHORTCUTS (F1/F2/F3) ----------------- */
-function handleFunctionKeys(e){
-  const k = e.key;
-  if(k === 'F1' || k === 'F2' || k === 'F3'){
-    e.preventDefault();               // block Edge help, etc.
-    e.stopImmediatePropagation();     // stop other listeners
-    if(k === 'F1')      toggleShift('day');
-    else if(k === 'F2') toggleShift('night');
-    else                clearAllStops();
+/* ===================== FUNCTION KEYS (F1 / F2 / F3) ===================== */
+/* Put this AFTER toggleShift() and clearAllStops() are defined. Only once. */
+(function attachFunctionKeyTrap(){
+  function trap(e){
+    const k = e.key;
+    if (k === 'F1' || k === 'F2' || k === 'F3'){
+      // Kill browser default help / search, etc.
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      if (k === 'F1')      toggleShift('day');
+      else if (k === 'F2') toggleShift('night');
+      else                 clearAllStops();
+      return false;
+    }
   }
-}
+  // Capture so we see it before anyone else (including the browser)
+  window.addEventListener('keydown', trap, {capture:true, passive:false});
+  window.addEventListener('keyup',   trap, {capture:true, passive:false}); // Edge sometimes fires help on keyup
 
-window.addEventListener('keydown', handleFunctionKeys, {capture:true, passive:false});
-window.addEventListener('keyup',   handleFunctionKeys, {capture:true, passive:false}); // Edge sometimes fires help on keyup
-window.onhelp = () => false;  // legacy fallback (IE/old Edge)
+  // Legacy fallback (old Edge / IE)
+  document.onhelp = () => false;
+  window.onhelp   = () => false;
+})();
 
-// keep this if you had it:
+/* Keep this if you had it for completeness */
 if(window.__mapsApiReady){ /* no-op */ }
-}; //
+
+/* ----------- END routePlannerInit (if this is inside it) ----------- */
+// };// end routePlannerInit   <-- uncomment/keep ONLY if this block is inside routePlannerInit
 
 /* ====================================================================== */
 </script>
