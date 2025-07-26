@@ -29,12 +29,13 @@
   --tick-minor:#9e9e9e; --tick-major:#424242;
   --axis-w:4px;
 
-  /* pixels‑per‑minute used to size every frame vertically */
   --pxPerMin:2;
 }
 
 /* ---------- BASICS ---------- */
 html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
+/* GPU hint for smoother overlay compositing */
+#map{backface-visibility:hidden;transform:translateZ(0);}
 .hidden{display:none!important;}
 
 /* ---------- SIDE PANEL ---------- */
@@ -89,6 +90,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;flex:none;}
 .addRowBtn:hover{background:#e7e7e7;}
 
+/* frame color stripes */
 .frame[data-frame="0"]{border-left:4px solid var(--f-early);}
 .frame[data-frame="1"]{border-left:4px solid var(--f-late);}
 .frame[data-frame="2"]{border-left:4px solid var(--f-lunch);}
@@ -299,6 +301,7 @@ const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);};
 const pad=n=>n.toString().padStart(2,'0');
 function idxToLabel(i){let s='',n=i+1;while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;}
 function rowToLocation(row){const inp=row.querySelector('.stop');return {lat:parseFloat(inp.dataset.lat),lng:parseFloat(inp.dataset.lng)};}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 /* ====================================================================== */
 /*  BUILDING UI (FRAMES & ROWS)                                            */
@@ -526,7 +529,7 @@ function renumber(){
 /* ====================================================================== */
 
 function attachInputEvents(inp){
-  /* Always select all text on first click */
+  /* Force select-all on first click */
   inp.addEventListener('mousedown',ev=>{
     if(document.activeElement!==inp){
       ev.preventDefault();
@@ -540,7 +543,7 @@ function attachInputEvents(inp){
     setTimeout(()=>e.target.select(),0);
   });
   inp.addEventListener('blur',()=>inp.closest('.row').classList.remove('focused'));
-  inp.addEventListener('input',()=>{inp.dataset.lat='';inp.dataset.lng='';scheduleAutoCompute(80);});
+  inp.addEventListener('input',()=>{inp.dataset.lat='';inp.dataset.lng='';scheduleAutoCompute(100);});
   inp.addEventListener('keydown',e=>{
     if(e.key==='Tab'&&!e.shiftKey){e.preventDefault();acceptTopPrediction(inp);}
     else if(e.key==='Enter'){e.preventDefault();acceptTopPrediction(inp);}
@@ -585,7 +588,7 @@ function multiPaste(e){
     const el=r.querySelector('.stop'); el.value=addr; el.dataset.lat=''; el.dataset.lng='';
   });
   renumber();
-  autoCompute();     // sequential geocode will run; no red
+  autoCompute();     // sequential resolver will run and then route
   buildTimelineFromDOM();
 }
 
@@ -692,14 +695,11 @@ function enterFlatMode(){
   document.getElementById('panel').classList.add('flat');
   document.getElementById('addrBar').classList.add('active');
 
-  // keep flat list separate; just ensure placeholders
   const addrList=document.getElementById('addrList');
-  const blanks=[...addrList.querySelectorAll('.row')].length;
-  if(blanks===0){
+  if(addrList.querySelectorAll('.row').length===0){
     for(let i=0;i<INITIAL_FLAT_ROWS;i++) addRowToAddrBar(false);
   }
 
-  // clear any Day/Night totals so nothing crosses over
   clearDirections(); clearLegDisplays();
   document.getElementById('flatMsg').textContent='';
   document.getElementById('msg').textContent='';
@@ -732,29 +732,59 @@ function clearAllStops(){
 /*  ROUTING / OPTIMIZATION                                                 */
 /* ====================================================================== */
 
-const scheduleAutoCompute=(ms=80)=>{clearTimeout(autoTimer);autoTimer=setTimeout(autoCompute,ms);};
+const scheduleAutoCompute=(ms=120)=>{clearTimeout(autoTimer);autoTimer=setTimeout(autoCompute,ms);};
 function clearDirections(){dirRend.set('directions',null);dirRend.setMap(null);dirRend.setMap(map);clearRouteMarkers();}
 
-/* Geocode with local bias and safe fallback — sequential to avoid rate limit */
-const geocodeSmart=addr=>new Promise(res=>{
-  geocoder.geocode({address:addr,componentRestrictions:{country:'CA'},bounds:OK_BOUNDS},(results,status)=>{
-    if(status==='OK'&&results[0]){
-      const loc=results[0].geometry.location;
-      if(!OK_BOUNDS.contains(loc)){
-        geocoder.geocode({address:addr,componentRestrictions:{country:'CA'}},(r2,s2)=>{
-          if(s2==='OK'&&r2[0]&&OK_BOUNDS.contains(r2[0].geometry.location)){
-            const l=r2[0].geometry.location;
-            res({lat:l.lat(),lng:l.lng(),formatted:r2[0].formatted_address});
-          }else res(null);
-        });
-      }else{
-        res({lat:loc.lat(),lng:loc.lng(),formatted:results[0].formatted_address});
+/* --- Places‑first resolver with retry/backoff and Geocoder fallback --- */
+async function resolveAddress(text){
+  // 1) Try Places predictions -> details (Kelowna‑biased)
+  const prediction = await new Promise(res=>{
+    acService.getPlacePredictions(
+      {input:text, componentRestrictions:{country:'ca'}, types:['address'], locationBias:OK_BOUNDS},
+      (preds,status)=>{
+        if(status===google.maps.places.PlacesServiceStatus.OK && preds?.length) res(preds[0]); else res(null);
       }
-    }else res(null);
+    );
   });
-});
+  if(prediction){
+    const place = await new Promise(res=>{
+      placeSvc.getDetails({placeId:prediction.place_id, fields:['formatted_address','geometry']},
+        (p,st)=>res(st===google.maps.places.PlacesServiceStatus.OK?p:null));
+    });
+    if(place?.geometry && OK_BOUNDS.contains(place.geometry.location)){
+      return {lat:place.geometry.location.lat(),lng:place.geometry.location.lng(),formatted:place.formatted_address};
+    }
+  }
+  // 2) Fallback to geocoder with backoff & bounds preference
+  return await geocodeSmart(text);
+}
 
-/* Ensure coordinates for rows – sequential to stay under query limits */
+/* Geocoder with backoff + bounds preference + national fallback */
+function geocodeSmart(addr,attempt=0){
+  return new Promise(res=>{
+    geocoder.geocode({address:addr,componentRestrictions:{country:'CA'},bounds:OK_BOUNDS,region:'CA'},
+      (results,status)=>{
+        if(status==='OK'&&results[0]){
+          const loc=results[0].geometry.location;
+          if(!OK_BOUNDS.contains(loc)){
+            // try national and see if a hit falls inside our bounds
+            geocoder.geocode({address:addr,componentRestrictions:{country:'CA'},region:'CA'},(r2,s2)=>{
+              if(s2==='OK'&&r2[0]&&OK_BOUNDS.contains(r2[0].geometry.location)){
+                const l=r2[0].geometry.location;
+                res({lat:l.lat(),lng:l.lng(),formatted:r2[0].formatted_address});
+              }else res(null);
+            });
+          }else res({lat:loc.lat(),lng:loc.lng(),formatted:results[0].formatted_address});
+        }else if(status==='OVER_QUERY_LIMIT' && attempt<5){
+          setTimeout(()=>geocodeSmart(addr,attempt+1).then(res), 250*(attempt+1));  // backoff
+        }else{
+          res(null);
+        }
+      });
+  });
+}
+
+/* Ensure coordinates – sequential with small delay to respect quotas */
 async function ensureCoords(rows){
   let ok=true;
   for(const row of rows){
@@ -762,25 +792,36 @@ async function ensureCoords(rows){
     row.classList.remove('invalid');
     if(!inp.value) continue;
     if(!(inp.dataset.lat && inp.dataset.lng)){
-      const out = await geocodeSmart(inp.value);
+      const out = await resolveAddress(inp.value);
       if(out){ inp.dataset.lat=out.lat; inp.dataset.lng=out.lng; inp.value=out.formatted; }
       else { row.classList.add('invalid'); inp.placeholder='Unrecognised – edit me'; ok=false; }
+      await sleep(120); // gentle pacing to avoid limits on big pastes
     }
   }
   return ok;
 }
 
-function autoCompute(){
-  const rows=[...document.querySelectorAll('.row')];
+/* One running geocode cycle at a time */
+let geocodeCycle = 0;
+
+async function autoCompute(){
+  const rows=getOrderedRows();
   const filled=rows.filter(r=>r.querySelector('.stop').value.trim());
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
 
   if(filled.length===0){
     clearPreviewPins();clearLegDisplays();msg.textContent='';flatMsg.textContent='';clearDirections();return;
   }
+
+  // If anything lacks coordinates (common after paste), resolve them first
   if(filled.some(r=>!r.querySelector('.stop').dataset.lat)){
-    clearDirections();clearLegDisplays();msg.textContent='';flatMsg.textContent='';return;
+    const myCycle = ++geocodeCycle;
+    const ok = await ensureCoords(filled);
+    if(myCycle!==geocodeCycle) return;     // a newer cycle started; abandon
+    if(!ok){ msg.textContent='One or more stops can’t be located – please edit.'; flatMsg.textContent=msg.textContent; return; }
+    // fall through to routing after coordinates are present
   }
+
   if(filled.length===1){
     clearDirections();clearLegDisplays();clearPreviewPins();
     const inp=filled[0].querySelector('.stop');
@@ -859,7 +900,7 @@ async function optimizeByFrames(){
   for(const fr of visFrames){
     const list=document.getElementById('frame-'+fr.id);
     const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
-    if(rows.length<2){ // nothing to optimize, but update prevEnd
+    if(rows.length<2){
       if(rows.length===1){ await ensureCoords(rows); prevEndLoc=rowToLocation(rows[0]); }
       continue;
     }
@@ -868,7 +909,7 @@ async function optimizeByFrames(){
     const pts=rows.map(rowToLocation);
     const D=buildDistanceMatrix(pts);
 
-    // choose start index: closest to prevEnd if present
+    // start index: closest to prev frame end
     let startIndex=0;
     if(prevEndLoc){
       let best=Infinity, idx=0;
@@ -930,7 +971,6 @@ function drawRouteMarkers(points,rows){
     if(!p) return;
     const bullet = rows[i]?.querySelector('.bullet');
     const letter = bullet ? (bullet.textContent || '').trim() : '';
-    // Read the letter class (A..H) applied during renumbering
     const classLetter = bullet ? [...bullet.classList].find(c=>/^[A-Z]$/.test(c)) : null;
     const varName = classLetter ? `--clr${classLetter}` : '--clrDefault';
     const color = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
@@ -973,7 +1013,7 @@ function haversine(a,b){
   const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;
   return 2*R*Math.asin(Math.sqrt(s));
 }
-/* startIndex lets us anchor the first node (used for frame continuity) */
+/* startIndex anchors first node (used for frame continuity) */
 function solveTSPWithMatrix(D,startIndex=0){
   const n=D.length;
   const visited=Array(n).fill(false);
@@ -1015,7 +1055,8 @@ function reattachInOrder(order,rows){
 window.routePlannerInit=()=>{
   map=new google.maps.Map(document.getElementById('map'),{
     center:{lat:49.8879,lng:-119.4960},
-    zoom:10,mapTypeControl:false,streetViewControl:true,fullscreenControl:true
+    zoom:10,mapTypeControl:false,streetViewControl:true,fullscreenControl:true,
+    tilt:0  // keep 2D to avoid perspective jitter
   });
 
   OK_BOUNDS = new google.maps.LatLngBounds(
@@ -1023,10 +1064,17 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)    // NE
   );
 
+  // KML tuned for smoother rendering
   new google.maps.KmlLayer({
     url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',
-    map,preserveViewport:true
+    map,
+    preserveViewport:true,
+    suppressInfoWindows:true,
+    screenOverlays:false,
+    clickable:false,
+    zIndex:0
   });
+
   dirSvc=new google.maps.DirectionsService();
   dirRend=new google.maps.DirectionsRenderer({map,suppressMarkers:true});
   geocoder=new google.maps.Geocoder();
@@ -1037,7 +1085,6 @@ window.routePlannerInit=()=>{
   buildTimelineFromDOM();
   buildAddrBar();
 
-  // Start in flat view
   dayVisible=false; nightVisible=false; applyShiftVisibility();
 
   /* Buttons */
