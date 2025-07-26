@@ -34,8 +34,7 @@
 
 /* ---------- BASICS ---------- */
 html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
-/* GPU hint for smoother overlay compositing */
-#map{backface-visibility:hidden;transform:translateZ(0);}
+#map{backface-visibility:hidden;transform:translateZ(0);} /* smoother overlay compositing */
 .hidden{display:none!important;}
 
 /* ---------- SIDE PANEL ---------- */
@@ -82,15 +81,12 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .frame.collapsed{opacity:.55;}
 .frame.collapsed .frame-hide{color:#c00;}
 
-.frame-list{
-  padding:6px 10px 8px 6px;overflow-y:auto;flex:1 1 auto;
-}
+.frame-list{padding:6px 10px 8px 6px;overflow-y:auto;flex:1 1 auto;}
 .addRowBtn{
   margin:6px 0 8px 28px;background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
   padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;flex:none;}
 .addRowBtn:hover{background:#e7e7e7;}
 
-/* frame color stripes */
 .frame[data-frame="0"]{border-left:4px solid var(--f-early);}
 .frame[data-frame="1"]{border-left:4px solid var(--f-late);}
 .frame[data-frame="2"]{border-left:4px solid var(--f-lunch);}
@@ -267,7 +263,7 @@ let previewPins=[],routeMarkers=[];
 let autoTimer=null,routeVersion=0;
 let dayVisible=false, nightVisible=false, flatMode=false;
 
-/* Central Okanagan bounds (Oyama ↔ Peachland) */
+/* Central Okanagan bounds */
 let OK_BOUNDS;
 
 /* ---------- FRAME DEFINITIONS ---------- */
@@ -505,7 +501,7 @@ document.addEventListener('click',e=>{
   showDeleteBtns();
 }, true);
 
-/* Renumber only rows relevant to the active context */
+/* Renumber according to active context */
 function renumber(){
   let rows;
   if(flatMode){
@@ -529,7 +525,7 @@ function renumber(){
 /* ====================================================================== */
 
 function attachInputEvents(inp){
-  /* Force select-all on first click */
+  /* Select‑all on first click */
   inp.addEventListener('mousedown',ev=>{
     if(document.activeElement!==inp){
       ev.preventDefault();
@@ -592,7 +588,7 @@ function multiPaste(e){
   buildTimelineFromDOM();
 }
 
-/* Accept the top prediction on Tab/Enter */
+/* Accept top prediction on Tab/Enter */
 function acceptTopPrediction(input){
   if (input.dataset.lat && input.dataset.lng){
     focusNextInput(input); scheduleAutoCompute(0); return;
@@ -674,7 +670,7 @@ function applyShiftVisibility(){
   focusIsMuted = false;
 }
 
-/* Flat view: independent list (no DOM shuttling) */
+/* Flat list: independent (no DOM shuttling) */
 function buildAddrBar(){
   Sortable.create(document.getElementById('addrList'),{
     handle:'.drag',animation:150,
@@ -737,7 +733,6 @@ function clearDirections(){dirRend.set('directions',null);dirRend.setMap(null);d
 
 /* --- Places‑first resolver with retry/backoff and Geocoder fallback --- */
 async function resolveAddress(text){
-  // 1) Try Places predictions -> details (Kelowna‑biased)
   const prediction = await new Promise(res=>{
     acService.getPlacePredictions(
       {input:text, componentRestrictions:{country:'ca'}, types:['address'], locationBias:OK_BOUNDS},
@@ -755,7 +750,6 @@ async function resolveAddress(text){
       return {lat:place.geometry.location.lat(),lng:place.geometry.location.lng(),formatted:place.formatted_address};
     }
   }
-  // 2) Fallback to geocoder with backoff & bounds preference
   return await geocodeSmart(text);
 }
 
@@ -767,7 +761,6 @@ function geocodeSmart(addr,attempt=0){
         if(status==='OK'&&results[0]){
           const loc=results[0].geometry.location;
           if(!OK_BOUNDS.contains(loc)){
-            // try national and see if a hit falls inside our bounds
             geocoder.geocode({address:addr,componentRestrictions:{country:'CA'},region:'CA'},(r2,s2)=>{
               if(s2==='OK'&&r2[0]&&OK_BOUNDS.contains(r2[0].geometry.location)){
                 const l=r2[0].geometry.location;
@@ -776,7 +769,7 @@ function geocodeSmart(addr,attempt=0){
             });
           }else res({lat:loc.lat(),lng:loc.lng(),formatted:results[0].formatted_address});
         }else if(status==='OVER_QUERY_LIMIT' && attempt<5){
-          setTimeout(()=>geocodeSmart(addr,attempt+1).then(res), 250*(attempt+1));  // backoff
+          setTimeout(()=>geocodeSmart(addr,attempt+1).then(res), 250*(attempt+1));
         }else{
           res(null);
         }
@@ -784,7 +777,7 @@ function geocodeSmart(addr,attempt=0){
   });
 }
 
-/* Ensure coordinates – sequential with small delay to respect quotas */
+/* Ensure coordinates – sequential with small delay */
 async function ensureCoords(rows){
   let ok=true;
   for(const row of rows){
@@ -795,7 +788,7 @@ async function ensureCoords(rows){
       const out = await resolveAddress(inp.value);
       if(out){ inp.dataset.lat=out.lat; inp.dataset.lng=out.lng; inp.value=out.formatted; }
       else { row.classList.add('invalid'); inp.placeholder='Unrecognised – edit me'; ok=false; }
-      await sleep(120); // gentle pacing to avoid limits on big pastes
+      await sleep(120);
     }
   }
   return ok;
@@ -813,13 +806,11 @@ async function autoCompute(){
     clearPreviewPins();clearLegDisplays();msg.textContent='';flatMsg.textContent='';clearDirections();return;
   }
 
-  // If anything lacks coordinates (common after paste), resolve them first
   if(filled.some(r=>!r.querySelector('.stop').dataset.lat)){
     const myCycle = ++geocodeCycle;
     const ok = await ensureCoords(filled);
-    if(myCycle!==geocodeCycle) return;     // a newer cycle started; abandon
+    if(myCycle!==geocodeCycle) return;
     if(!ok){ msg.textContent='One or more stops can’t be located – please edit.'; flatMsg.textContent=msg.textContent; return; }
-    // fall through to routing after coordinates are present
   }
 
   if(filled.length===1){
@@ -886,7 +877,14 @@ async function globalOptimizeRoute(){
   msg.textContent='Optimized.'; flatMsg.textContent='Optimized.';
 }
 
-/* ----- Optimization (by frames with continuity) ----- */
+/* ----- Optimization (by frames with proper continuity) ----- */
+function chooseStartIndex(prevEnd, pts){
+  if(!prevEnd) return 0;
+  let best=Infinity, idx=0;
+  pts.forEach((p,i)=>{ const d=haversine(prevEnd,p); if(d<best){best=d; idx=i;} });
+  return idx;
+}
+
 async function optimizeByFrames(){
   const msg=document.getElementById('msg'); msg.textContent='Optimizing by frames…';
   clearLegDisplays();
@@ -897,30 +895,34 @@ async function optimizeByFrames(){
   });
 
   let prevEndLoc=null;
+
   for(const fr of visFrames){
     const list=document.getElementById('frame-'+fr.id);
     const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
-    if(rows.length<2){
-      if(rows.length===1){ await ensureCoords(rows); prevEndLoc=rowToLocation(rows[0]); }
+    if(rows.length===0) continue;
+
+    const ok=await ensureCoords(rows);
+    if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
+
+    if(rows.length===1){
+      prevEndLoc=rowToLocation(rows[0]);
       continue;
     }
-    const ok=await ensureCoords(rows); if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
 
     const pts=rows.map(rowToLocation);
     const D=buildDistanceMatrix(pts);
 
-    // start index: closest to prev frame end
-    let startIndex=0;
-    if(prevEndLoc){
-      let best=Infinity, idx=0;
-      pts.forEach((p,i)=>{ const d=haversine(prevEndLoc,p); if(d<best){best=d;idx=i;} });
-      startIndex=idx;
-    }
+    const startIndex = chooseStartIndex(prevEndLoc, pts);
 
     const order=solveTSPWithMatrix(D,startIndex);
+
+    // Apply order to DOM
     order.forEach(i=>list.appendChild(rows[i]));
-    prevEndLoc = rowToLocation(list.querySelectorAll('.row')[order[order.length-1]]);
+
+    // >>> Correctly set prevEndLoc using the original rows array <<<
+    prevEndLoc = rowToLocation(rows[order[order.length-1]]);
   }
+
   renumber(); await rebuildRoute(); msg.textContent='Optimized by frames.';
 }
 
@@ -1013,7 +1015,6 @@ function haversine(a,b){
   const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;
   return 2*R*Math.asin(Math.sqrt(s));
 }
-/* startIndex anchors first node (used for frame continuity) */
 function solveTSPWithMatrix(D,startIndex=0){
   const n=D.length;
   const visited=Array(n).fill(false);
@@ -1055,8 +1056,7 @@ function reattachInOrder(order,rows){
 window.routePlannerInit=()=>{
   map=new google.maps.Map(document.getElementById('map'),{
     center:{lat:49.8879,lng:-119.4960},
-    zoom:10,mapTypeControl:false,streetViewControl:true,fullscreenControl:true,
-    tilt:0  // keep 2D to avoid perspective jitter
+    zoom:10,mapTypeControl:false,streetViewControl:true,fullscreenControl:true,tilt:0
   });
 
   OK_BOUNDS = new google.maps.LatLngBounds(
@@ -1087,7 +1087,6 @@ window.routePlannerInit=()=>{
 
   dayVisible=false; nightVisible=false; applyShiftVisibility();
 
-  /* Buttons */
   document.getElementById('route').onclick=rebuildRoute;
   document.getElementById('optAll').onclick=globalOptimizeRoute;
   document.getElementById('optFrames').onclick=optimizeByFrames;
@@ -1108,7 +1107,7 @@ window.routePlannerInit=()=>{
     function onDown(e){
       if(!['F1','F2','F3'].includes(e.key)) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-      if(e.repeat) return;                 // ignore auto-repeat
+      if(e.repeat) return;
       if(e.key==='F1') toggleShift('day');
       else if(e.key==='F2') toggleShift('night');
       else clearAllStops();
