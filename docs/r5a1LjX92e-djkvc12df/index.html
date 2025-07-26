@@ -356,6 +356,53 @@ function buildFrameBuckets(){
   document.querySelectorAll('.frame-list').forEach(fl=>mo.observe(fl,{childList:true,subtree:true}));
 }
 
+/* compute & distribute extra height from hidden frames */
+function rebalanceFrameHeights(){
+  if(flatMode) return;
+  const visibleShiftIds = FRAMES
+    .filter(fr => (fr.shift==='day' && dayVisible) || (fr.shift==='night' && nightVisible))
+    .map(fr => fr.id);
+
+  if(!visibleShiftIds.length) return;
+
+  // Base heights (minutes * pxPerMin)
+  const baseById = {};
+  let totalBaseAll = 0;
+  FRAMES.forEach(fr=>{
+    if(!visibleShiftIds.includes(fr.id)) return;
+    const base = (parseHM(fr.end)-parseHM(fr.start))*PX_PER_MIN;
+    baseById[fr.id]=base; totalBaseAll+=base;
+  });
+
+  // Visible (not collapsed) base
+  let sumVisibleBase = 0;
+  const visibleIds = [];
+  FRAMES.forEach(fr=>{
+    if(!visibleShiftIds.includes(fr.id)) return;
+    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
+    const isShown = sec.style.display!=='none' && !sec.classList.contains('collapsed');
+    if(isShown){ sumVisibleBase += baseById[fr.id]; visibleIds.push(fr.id); }
+  });
+
+  // Freed base from hidden/collapsed frames
+  const freed = Math.max(0, totalBaseAll - sumVisibleBase);
+  if(freed<=0 || visibleIds.length===0) {
+    // reset to base
+    visibleIds.forEach(id=>{
+      const list=document.getElementById('frame-'+id);
+      list.style.maxHeight = baseById[id]+'px';
+    });
+    return;
+  }
+
+  // Distribute freed space proportionally to visible frames
+  visibleIds.forEach(id=>{
+    const list=document.getElementById('frame-'+id);
+    const bonus = freed * (baseById[id]/sumVisibleBase);
+    list.style.maxHeight = (baseById[id] + bonus)+'px';
+  });
+}
+
 function makeRow(frameId){
   const d=document.createElement('div');
   d.className='row';d.dataset.frame=frameId;
@@ -395,6 +442,7 @@ function toggleFrame(id){
   if(!el) return;
   const collapsed = el.classList.toggle('collapsed');
   if(!collapsed) ensurePlaceholdersForFrame(id);
+  rebalanceFrameHeights();
   buildTimelineFromDOM(); renumber(); autoCompute();
 }
 
@@ -663,6 +711,7 @@ function applyShiftVisibility(){
   }
 
   updateToggleChips();
+  rebalanceFrameHeights();
   buildTimelineFromDOM();
   renumber();
   autoCompute();
@@ -877,50 +926,99 @@ async function globalOptimizeRoute(){
   msg.textContent='Optimized.'; flatMsg.textContent='Optimized.';
 }
 
-/* ----- Optimization (by frames with proper continuity) ----- */
-function chooseStartIndex(prevEnd, pts){
-  if(!prevEnd) return 0;
+/* ---------- Helpers for by‑frame optimization ---------- */
+function chooseStartIndex(anchor, pts){
+  if(!anchor) return 0;
   let best=Infinity, idx=0;
-  pts.forEach((p,i)=>{ const d=haversine(prevEnd,p); if(d<best){best=d; idx=i;} });
+  pts.forEach((p,i)=>{ const d=haversine(anchor,p); if(d<best){best=d; idx=i;} });
   return idx;
 }
+function pathCost(order, D){
+  let c=0; for(let i=0;i<order.length-1;i++) c+=D[order[i]][order[i+1]]; return c;
+}
+function crossCost(order, pts, prevEnd, nextStart){
+  const a = prevEnd ? haversine(prevEnd, pts[order[0]]) : 0;
+  const b = nextStart ? haversine(pts[order[order.length-1]], nextStart) : 0;
+  return a+b;
+}
 
+/* ----- Optimization (by frames: forward + backward refinement) ----- */
 async function optimizeByFrames(){
   const msg=document.getElementById('msg'); msg.textContent='Optimizing by frames…';
   clearLegDisplays();
 
-  const visFrames=FRAMES.filter(f=>{
+  // visible, non-collapsed frames in panel order
+  const visIds = FRAMES.filter(f=>{
     const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
-    return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) && !sec.classList.contains('collapsed');
-  });
+    return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) && !sec.classList.contains('collapsed') && sec.style.display!=='none';
+  }).map(f=>f.id);
 
-  let prevEndLoc=null;
+  if(!visIds.length){ msg.textContent=''; return; }
 
-  for(const fr of visFrames){
-    const list=document.getElementById('frame-'+fr.id);
+  // Pre-collect data per frame
+  const rowsById={}, ptsById={}, DById={}, orderById={}, endLocForwardById={};
+
+  for(const id of visIds){
+    const list=document.getElementById('frame-'+id);
     const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
-    if(rows.length===0) continue;
+    rowsById[id]=rows;
+    if(rows.length>=1) await ensureCoords(rows);
+    const pts=rows.map(rowToLocation); ptsById[id]=pts;
+    if(pts.length>=2) DById[id]=buildDistanceMatrix(pts);
+  }
 
-    const ok=await ensureCoords(rows);
-    if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
+  /* ---------- Forward pass: anchor to previous end ---------- */
+  let prevEnd=null;
+  for(const id of visIds){
+    const pts=ptsById[id]; const D=DById[id]; const rows=rowsById[id];
+    if(!pts || pts.length<2){ orderById[id]=pts?.map((_,i)=>i)||[]; endLocForwardById[id]=pts?.[pts.length-1]||null; prevEnd=endLocForwardById[id]; continue; }
+    const startIdx = chooseStartIndex(prevEnd, pts);
+    const ord = solveTSPWithMatrix(D, startIdx);
+    orderById[id]=ord;
+    endLocForwardById[id]=pts[ord[ord.length-1]];
+    prevEnd = endLocForwardById[id];
+  }
 
-    if(rows.length===1){
-      prevEndLoc=rowToLocation(rows[0]);
-      continue;
+  /* ---------- Backward pass: prefer an equally-short order ending near next frame ---------- */
+  let nextStart = null; // start location of the already-refined next frame
+  for(let k=visIds.length-1;k>=0;k--){
+    const id = visIds[k];
+    const rows = rowsById[id]; const pts = ptsById[id]; const D = DById[id];
+    if(!pts || pts.length<2) { nextStart = pts?.[orderById[id]?.[0]||0] || null; continue; }
+
+    const baseOrder = orderById[id];
+    const baseCost  = pathCost(baseOrder, D);
+
+    // Candidate that ENDS nearest to nextStart (by reversing a path that STARTS near nextStart)
+    let improvedOrder = baseOrder;
+    if(nextStart){
+      const endCand = chooseStartIndex(nextStart, pts);
+      const startAtEnd = solveTSPWithMatrix(D, endCand);
+      const endAnchored = startAtEnd.slice().reverse(); // now ends at endCand
+      const endCost = pathCost(endAnchored, D);
+
+      // Previous end (from forward pass) for cross comparison
+      const prevEndLoc = (k>0) ? endLocForwardById[visIds[k-1]] : null;
+
+      const baseCross = crossCost(baseOrder, pts, prevEndLoc, nextStart);
+      const endCross  = crossCost(endAnchored, pts, prevEndLoc, nextStart);
+
+      // Rule: never worsen internal cost; if equal or better, prefer the one with lower cross cost
+      if(endCost <= baseCost && endCross < baseCross - 1e-9){
+        improvedOrder = endAnchored;
+        orderById[id] = improvedOrder;
+      }
     }
 
-    const pts=rows.map(rowToLocation);
-    const D=buildDistanceMatrix(pts);
+    // update nextStart for the previous frame in the loop
+    nextStart = pts[orderById[id][0]];
+  }
 
-    const startIndex = chooseStartIndex(prevEndLoc, pts);
-
-    const order=solveTSPWithMatrix(D,startIndex);
-
-    // Apply order to DOM
-    order.forEach(i=>list.appendChild(rows[i]));
-
-    // >>> Correctly set prevEndLoc using the original rows array <<<
-    prevEndLoc = rowToLocation(rows[order[order.length-1]]);
+  /* ---------- Apply orders to the DOM ---------- */
+  for(const id of visIds){
+    const list=document.getElementById('frame-'+id);
+    const rows=rowsById[id]; const ord=orderById[id];
+    if(rows.length>=2) ord.forEach(i=>list.appendChild(rows[i]));
   }
 
   renumber(); await rebuildRoute(); msg.textContent='Optimized by frames.';
@@ -1120,6 +1218,9 @@ window.routePlannerInit=()=>{
     window.addEventListener('keyup',   onUp,   {capture:true, passive:false});
     document.onhelp = () => false; window.onhelp = () => false;
   })();
+
+  // Rebalance if the window height changes
+  window.addEventListener('resize', ()=>{ clearTimeout(window.__rb); window.__rb=setTimeout(rebalanceFrameHeights,150); });
 
   if(window.__mapsApiReady){ /* no-op */ }
 };
