@@ -204,7 +204,6 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 #flatDelSel{background:#db4437;color:#fff;display:none;}
 </style>
 
-<!-- ---------- LOAD GOOGLE MAPS & SORTABLE ---------- -->
 <script>
 function init(){ if(window.routePlannerInit) window.routePlannerInit(); else window.__mapsApiReady=true; }
 </script>
@@ -266,7 +265,7 @@ let previewPins=[],routeMarkers=[];
 let autoTimer=null,routeVersion=0;
 let dayVisible=false, nightVisible=false, flatMode=false;
 
-/* Central Okanagan bounds (Oyama to Peachland, generous but local) */
+/* Central Okanagan bounds (Oyama ↔ Peachland) */
 let OK_BOUNDS;
 
 /* ---------- FRAME DEFINITIONS ---------- */
@@ -493,7 +492,6 @@ document.addEventListener('keydown',e=>{
     e.preventDefault();deleteSelected();
   }
 });
-/* Deselect clicks anywhere EXCEPT inside a row input or on the delete buttons */
 document.addEventListener('click',e=>{
   if(e.ctrlKey||e.metaKey) return;
   if(!document.querySelector('.row.selected')) return;
@@ -504,7 +502,7 @@ document.addEventListener('click',e=>{
   showDeleteBtns();
 }, true);
 
-/* Renumber only currently relevant rows */
+/* Renumber only rows relevant to the active context */
 function renumber(){
   let rows;
   if(flatMode){
@@ -528,7 +526,7 @@ function renumber(){
 /* ====================================================================== */
 
 function attachInputEvents(inp){
-  /* Always select all text the first time we click into an unfocused input */
+  /* Always select all text on first click */
   inp.addEventListener('mousedown',ev=>{
     if(document.activeElement!==inp){
       ev.preventDefault();
@@ -587,11 +585,11 @@ function multiPaste(e){
     const el=r.querySelector('.stop'); el.value=addr; el.dataset.lat=''; el.dataset.lng='';
   });
   renumber();
-  autoCompute();              // compute immediately after paste
+  autoCompute();     // sequential geocode will run; no red
   buildTimelineFromDOM();
 }
 
-/* Accept first autocomplete prediction on Tab / Enter */
+/* Accept the top prediction on Tab/Enter */
 function acceptTopPrediction(input){
   if (input.dataset.lat && input.dataset.lng){
     focusNextInput(input); scheduleAutoCompute(0); return;
@@ -638,7 +636,6 @@ function updateToggleChips(){
   const d=document.getElementById('toggleDay');   if(d) d.classList.toggle('active',dayVisible);
   const n=document.getElementById('toggleNight'); if(n) n.classList.toggle('active',nightVisible);
 }
-function updateButtons(){}
 
 function toggleShift(which){
   if(which==='day') dayVisible=!dayVisible;
@@ -674,54 +671,46 @@ function applyShiftVisibility(){
   focusIsMuted = false;
 }
 
+/* Flat view: independent list (no DOM shuttling) */
 function buildAddrBar(){
   Sortable.create(document.getElementById('addrList'),{
     handle:'.drag',animation:150,
     onEnd:()=>{renumber();autoCompute();}
   });
-  document.getElementById('addrAdd').onclick=()=>addRowToAddrBar(false);  // do NOT auto-select on add
+  document.getElementById('addrAdd').onclick=()=>addRowToAddrBar(false);
   document.getElementById('toggleDay').onclick=()=>toggleShift('day');
   document.getElementById('toggleNight').onclick=()=>toggleShift('night');
 }
-
 function addRowToAddrBar(select=false){
   const list=document.getElementById('addrList');
   const row=makeRow(0);list.appendChild(row);renumber();
   if(select) setSelected(row,true);
   safeFocus(row.querySelector('.stop'));
 }
-
 function enterFlatMode(){
   if(flatMode) return; flatMode=true;
   document.getElementById('panel').classList.add('flat');
   document.getElementById('addrBar').classList.add('active');
 
+  // keep flat list separate; just ensure placeholders
   const addrList=document.getElementById('addrList');
-  const filled=[...document.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
-  filled.forEach(r=>addrList.appendChild(r));
+  const blanks=[...addrList.querySelectorAll('.row')].length;
+  if(blanks===0){
+    for(let i=0;i<INITIAL_FLAT_ROWS;i++) addRowToAddrBar(false);
+  }
 
-  const blanks=[...addrList.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim()).length;
-  for(let i=blanks;i<INITIAL_FLAT_ROWS;i++) addRowToAddrBar(false);
-
-  document.getElementById('flatMsg').textContent = '';
-  renumber();buildTimelineFromDOM();showDeleteBtns();
+  // clear any Day/Night totals so nothing crosses over
+  clearDirections(); clearLegDisplays();
+  document.getElementById('flatMsg').textContent='';
+  document.getElementById('msg').textContent='';
+  renumber(); buildTimelineFromDOM(); showDeleteBtns();
 }
-
 function exitFlatMode(){
   if(!flatMode) return; flatMode=false;
-
-  const addrList=document.getElementById('addrList');
-  addrList.querySelectorAll('.row').forEach(r=>{
-    const fid=+r.dataset.frame||0;
-    document.getElementById('frame-'+fid).appendChild(r);
-  });
-
   document.getElementById('panel').classList.remove('flat');
   document.getElementById('addrBar').classList.remove('active');
   document.getElementById('flatMsg').textContent='';
-
-  FRAMES.forEach(fr=>ensurePlaceholdersForFrame(fr.id));
-  buildTimelineFromDOM();showDeleteBtns();
+  buildTimelineFromDOM(); showDeleteBtns();
 }
 
 /* ====================================================================== */
@@ -744,16 +733,14 @@ function clearAllStops(){
 /* ====================================================================== */
 
 const scheduleAutoCompute=(ms=80)=>{clearTimeout(autoTimer);autoTimer=setTimeout(autoCompute,ms);};
-
 function clearDirections(){dirRend.set('directions',null);dirRend.setMap(null);dirRend.setMap(map);clearRouteMarkers();}
 
-/* Geocode with local bias and safe fallback */
+/* Geocode with local bias and safe fallback — sequential to avoid rate limit */
 const geocodeSmart=addr=>new Promise(res=>{
   geocoder.geocode({address:addr,componentRestrictions:{country:'CA'},bounds:OK_BOUNDS},(results,status)=>{
     if(status==='OK'&&results[0]){
       const loc=results[0].geometry.location;
-      if(!OK_BOUNDS.contains(loc)){ 
-        // fallback: try again without bounds, then still enforce-in-bounds
+      if(!OK_BOUNDS.contains(loc)){
         geocoder.geocode({address:addr,componentRestrictions:{country:'CA'}},(r2,s2)=>{
           if(s2==='OK'&&r2[0]&&OK_BOUNDS.contains(r2[0].geometry.location)){
             const l=r2[0].geometry.location;
@@ -767,17 +754,20 @@ const geocodeSmart=addr=>new Promise(res=>{
   });
 });
 
-function ensureCoords(rows){
-  const tasks=rows.map(row=>{
+/* Ensure coordinates for rows – sequential to stay under query limits */
+async function ensureCoords(rows){
+  let ok=true;
+  for(const row of rows){
     const inp=row.querySelector('.stop');
     row.classList.remove('invalid');
-    if(!inp.value || (inp.dataset.lat && inp.dataset.lng)) return true;
-    return geocodeSmart(inp.value).then(out=>{
-      if(out){inp.dataset.lat=out.lat;inp.dataset.lng=out.lng;inp.value=out.formatted;return true;}
-      row.classList.add('invalid');inp.placeholder='Unrecognised – edit me';return false;
-    });
-  });
-  return Promise.all(tasks).then(a=>a.every(Boolean));
+    if(!inp.value) continue;
+    if(!(inp.dataset.lat && inp.dataset.lng)){
+      const out = await geocodeSmart(inp.value);
+      if(out){ inp.dataset.lat=out.lat; inp.dataset.lng=out.lng; inp.value=out.formatted; }
+      else { row.classList.add('invalid'); inp.placeholder='Unrecognised – edit me'; ok=false; }
+    }
+  }
+  return ok;
 }
 
 function autoCompute(){
@@ -814,31 +804,30 @@ function getOrderedRows(includeHidden=false){
   return rows.filter(r=>r.querySelector('.stop').value.trim());
 }
 
-function rebuildRoute(){
+async function rebuildRoute(){
   const rows=getOrderedRows();
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
   clearLegDisplays();clearRouteMarkers();
   if(rows.length<2){msg.textContent='';flatMsg.textContent='';clearDirections();return;}
-  ensureCoords(rows).then(ok=>{
-    if(!ok){msg.textContent='One or more stops can’t be located – please edit.';flatMsg.textContent=msg.textContent;return;}
-    const locs=rows.map(rowToLocation);
-    const reqId=++routeVersion;
-    dirSvc.route({
-      origin:locs[0],destination:locs[locs.length-1],
-      waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
-      travelMode:'DRIVING'
-    },(res,stat)=>{
-      if(reqId!==routeVersion) return;
-      displayLegs(res,stat);
-      if(stat==='OK'){
-        const pts=[locs[0],...locs.slice(1,-1),locs[locs.length-1]].map(l=>typeof l==='string'?null:l);
-        drawRouteMarkers(pts,rows);
-      }
-    });
+  const ok = await ensureCoords(rows);
+  if(!ok){msg.textContent='One or more stops can’t be located – please edit.';flatMsg.textContent=msg.textContent;return;}
+  const locs=rows.map(rowToLocation);
+  const reqId=++routeVersion;
+  dirSvc.route({
+    origin:locs[0],destination:locs[locs.length-1],
+    waypoints:locs.slice(1,-1).map(l=>({location:l,stopover:true})),
+    travelMode:'DRIVING'
+  },(res,stat)=>{
+    if(reqId!==routeVersion) return;
+    displayLegs(res,stat);
+    if(stat==='OK'){
+      const pts=[locs[0],...locs.slice(1,-1),locs[locs.length-1]].map(l=>typeof l==='string'?null:l);
+      drawRouteMarkers(pts,rows);
+    }
   });
 }
 
-/* ----- Optimization ----- */
+/* ----- Optimization (global) ----- */
 async function globalOptimizeRoute(){
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
   clearLegDisplays();
@@ -847,33 +836,51 @@ async function globalOptimizeRoute(){
   const ok=await ensureCoords(rows);
   if(!ok){msg.textContent='One or more stops can’t be located – please edit.';flatMsg.textContent=msg.textContent;return;}
   msg.textContent='Optimizing…'; flatMsg.textContent='Optimizing…';
-  const pts=rows.map(rowToLocation).map(l=>typeof l==='string'?null:l);
+  const pts=rows.map(rowToLocation);
   const D=buildDistanceMatrix(pts);
-  const order=solveTSPWithMatrix(D);
+  const order=solveTSPWithMatrix(D,0);
   reattachInOrder(order,rows);
   renumber();
   rebuildRoute();
   msg.textContent='Optimized.'; flatMsg.textContent='Optimized.';
 }
 
+/* ----- Optimization (by frames with continuity) ----- */
 async function optimizeByFrames(){
   const msg=document.getElementById('msg'); msg.textContent='Optimizing by frames…';
   clearLegDisplays();
+
   const visFrames=FRAMES.filter(f=>{
     const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
     return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) && !sec.classList.contains('collapsed');
   });
+
+  let prevEndLoc=null;
   for(const fr of visFrames){
     const list=document.getElementById('frame-'+fr.id);
     const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
-    if(rows.length<3) continue;
+    if(rows.length<2){ // nothing to optimize, but update prevEnd
+      if(rows.length===1){ await ensureCoords(rows); prevEndLoc=rowToLocation(rows[0]); }
+      continue;
+    }
     const ok=await ensureCoords(rows); if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
-    const pts=rows.map(rowToLocation).map(l=>typeof l==='string'?null:l);
+
+    const pts=rows.map(rowToLocation);
     const D=buildDistanceMatrix(pts);
-    const order=solveTSPWithMatrix(D);
+
+    // choose start index: closest to prevEnd if present
+    let startIndex=0;
+    if(prevEndLoc){
+      let best=Infinity, idx=0;
+      pts.forEach((p,i)=>{ const d=haversine(prevEndLoc,p); if(d<best){best=d;idx=i;} });
+      startIndex=idx;
+    }
+
+    const order=solveTSPWithMatrix(D,startIndex);
     order.forEach(i=>list.appendChild(rows[i]));
+    prevEndLoc = rowToLocation(list.querySelectorAll('.row')[order[order.length-1]]);
   }
-  renumber(); rebuildRoute(); msg.textContent='Optimized by frames.';
+  renumber(); await rebuildRoute(); msg.textContent='Optimized by frames.';
 }
 
 /* ----- Leg display ----- */
@@ -921,15 +928,19 @@ function clearPreviewPins(){previewPins.forEach(m=>m.setMap(null));previewPins=[
 function drawRouteMarkers(points,rows){
   points.forEach((p,i)=>{
     if(!p) return;
-    const label=rows[i]?.querySelector('.bullet')?.textContent||'';
-    const colorCls=colourCycle[i%colourCycle.length]||'defaultBullet';
-    const color=getComputedStyle(document.documentElement).getPropertyValue(`--clr${colorCls}`) || '#607d8b';
+    const bullet = rows[i]?.querySelector('.bullet');
+    const letter = bullet ? (bullet.textContent || '').trim() : '';
+    // Read the letter class (A..H) applied during renumbering
+    const classLetter = bullet ? [...bullet.classList].find(c=>/^[A-Z]$/.test(c)) : null;
+    const varName = classLetter ? `--clr${classLetter}` : '--clrDefault';
+    const color = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+
     const marker=new google.maps.Marker({
       position:p,map,
-      label:{text:label,color:'#fff',fontSize:'16px',fontWeight:'700'},
+      label:{text:letter,color:'#fff',fontSize:'16px',fontWeight:'700'},
       icon:{
         path:TEARDROP_PATH,scale:1,
-        fillColor:color.trim(),fillOpacity:1,
+        fillColor:color||'#607d8b',fillOpacity:1,
         strokeWeight:1.5,strokeColor:'#263238',
         labelOrigin:new google.maps.Point(0,-16),
         anchor:new google.maps.Point(0,0)
@@ -962,19 +973,21 @@ function haversine(a,b){
   const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;
   return 2*R*Math.asin(Math.sqrt(s));
 }
-function solveTSPWithMatrix(D){
+/* startIndex lets us anchor the first node (used for frame continuity) */
+function solveTSPWithMatrix(D,startIndex=0){
   const n=D.length;
   const visited=Array(n).fill(false);
-  const order=[0];
-  visited[0]=true;
+  const order=[startIndex];
+  visited[startIndex]=true;
   for(let k=1;k<n;k++){
     const last=order[order.length-1];
     let best=Infinity,bIdx=-1;
-    for(let j=1;j<n;j++){
-      if(!visited[j] && D[last][j]<best){best=D[last][j];bIdx=j;}
+    for(let j=0;j<n;j++){
+      if(!visited[j] && j!==last && D[last][j]<best){best=D[last][j];bIdx=j;}
     }
     order.push(bIdx);visited[bIdx]=true;
   }
+  // 2‑opt improvement
   let improved=true;
   while(improved){
     improved=false;
@@ -1048,7 +1061,7 @@ window.routePlannerInit=()=>{
     function onDown(e){
       if(!['F1','F2','F3'].includes(e.key)) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-      if(e.repeat) return;                 // ignore auto-repeat when holding the key
+      if(e.repeat) return;                 // ignore auto-repeat
       if(e.key==='F1') toggleShift('day');
       else if(e.key==='F2') toggleShift('night');
       else clearAllStops();
@@ -1062,7 +1075,7 @@ window.routePlannerInit=()=>{
     document.onhelp = () => false; window.onhelp = () => false;
   })();
 
-  if(window.__mapsApiReady){ /* already signaled; nothing else needed */ }
+  if(window.__mapsApiReady){ /* no-op */ }
 };
 </script>
 </body>
