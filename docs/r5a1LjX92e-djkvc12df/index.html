@@ -259,18 +259,15 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 /* ---------- CONFIG ---------- */
 const PX_PER_MIN = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxPerMin'));
 const colourCycle = ['A','B','C','D','E','F','G','H'];
-const BASE_EMPTY_PER_FRAME = 4;     // 4 blanks in each frame
-const INITIAL_FLAT_ROWS     = 2;     // 2 blanks in flat mode
-const AUTO_FOCUS_ENABLED = false;
+const BASE_EMPTY_PER_FRAME = 4;
+const INITIAL_FLAT_ROWS     = 2;
 let map,dirSvc,dirRend,geocoder,acService,placeSvc;
 let previewPins=[],routeMarkers=[];
 let autoTimer=null,routeVersion=0;
-let dayVisible   = false;
-let nightVisible = false;
-let flatMode     = false;
+let dayVisible=false, nightVisible=false, flatMode=false;
 
-/* Central Okanagan bounds (Oyama to Peachland) */
-let OK_BOUNDS;      // defined after map init
+/* Central Okanagan bounds (Oyama to Peachland, generous but local) */
+let OK_BOUNDS;
 
 /* ---------- FRAME DEFINITIONS ---------- */
 const FRAMES=[
@@ -302,10 +299,7 @@ const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);};
 const pad=n=>n.toString().padStart(2,'0');
 function idxToLabel(i){let s='',n=i+1;while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;}
-function rowToLocation(row){
-  const inp=row.querySelector('.stop');
-  return {lat:parseFloat(inp.dataset.lat),lng:parseFloat(inp.dataset.lng)};
-}
+function rowToLocation(row){const inp=row.querySelector('.stop');return {lat:parseFloat(inp.dataset.lat),lng:parseFloat(inp.dataset.lng)};}
 
 /* ====================================================================== */
 /*  BUILDING UI (FRAMES & ROWS)                                            */
@@ -338,7 +332,7 @@ function buildFrameBuckets(){
 
     const addBtn=document.createElement('button');
     addBtn.className='addRowBtn';addBtn.textContent='+ Add stop';
-    addBtn.onclick=()=>addRowToFrame(fr.id,true,true);
+    addBtn.onclick=()=>addRowToFrame(fr.id,true,false);
     sec.appendChild(addBtn);
 
     container.appendChild(sec);
@@ -354,7 +348,6 @@ function buildFrameBuckets(){
     });
   });
 
-  // ensure placeholders for day frames at startup
   FRAMES.filter(f=>f.shift==='day').forEach(fr=>ensurePlaceholdersForFrame(fr.id));
 
   renumber();
@@ -399,7 +392,6 @@ function ensurePlaceholdersForFrame(frameId){
   for(let i=0;i<need;i++) addRowToFrame(frameId,false,false);
 }
 
-/* Hide/show single time frame */
 function toggleFrame(id){
   const el=document.querySelector(`.frame[data-frame="${id}"]`);
   if(!el) return;
@@ -536,10 +528,18 @@ function renumber(){
 /* ====================================================================== */
 
 function attachInputEvents(inp){
+  /* Always select all text the first time we click into an unfocused input */
+  inp.addEventListener('mousedown',ev=>{
+    if(document.activeElement!==inp){
+      ev.preventDefault();
+      inp.focus({preventScroll:true});
+      setTimeout(()=>inp.select(),0);
+    }
+  });
+
   inp.addEventListener('focus',e=>{
-    inp.closest('.row').classList.add('focused');setTimeout(()=>e.target.select(),0);
-    const mu=ev=>{ev.preventDefault();inp.removeEventListener('mouseup',mu);};
-    inp.addEventListener('mouseup',mu);
+    inp.closest('.row').classList.add('focused');
+    setTimeout(()=>e.target.select(),0);
   });
   inp.addEventListener('blur',()=>inp.closest('.row').classList.remove('focused'));
   inp.addEventListener('input',()=>{inp.dataset.lat='';inp.dataset.lng='';scheduleAutoCompute(80);});
@@ -562,7 +562,6 @@ function attachInputEvents(inp){
       inp.value       = p.formatted_address || inp.value;
       inp.dataset.lat = p.geometry.location.lat();
       inp.dataset.lng = p.geometry.location.lng();
-      // reject out-of-bounds places
       if(!OK_BOUNDS.contains(p.geometry.location)){ inp.dataset.lat=''; inp.dataset.lng=''; }
       scheduleAutoCompute(80);
     }
@@ -579,7 +578,6 @@ function multiPaste(e){
   const allRows=[...document.querySelectorAll('.row')];
   const start=allRows.indexOf(e.target.closest('.row'));
 
-  // ensure enough rows exist
   for(let i=0;i<lines.length;i++){
     if(allRows[start+i]) continue;
     flatMode ? addRowToAddrBar(false) : addRowToFrame(+e.target.closest('.row').dataset.frame,false,false);
@@ -588,7 +586,9 @@ function multiPaste(e){
     const r=document.querySelectorAll('.row')[start+i]; if(!r) return;
     const el=r.querySelector('.stop'); el.value=addr; el.dataset.lat=''; el.dataset.lng='';
   });
-  renumber();autoCompute();buildTimelineFromDOM();
+  renumber();
+  autoCompute();              // compute immediately after paste
+  buildTimelineFromDOM();
 }
 
 /* Accept first autocomplete prediction on Tab / Enter */
@@ -638,7 +638,7 @@ function updateToggleChips(){
   const d=document.getElementById('toggleDay');   if(d) d.classList.toggle('active',dayVisible);
   const n=document.getElementById('toggleNight'); if(n) n.classList.toggle('active',nightVisible);
 }
-function updateButtons(){ /* keep as hook for future; currently no-ops */ }
+function updateButtons(){}
 
 function toggleShift(which){
   if(which==='day') dayVisible=!dayVisible;
@@ -667,27 +667,24 @@ function applyShiftVisibility(){
   }
 
   updateToggleChips();
-  updateButtons();
   buildTimelineFromDOM();
   renumber();
   autoCompute();
 
   focusIsMuted = false;
-  if(flatMode){ const first=document.querySelector('#addrList input.stop'); if(first) safeFocus(first); }
 }
 
-/* Flat bar setup */
 function buildAddrBar(){
   Sortable.create(document.getElementById('addrList'),{
     handle:'.drag',animation:150,
     onEnd:()=>{renumber();autoCompute();}
   });
-  document.getElementById('addrAdd').onclick=()=>addRowToAddrBar(true);
+  document.getElementById('addrAdd').onclick=()=>addRowToAddrBar(false);  // do NOT auto-select on add
   document.getElementById('toggleDay').onclick=()=>toggleShift('day');
   document.getElementById('toggleNight').onclick=()=>toggleShift('night');
 }
 
-function addRowToAddrBar(select=true){
+function addRowToAddrBar(select=false){
   const list=document.getElementById('addrList');
   const row=makeRow(0);list.appendChild(row);renumber();
   if(select) setSelected(row,true);
@@ -706,7 +703,7 @@ function enterFlatMode(){
   const blanks=[...addrList.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim()).length;
   for(let i=blanks;i<INITIAL_FLAT_ROWS;i++) addRowToAddrBar(false);
 
-  document.getElementById('flatMsg').textContent = '';  // reset carryover
+  document.getElementById('flatMsg').textContent = '';
   renumber();buildTimelineFromDOM();showDeleteBtns();
 }
 
@@ -731,11 +728,15 @@ function exitFlatMode(){
 /*  CLEAR                                                                  */
 /* ====================================================================== */
 function clearAllStops(){
-  document.querySelectorAll('.row input.stop').forEach(inp=>{inp.value='';inp.dataset.lat='';inp.dataset.lng='';});
+  document.querySelectorAll('.row').forEach(row=>{
+    const inp=row.querySelector('.stop');
+    row.classList.remove('invalid','selected','focused');
+    if(inp){inp.value='';inp.dataset.lat='';inp.dataset.lng='';inp.placeholder='Enter stop';}
+  });
   clearPreviewPins();clearDirections();clearLegDisplays();
   document.getElementById('msg').textContent='';
   document.getElementById('flatMsg').textContent='';
-  buildTimelineFromDOM(); renumber();
+  showDeleteBtns(); buildTimelineFromDOM(); renumber();
 }
 
 /* ====================================================================== */
@@ -745,6 +746,26 @@ function clearAllStops(){
 const scheduleAutoCompute=(ms=80)=>{clearTimeout(autoTimer);autoTimer=setTimeout(autoCompute,ms);};
 
 function clearDirections(){dirRend.set('directions',null);dirRend.setMap(null);dirRend.setMap(map);clearRouteMarkers();}
+
+/* Geocode with local bias and safe fallback */
+const geocodeSmart=addr=>new Promise(res=>{
+  geocoder.geocode({address:addr,componentRestrictions:{country:'CA'},bounds:OK_BOUNDS},(results,status)=>{
+    if(status==='OK'&&results[0]){
+      const loc=results[0].geometry.location;
+      if(!OK_BOUNDS.contains(loc)){ 
+        // fallback: try again without bounds, then still enforce-in-bounds
+        geocoder.geocode({address:addr,componentRestrictions:{country:'CA'}},(r2,s2)=>{
+          if(s2==='OK'&&r2[0]&&OK_BOUNDS.contains(r2[0].geometry.location)){
+            const l=r2[0].geometry.location;
+            res({lat:l.lat(),lng:l.lng(),formatted:r2[0].formatted_address});
+          }else res(null);
+        });
+      }else{
+        res({lat:loc.lat(),lng:loc.lng(),formatted:results[0].formatted_address});
+      }
+    }else res(null);
+  });
+});
 
 function ensureCoords(rows){
   const tasks=rows.map(row=>{
@@ -877,14 +898,21 @@ function displayLegs(res,stat){
 function clearLegDisplays(){document.querySelectorAll('.leg-display').forEach(d=>d.remove());}
 
 /* ====================================================================== */
-/*  MAP MARKERS / PREVIEW PINS (teardrop pins)                             */
+/*  MAP MARKERS / PREVIEW PINS (improved teardrops)                        */
 /* ====================================================================== */
-const TEARDROP_PATH = "M0,-26 C-7.2,-26 -13,-20.2 -13,-13 c0,10.6 13,26 13,26 s13,-15.4 13,-26 C13,-20.2 7.2,-26 0,-26 z";
+const TEARDROP_PATH = "M0,-28 C-8,-28 -14,-22 -14,-14 c0,11 14,28 14,28 s14,-17 14,-28 C14,-22 8,-28 0,-28 z";
+
 function addPreviewPin(latlng,label){
   const marker=new google.maps.Marker({
     position:latlng,map,
-    label:{text:label,color:'#fff',fontSize:'12px',fontWeight:'700'},
-    icon:{path:TEARDROP_PATH,scale:1,fillColor:'#4285F4',fillOpacity:1,strokeWeight:1,strokeColor:'#fff',anchor:new google.maps.Point(0,0)}
+    label:{text:label,color:'#fff',fontSize:'16px',fontWeight:'700'},
+    icon:{
+      path:TEARDROP_PATH,scale:1,
+      fillColor:'#4285F4',fillOpacity:1,
+      strokeWeight:1.5,strokeColor:'#263238',
+      labelOrigin:new google.maps.Point(0,-16),
+      anchor:new google.maps.Point(0,0)
+    }
   });
   previewPins.push(marker);
 }
@@ -898,8 +926,14 @@ function drawRouteMarkers(points,rows){
     const color=getComputedStyle(document.documentElement).getPropertyValue(`--clr${colorCls}`) || '#607d8b';
     const marker=new google.maps.Marker({
       position:p,map,
-      label:{text:label,color:'#fff',fontSize:'12px',fontWeight:'700'},
-      icon:{path:TEARDROP_PATH,scale:1,fillColor:color.trim(),fillOpacity:1,strokeWeight:1,strokeColor:'#fff',anchor:new google.maps.Point(0,0)}
+      label:{text:label,color:'#fff',fontSize:'16px',fontWeight:'700'},
+      icon:{
+        path:TEARDROP_PATH,scale:1,
+        fillColor:color.trim(),fillOpacity:1,
+        strokeWeight:1.5,strokeColor:'#263238',
+        labelOrigin:new google.maps.Point(0,-16),
+        anchor:new google.maps.Point(0,0)
+      }
     });
     routeMarkers.push(marker);
   });
@@ -907,20 +941,8 @@ function drawRouteMarkers(points,rows){
 function clearRouteMarkers(){routeMarkers.forEach(m=>m.setMap(null));routeMarkers=[];}
 
 /* ====================================================================== */
-/*  GEO / MATRIX / TSP                                                     */
+/*  GEO MATRIX / TSP                                                       */
 /* ====================================================================== */
-
-const geocodeSmart=addr=>new Promise(res=>{
-  geocoder.geocode({address:addr,componentRestrictions:{country:'CA'},bounds:OK_BOUNDS},(results,status)=>{
-    if(status==='OK'&&results[0]){
-      const loc=results[0].geometry.location;
-      if(!OK_BOUNDS.contains(loc)){ res(null); return; }
-      res({lat:loc.lat(),lng:loc.lng(),formatted:results[0].formatted_address});
-    }else res(null);
-  });
-});
-
-/* Distance matrix with haversine */
 function buildDistanceMatrix(points){
   const n=points.length;
   const D=Array.from({length:n},()=>Array(n).fill(0));
@@ -940,8 +962,6 @@ function haversine(a,b){
   const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;
   return 2*R*Math.asin(Math.sqrt(s));
 }
-
-/* Small-n TSP: nearest-neighbour + 2-opt */
 function solveTSPWithMatrix(D){
   const n=D.length;
   const visited=Array(n).fill(false);
@@ -985,10 +1005,9 @@ window.routePlannerInit=()=>{
     zoom:10,mapTypeControl:false,streetViewControl:true,fullscreenControl:true
   });
 
-  /* Central Okanagan bounds (approx) */
   OK_BOUNDS = new google.maps.LatLngBounds(
-    new google.maps.LatLng(49.60,-119.80),   // SW (Peachland / West Bench)
-    new google.maps.LatLng(50.20,-119.15)    // NE (Oyama / Ellison area)
+    new google.maps.LatLng(49.60,-119.80),   // SW
+    new google.maps.LatLng(50.20,-119.15)    // NE
   );
 
   new google.maps.KmlLayer({
@@ -1006,9 +1025,7 @@ window.routePlannerInit=()=>{
   buildAddrBar();
 
   // Start in flat view
-  dayVisible = false;
-  nightVisible = false;
-  applyShiftVisibility();
+  dayVisible=false; nightVisible=false; applyShiftVisibility();
 
   /* Buttons */
   document.getElementById('route').onclick=rebuildRoute;
@@ -1026,20 +1043,22 @@ window.routePlannerInit=()=>{
   });
   document.getElementById('svBack').onclick = () => sv.setVisible(false);
 
-  /* ===================== FUNCTION KEYS (F1 / F2 / F3) ===================== */
+  /* ===================== FUNCTION KEYS ===================== */
   (function attachFunctionKeyTrap(){
-    function trap(e){
-      const k = e.key;
-      if (k === 'F1' || k === 'F2' || k === 'F3'){
-        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-        if (k === 'F1')      toggleShift('day');
-        else if (k === 'F2') toggleShift('night');
-        else                 clearAllStops();
-        return false;
-      }
+    function onDown(e){
+      if(!['F1','F2','F3'].includes(e.key)) return;
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      if(e.repeat) return;                 // ignore auto-repeat when holding the key
+      if(e.key==='F1') toggleShift('day');
+      else if(e.key==='F2') toggleShift('night');
+      else clearAllStops();
     }
-    window.addEventListener('keydown', trap, {capture:true, passive:false});
-    window.addEventListener('keyup',   trap, {capture:true, passive:false});
+    function onUp(e){
+      if(!['F1','F2','F3'].includes(e.key)) return;
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+    }
+    window.addEventListener('keydown', onDown, {capture:true, passive:false});
+    window.addEventListener('keyup',   onUp,   {capture:true, passive:false});
     document.onhelp = () => false; window.onhelp = () => false;
   })();
 
