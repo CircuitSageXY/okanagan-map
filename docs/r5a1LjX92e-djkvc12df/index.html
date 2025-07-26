@@ -34,7 +34,7 @@
 
 /* ---------- BASICS ---------- */
 html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
-#map{backface-visibility:hidden;transform:translateZ(0);} /* smoother overlay compositing */
+#map{backface-visibility:hidden;transform:translateZ(0);} /* smoother compositing */
 .hidden{display:none!important;}
 
 /* ---------- SIDE PANEL ---------- */
@@ -167,7 +167,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   font-size:14px;cursor:pointer;display:none;box-shadow:0 2px 6px rgba(0,0,0,.35);}
 #svBack:hover{background:#546e7a;}
 
-/* ---------- FLAT MODE (directions bar on map) ---------- */
+/* ---------- FLAT MODE ---------- */
 #panel.flat{width:auto;background:transparent;border:none;box-shadow:none;pointer-events:none;}
 #panel.flat #content{display:none;}
 #panel.flat #scroller{padding:12px;}
@@ -258,11 +258,14 @@ const PX_PER_MIN = parseFloat(getComputedStyle(document.documentElement).getProp
 const colourCycle = ['A','B','C','D','E','F','G','H'];
 const BASE_EMPTY_PER_FRAME = 4;
 const INITIAL_FLAT_ROWS     = 2;
+/* near‑optimal tolerance inside a frame (priority remains internal) */
+const TOL_PCT = 0.03;   // 3%
+const TOL_KM  = 0.30;   // or 0.3km
+
 let map,dirSvc,dirRend,geocoder,acService,placeSvc;
 let previewPins=[],routeMarkers=[];
 let autoTimer=null,routeVersion=0;
 let dayVisible=false, nightVisible=false, flatMode=false;
-
 /* Central Okanagan bounds */
 let OK_BOUNDS;
 
@@ -365,7 +368,6 @@ function rebalanceFrameHeights(){
 
   if(!visibleShiftIds.length) return;
 
-  // Base heights (minutes * pxPerMin)
   const baseById = {};
   let totalBaseAll = 0;
   FRAMES.forEach(fr=>{
@@ -374,7 +376,6 @@ function rebalanceFrameHeights(){
     baseById[fr.id]=base; totalBaseAll+=base;
   });
 
-  // Visible (not collapsed) base
   let sumVisibleBase = 0;
   const visibleIds = [];
   FRAMES.forEach(fr=>{
@@ -384,10 +385,8 @@ function rebalanceFrameHeights(){
     if(isShown){ sumVisibleBase += baseById[fr.id]; visibleIds.push(fr.id); }
   });
 
-  // Freed base from hidden/collapsed frames
   const freed = Math.max(0, totalBaseAll - sumVisibleBase);
   if(freed<=0 || visibleIds.length===0) {
-    // reset to base
     visibleIds.forEach(id=>{
       const list=document.getElementById('frame-'+id);
       list.style.maxHeight = baseById[id]+'px';
@@ -395,7 +394,6 @@ function rebalanceFrameHeights(){
     return;
   }
 
-  // Distribute freed space proportionally to visible frames
   visibleIds.forEach(id=>{
     const list=document.getElementById('frame-'+id);
     const bonus = freed * (baseById[id]/sumVisibleBase);
@@ -447,7 +445,7 @@ function toggleFrame(id){
 }
 
 /* ====================================================================== */
-/*  TIMELINE                                                              */
+/*  TIMELINE (now respects visible range)                                  */
 /* ====================================================================== */
 
 function buildTimelineFromDOM(){
@@ -481,13 +479,19 @@ function buildTimelineFromDOM(){
     const fInShift=visibleFrames.filter(f=>f.shift===shift);
     if(!fInShift.length) return;
 
-    const s=parseHM(SHIFTS[shift].start), e=parseHM(SHIFTS[shift].end);
-    const sTop=document.querySelector(`.frame[data-frame="${fInShift[0].id}"]`).offsetTop;
-    const eBot=(()=>{const lf=fInShift[fInShift.length-1];const dom=document.querySelector(`.frame[data-frame="${lf.id}"]`);return dom.offsetTop+dom.offsetHeight;})();
-    const pxSpan=eBot-sTop, minSpan=e-s, pxPerMin=pxSpan/minSpan;
+    /* visible range ONLY for this shift */
+    const visStart = Math.min(...fInShift.map(f=>parseHM(FRAMES.find(x=>x.id===f.id).start)));
+    const visEnd   = Math.max(...fInShift.map(f=>parseHM(FRAMES.find(x=>x.id===f.id).end)));
 
-    for(let t=s;t<=e;t+=30){addTick(t,sTop+(t-s)*pxPerMin,t%60===0);}
-    if((e-s)%30!==0) addTick(e,sTop+(e-s)*pxPerMin,true);
+    const firstDom=document.querySelector(`.frame[data-frame="${fInShift[0].id}"]`);
+    const lastDom =document.querySelector(`.frame[data-frame="${fInShift[fInShift.length-1].id}"]`);
+    const sTop=firstDom.offsetTop;
+    const eBot=lastDom.offsetTop+lastDom.offsetHeight;
+
+    const pxSpan=eBot-sTop, minSpan=visEnd-visStart, pxPerMin=pxSpan/minSpan;
+
+    for(let t=visStart;t<=visEnd;t+=30){addTick(t,sTop+(t-visStart)*pxPerMin,t%60===0);}
+    if((visEnd-visStart)%30!==0) addTick(visEnd,sTop+(visEnd-visStart)*pxPerMin,true);
 
     fInShift.forEach(fr=>{
       const dom=document.querySelector(`.frame[data-frame="${fr.id}"]`);
@@ -498,9 +502,9 @@ function buildTimelineFromDOM(){
     const mark=document.createElement('div');mark.className='nowMarker';tl.appendChild(mark);
     const tickNow=()=>{
       const d=new Date(),m=d.getHours()*60+d.getMinutes();
-      const show=(m>=s && m<=e);
+      const show=(m>=visStart && m<=visEnd);
       mark.style.display=show?'block':'none';
-      if(show) mark.style.top=(sTop+(m-s)*pxPerMin)+'px';
+      if(show) mark.style.top=(sTop+(m-visStart)*pxPerMin)+'px';
     };
     tickNow(); setInterval(tickNow,60000);
   });
@@ -632,7 +636,7 @@ function multiPaste(e){
     const el=r.querySelector('.stop'); el.value=addr; el.dataset.lat=''; el.dataset.lng='';
   });
   renumber();
-  autoCompute();     // sequential resolver will run and then route
+  autoCompute();     // resolver will run, then route
   buildTimelineFromDOM();
 }
 
@@ -936,88 +940,110 @@ function chooseStartIndex(anchor, pts){
 function pathCost(order, D){
   let c=0; for(let i=0;i<order.length-1;i++) c+=D[order[i]][order[i+1]]; return c;
 }
-function crossCost(order, pts, prevEnd, nextStart){
+function crossCost(pts, order, prevEnd, nextStart){
   const a = prevEnd ? haversine(prevEnd, pts[order[0]]) : 0;
   const b = nextStart ? haversine(pts[order[order.length-1]], nextStart) : 0;
   return a+b;
 }
+/* generate near‑optimal candidates from every start (deduped) */
+function generateCandidates(D){
+  const n=D.length, seen=new Set(), list=[];
+  for(let s=0;s<n;s++){
+    const ord=solveTSPWithMatrix(D,s);
+    const key=ord.join('-');
+    if(seen.has(key)) continue;
+    seen.add(key);
+    list.push({order:ord, cost:pathCost(ord,D)});
+  }
+  /* also add reversed variants (sometimes equal internal) */
+  const revSeen=new Set(seen);
+  for(const c of [...list]){
+    const rev=[...c.order].reverse();
+    const key=rev.join('-'); if(revSeen.has(key)) continue;
+    revSeen.add(key);
+    list.push({order:rev, cost:pathCost(rev,D)});
+  }
+  /* sort by internal cost asc */
+  list.sort((a,b)=>a.cost-b.cost);
+  return list;
+}
 
-/* ----- Optimization (by frames: forward + backward refinement) ----- */
+/* ----- Optimization (by frames: forward + backward with near‑optimal tolerance) ----- */
 async function optimizeByFrames(){
   const msg=document.getElementById('msg'); msg.textContent='Optimizing by frames…';
   clearLegDisplays();
 
-  // visible, non-collapsed frames in panel order
   const visIds = FRAMES.filter(f=>{
     const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
     return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) && !sec.classList.contains('collapsed') && sec.style.display!=='none';
   }).map(f=>f.id);
-
   if(!visIds.length){ msg.textContent=''; return; }
 
-  // Pre-collect data per frame
-  const rowsById={}, ptsById={}, DById={}, orderById={}, endLocForwardById={};
-
+  const rowsById={}, ptsById={}, DById={}, candById={}, bestCostById={};
   for(const id of visIds){
     const list=document.getElementById('frame-'+id);
     const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
     rowsById[id]=rows;
     if(rows.length>=1) await ensureCoords(rows);
     const pts=rows.map(rowToLocation); ptsById[id]=pts;
-    if(pts.length>=2) DById[id]=buildDistanceMatrix(pts);
+    if(pts.length>=2){
+      const D=buildDistanceMatrix(pts); DById[id]=D;
+      const cands=generateCandidates(D); candById[id]=cands;
+      bestCostById[id]=cands[0].cost;
+    }else{
+      candById[id]=[{order:pts.map((_,i)=>i), cost:0}];
+      bestCostById[id]=0;
+    }
   }
 
-  /* ---------- Forward pass: anchor to previous end ---------- */
+  /* ----- Forward pass (anchor to previous end) ----- */
+  const chosenById={}, endById={};
   let prevEnd=null;
   for(const id of visIds){
-    const pts=ptsById[id]; const D=DById[id]; const rows=rowsById[id];
-    if(!pts || pts.length<2){ orderById[id]=pts?.map((_,i)=>i)||[]; endLocForwardById[id]=pts?.[pts.length-1]||null; prevEnd=endLocForwardById[id]; continue; }
-    const startIdx = chooseStartIndex(prevEnd, pts);
-    const ord = solveTSPWithMatrix(D, startIdx);
-    orderById[id]=ord;
-    endLocForwardById[id]=pts[ord[ord.length-1]];
-    prevEnd = endLocForwardById[id];
-  }
+    const pts=ptsById[id], rows=rowsById[id], cands=candById[id];
+    if(!rows.length){ chosenById[id]=[]; endById[id]=null; continue; }
+    if(pts.length===1){ chosenById[id]=[0]; endById[id]=pts[0]; prevEnd = endById[id]; continue; }
 
-  /* ---------- Backward pass: prefer an equally-short order ending near next frame ---------- */
-  let nextStart = null; // start location of the already-refined next frame
-  for(let k=visIds.length-1;k>=0;k--){
-    const id = visIds[k];
-    const rows = rowsById[id]; const pts = ptsById[id]; const D = DById[id];
-    if(!pts || pts.length<2) { nextStart = pts?.[orderById[id]?.[0]||0] || null; continue; }
+    const tolAbs = Math.max(TOL_KM, bestCostById[id]*TOL_PCT);
+    const near=cands.filter(c=>c.cost <= bestCostById[id] + tolAbs);
 
-    const baseOrder = orderById[id];
-    const baseCost  = pathCost(baseOrder, D);
-
-    // Candidate that ENDS nearest to nextStart (by reversing a path that STARTS near nextStart)
-    let improvedOrder = baseOrder;
-    if(nextStart){
-      const endCand = chooseStartIndex(nextStart, pts);
-      const startAtEnd = solveTSPWithMatrix(D, endCand);
-      const endAnchored = startAtEnd.slice().reverse(); // now ends at endCand
-      const endCost = pathCost(endAnchored, D);
-
-      // Previous end (from forward pass) for cross comparison
-      const prevEndLoc = (k>0) ? endLocForwardById[visIds[k-1]] : null;
-
-      const baseCross = crossCost(baseOrder, pts, prevEndLoc, nextStart);
-      const endCross  = crossCost(endAnchored, pts, prevEndLoc, nextStart);
-
-      // Rule: never worsen internal cost; if equal or better, prefer the one with lower cross cost
-      if(endCost <= baseCost && endCross < baseCross - 1e-9){
-        improvedOrder = endAnchored;
-        orderById[id] = improvedOrder;
-      }
+    let best=null, bestScore=Infinity;
+    for(const c of near){
+      const score = prevEnd ? haversine(prevEnd, pts[c.order[0]]) : 0;
+      const tie   = c.cost; // tiny tie‑breaker (still within tolerance)
+      const s=score + 1e-6*tie;
+      if(s<bestScore){bestScore=s; best=c;}
     }
-
-    // update nextStart for the previous frame in the loop
-    nextStart = pts[orderById[id][0]];
+    chosenById[id]=best.order;
+    endById[id]=pts[best.order[best.order.length-1]];
+    prevEnd=endById[id];
   }
 
-  /* ---------- Apply orders to the DOM ---------- */
+  /* ----- Backward pass (consider next frame start too) ----- */
+  let nextStart=null;
+  for(let k=visIds.length-1;k>=0;k--){
+    const id=visIds[k], pts=ptsById[id], rows=rowsById[id], cands=candById[id];
+    if(!rows.length || pts.length<2){ nextStart = pts?.[chosenById[id]?.[0]||0] || null; continue; }
+
+    const tolAbs = Math.max(TOL_KM, bestCostById[id]*TOL_PCT);
+    const near=cands.filter(c=>c.cost <= bestCostById[id] + tolAbs);
+
+    const prevEnd = (k>0) ? endById[visIds[k-1]] : null;
+    let best=null, bestScore=Infinity;
+    for(const c of near){
+      const cross = crossCost(pts, c.order, prevEnd, nextStart);
+      const s = cross + 1e-6*c.cost;
+      if(s<bestScore){bestScore=s; best=c;}
+    }
+    chosenById[id]=best.order;
+    // update nextStart for previous frame
+    nextStart = pts[best.order[0]];
+  }
+
+  /* ----- Apply orders to the DOM ----- */
   for(const id of visIds){
     const list=document.getElementById('frame-'+id);
-    const rows=rowsById[id]; const ord=orderById[id];
+    const rows=rowsById[id]; const ord=chosenById[id];
     if(rows.length>=2) ord.forEach(i=>list.appendChild(rows[i]));
   }
 
@@ -1046,7 +1072,7 @@ function displayLegs(res,stat){
 function clearLegDisplays(){document.querySelectorAll('.leg-display').forEach(d=>d.remove());}
 
 /* ====================================================================== */
-/*  MAP MARKERS / PREVIEW PINS (improved teardrops)                        */
+/*  MARKERS (teardrops)                                                    */
 /* ====================================================================== */
 const TEARDROP_PATH = "M0,-28 C-8,-28 -14,-22 -14,-14 c0,11 14,28 14,28 s14,-17 14,-28 C14,-22 8,-28 0,-28 z";
 
@@ -1219,7 +1245,7 @@ window.routePlannerInit=()=>{
     document.onhelp = () => false; window.onhelp = () => false;
   })();
 
-  // Rebalance if the window height changes
+  // Rebalance on resize
   window.addEventListener('resize', ()=>{ clearTimeout(window.__rb); window.__rb=setTimeout(rebalanceFrameHeights,150); });
 
   if(window.__mapsApiReady){ /* no-op */ }
