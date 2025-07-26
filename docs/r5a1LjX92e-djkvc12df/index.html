@@ -265,10 +265,12 @@ const AUTO_FOCUS_ENABLED = false;
 let map,dirSvc,dirRend,geocoder,acService,placeSvc;
 let previewPins=[],routeMarkers=[];
 let autoTimer=null,routeVersion=0;
-let dayVisible   = false;   // declare, don't use yet
+let dayVisible   = false;
 let nightVisible = false;
 let flatMode     = false;
-let userHasFocusedOnce = false;
+
+/* Central Okanagan bounds (Oyama to Peachland) */
+let OK_BOUNDS;      // defined after map init
 
 /* ---------- FRAME DEFINITIONS ---------- */
 const FRAMES=[
@@ -282,37 +284,17 @@ const FRAMES=[
   {id:7,key:'lateev',    name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--f-lateev)',    shift:'night'}
 ];
 const SHIFTS={ day:{start:'07:00',end:'15:30'}, night:{start:'13:30',end:'22:30'} };
-  
-/* ---------------- FOCUS CONTROL ---------------- */
-let initialFocusDone = false;    // focus first box only once per load
-let focusIsMuted     = false;    // pause focusing while DOM is being reshuffled
 
+/* ---------- FOCUS HELPERS ---------- */
+let focusIsMuted=false;
 function safeFocus(el){
   if(!el || focusIsMuted) return;
   requestAnimationFrame(()=>{
     try{
-      el.focus({ preventScroll: true });
-      // place caret at end (harmless for empty inputs)
-      if (el.setSelectionRange) {
-        const len = el.value.length;
-        el.setSelectionRange(len, len);
-      }
+      el.focus({ preventScroll:true });
+      if(el.setSelectionRange){ const len=el.value.length; el.setSelectionRange(len,len); }
     }catch(_){}
   });
-}
-
-function focusFirstInput(force = false){
-  if(force) initialFocusDone = false;
-  if(initialFocusDone) return;
-
-  // Prefer the flat list if it's visible, otherwise first .stop anywhere
-  const first = document.querySelector('#addrList input.stop') ||
-                document.querySelector('input.stop');
-
-  if(first){
-    initialFocusDone = true;
-    safeFocus(first);
-  }
 }
 
 /* ---------- UTILS ---------- */
@@ -372,12 +354,11 @@ function buildFrameBuckets(){
     });
   });
 
-  // only ensure placeholders for visible shift at startup
+  // ensure placeholders for day frames at startup
   FRAMES.filter(f=>f.shift==='day').forEach(fr=>ensurePlaceholdersForFrame(fr.id));
 
   renumber();
 
-  // keep timeline in sync with height changes
   const ro=new ResizeObserver(()=>buildTimelineFromDOM());
   document.querySelectorAll('.frame').forEach(f=>ro.observe(f));
   const mo=new MutationObserver(()=>buildTimelineFromDOM());
@@ -409,7 +390,6 @@ function addRowToFrame(frameId,focus=true,select=false){
 function ensurePlaceholdersForFrame(frameId){
   const list=document.getElementById('frame-'+frameId);
   if(!list) return;
-  // do NOT add placeholders if frame is hidden or collapsed
   const frameEl=list.closest('.frame');
   const visible = frameEl.style.display!== 'none' && !frameEl.classList.contains('collapsed') && !flatMode;
   if(!visible) return;
@@ -417,6 +397,15 @@ function ensurePlaceholdersForFrame(frameId){
   const blanks=[...list.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim()).length;
   const need=Math.max(0,BASE_EMPTY_PER_FRAME-blanks);
   for(let i=0;i<need;i++) addRowToFrame(frameId,false,false);
+}
+
+/* Hide/show single time frame */
+function toggleFrame(id){
+  const el=document.querySelector(`.frame[data-frame="${id}"]`);
+  if(!el) return;
+  const collapsed = el.classList.toggle('collapsed');
+  if(!collapsed) ensurePlaceholdersForFrame(id);
+  buildTimelineFromDOM(); renumber(); autoCompute();
 }
 
 /* ====================================================================== */
@@ -512,22 +501,29 @@ document.addEventListener('keydown',e=>{
     e.preventDefault();deleteSelected();
   }
 });
+/* Deselect clicks anywhere EXCEPT inside a row input or on the delete buttons */
 document.addEventListener('click',e=>{
   if(e.ctrlKey||e.metaKey) return;
   if(!document.querySelector('.row.selected')) return;
-  if(e.target.closest('.row')&&e.target.tagName==='INPUT') return;
-  document.querySelectorAll('.row.selected').forEach(r=>r.classList.remove('selected'));showDeleteBtns();
-},true);
+  const inRow = e.target.closest('.row');
+  const onDeleteBtn = e.target.closest('#delSel, #flatDelSel');
+  if(inRow || onDeleteBtn) return;
+  document.querySelectorAll('.row.selected').forEach(r=>r.classList.remove('selected'));
+  showDeleteBtns();
+}, true);
 
+/* Renumber only currently relevant rows */
 function renumber(){
-  const rows=[...document.querySelectorAll('.row')].filter(r=>{
-    if(flatMode) return true;
-    const fr=document.querySelector(`.frame[data-frame="${r.dataset.frame}"]`);
-    if(!fr) return true;
-    if(fr.classList.contains('collapsed')) return false;
-    const vis=(fr.dataset.shift==='day'?dayVisible:nightVisible);
-    return vis;
-  });
+  let rows;
+  if(flatMode){
+    rows=[...document.querySelectorAll('#addrList .row')];
+  }else{
+    rows=[...document.querySelectorAll('.row')].filter(r=>{
+      const fr=r.closest('.frame'); if(!fr || fr.classList.contains('collapsed')) return false;
+      const vis=(fr.dataset.shift==='day'?dayVisible:nightVisible);
+      return vis && fr.style.display!=='none';
+    });
+  }
   rows.forEach((r,i)=>{
     const b=r.querySelector('.bullet');
     b.textContent=idxToLabel(i);
@@ -546,17 +542,31 @@ function attachInputEvents(inp){
     inp.addEventListener('mouseup',mu);
   });
   inp.addEventListener('blur',()=>inp.closest('.row').classList.remove('focused'));
-  inp.addEventListener('input',()=>{inp.dataset.lat='';inp.dataset.lng='';scheduleAutoCompute();});
+  inp.addEventListener('input',()=>{inp.dataset.lat='';inp.dataset.lng='';scheduleAutoCompute(80);});
   inp.addEventListener('keydown',e=>{
     if(e.key==='Tab'&&!e.shiftKey){e.preventDefault();acceptTopPrediction(inp);}
     else if(e.key==='Enter'){e.preventDefault();acceptTopPrediction(inp);}
   });
   inp.addEventListener('paste',multiPaste);
 
-  new google.maps.places.Autocomplete(inp,{
-    fields:['formatted_address','geometry','place_id'],types:['address'],
-    componentRestrictions:{country:'ca'}
-  }).addListener('place_changed',()=>{});
+  const ac = new google.maps.places.Autocomplete(inp,{
+    fields:['formatted_address','geometry','place_id'],
+    types:['address'],
+    componentRestrictions:{country:'ca'},
+    bounds: OK_BOUNDS,
+    strictBounds: true
+  });
+  ac.addListener('place_changed',()=>{
+    const p = ac.getPlace();
+    if(p?.geometry){
+      inp.value       = p.formatted_address || inp.value;
+      inp.dataset.lat = p.geometry.location.lat();
+      inp.dataset.lng = p.geometry.location.lng();
+      // reject out-of-bounds places
+      if(!OK_BOUNDS.contains(p.geometry.location)){ inp.dataset.lat=''; inp.dataset.lng=''; }
+      scheduleAutoCompute(80);
+    }
+  });
 }
 
 /* Multi-paste handler */
@@ -569,6 +579,7 @@ function multiPaste(e){
   const allRows=[...document.querySelectorAll('.row')];
   const start=allRows.indexOf(e.target.closest('.row'));
 
+  // ensure enough rows exist
   for(let i=0;i<lines.length;i++){
     if(allRows[start+i]) continue;
     flatMode ? addRowToAddrBar(false) : addRowToFrame(+e.target.closest('.row').dataset.frame,false,false);
@@ -580,58 +591,54 @@ function multiPaste(e){
   renumber();autoCompute();buildTimelineFromDOM();
 }
 
-/* ------------------------------------------------------------------
-   Accept first autocomplete prediction on Tab / Enter
------------------------------------------------------------------- */
+/* Accept first autocomplete prediction on Tab / Enter */
 function acceptTopPrediction(input){
-  // If we already have coords, just hop to the next box
   if (input.dataset.lat && input.dataset.lng){
-    focusNextInput(input);
-    return;
+    focusNextInput(input); scheduleAutoCompute(0); return;
   }
-
-  // Ask Places AutocompleteService for predictions
   acService.getPlacePredictions(
     {
       input: input.value,
-      componentRestrictions: {country: 'ca'},
-      types: ['address']
+      componentRestrictions:{country:'ca'},
+      types:['address'],
+      locationBias: OK_BOUNDS
     },
-    (preds, status)=>{
+    (preds,status)=>{
       if (status !== google.maps.places.PlacesServiceStatus.OK || !preds?.length){
-        focusNextInput(input);           // nothing found – just move on
-        return;
+        focusNextInput(input); scheduleAutoCompute(0); return;
       }
-      const first = preds[0];
-      // Fetch full details for that prediction
       placeSvc.getDetails(
-        {placeId: first.place_id, fields: ['formatted_address','geometry']},
+        {placeId: preds[0].place_id, fields: ['formatted_address','geometry']},
         (place, st)=>{
-          if (st === google.maps.places.PlacesServiceStatus.OK){
-            input.value         = place.formatted_address;
-            input.dataset.lat   = place.geometry.location.lat();
-            input.dataset.lng   = place.geometry.location.lng();
+          if (st === google.maps.places.PlacesServiceStatus.OK && place?.geometry){
+            input.value       = place.formatted_address || input.value;
+            input.dataset.lat = place.geometry.location.lat();
+            input.dataset.lng = place.geometry.location.lng();
+            if(!OK_BOUNDS.contains(place.geometry.location)){ input.dataset.lat=''; input.dataset.lng=''; }
           }
-          scheduleAutoCompute();         // update pins / route
-          focusNextInput(input);         // hop to next box either way
+          scheduleAutoCompute(0);
+          focusNextInput(input);
         }
       );
     }
   );
 }
-
-/* Move caret to the next .stop input (wrap-around ignored) */
 function focusNextInput(current){
-  const all   = [...document.querySelectorAll('input.stop')];
-  const idx   = all.indexOf(current);
-  const next  = all[idx+1];
+  const all=[...document.querySelectorAll('input.stop')];
+  const idx=all.indexOf(current);
+  const next=all[idx+1];
   if(next) safeFocus(next);
 }
-
 
 /* ====================================================================== */
 /*  SHIFT VISIBILITY & FLAT MODE                                          */
 /* ====================================================================== */
+
+function updateToggleChips(){
+  const d=document.getElementById('toggleDay');   if(d) d.classList.toggle('active',dayVisible);
+  const n=document.getElementById('toggleNight'); if(n) n.classList.toggle('active',nightVisible);
+}
+function updateButtons(){ /* keep as hook for future; currently no-ops */ }
 
 function toggleShift(which){
   if(which==='day') dayVisible=!dayVisible;
@@ -640,7 +647,7 @@ function toggleShift(which){
 }
 
 function applyShiftVisibility(){
-  focusIsMuted = true;        // << freeze any programmatic focus
+  focusIsMuted = true;
 
   FRAMES.forEach(fr=>{
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
@@ -665,8 +672,8 @@ function applyShiftVisibility(){
   renumber();
   autoCompute();
 
-  focusIsMuted = false;        // << thaw focus
-  if(flatMode) focusFirstInput(); // restore caret to A if we’re in flat mode
+  focusIsMuted = false;
+  if(flatMode){ const first=document.querySelector('#addrList input.stop'); if(first) safeFocus(first); }
 }
 
 /* Flat bar setup */
@@ -693,23 +700,20 @@ function enterFlatMode(){
   document.getElementById('addrBar').classList.add('active');
 
   const addrList=document.getElementById('addrList');
-  // move ONLY filled rows; leave blanks behind so we don't duplicate
   const filled=[...document.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
   filled.forEach(r=>addrList.appendChild(r));
 
-  // ensure exactly 2 blanks in flat bar
   const blanks=[...addrList.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim()).length;
   for(let i=blanks;i<INITIAL_FLAT_ROWS;i++) addRowToAddrBar(false);
 
+  document.getElementById('flatMsg').textContent = '';  // reset carryover
   renumber();buildTimelineFromDOM();showDeleteBtns();
-  focusFirstInput(true);   // make sure A is focused when we land in flat view
 }
 
 function exitFlatMode(){
   if(!flatMode) return; flatMode=false;
 
   const addrList=document.getElementById('addrList');
-  // send rows back to their original frame (dataset.frame stored on the row)
   addrList.querySelectorAll('.row').forEach(r=>{
     const fid=+r.dataset.frame||0;
     document.getElementById('frame-'+fid).appendChild(r);
@@ -717,10 +721,9 @@ function exitFlatMode(){
 
   document.getElementById('panel').classList.remove('flat');
   document.getElementById('addrBar').classList.remove('active');
+  document.getElementById('flatMsg').textContent='';
 
-  // top up placeholders for visible frames only
   FRAMES.forEach(fr=>ensurePlaceholdersForFrame(fr.id));
-
   buildTimelineFromDOM();showDeleteBtns();
 }
 
@@ -732,14 +735,14 @@ function clearAllStops(){
   clearPreviewPins();clearDirections();clearLegDisplays();
   document.getElementById('msg').textContent='';
   document.getElementById('flatMsg').textContent='';
-  buildTimelineFromDOM();
+  buildTimelineFromDOM(); renumber();
 }
 
 /* ====================================================================== */
 /*  ROUTING / OPTIMIZATION                                                 */
 /* ====================================================================== */
 
-const scheduleAutoCompute=(ms=250)=>{clearTimeout(autoTimer);autoTimer=setTimeout(autoCompute,ms);};
+const scheduleAutoCompute=(ms=80)=>{clearTimeout(autoTimer);autoTimer=setTimeout(autoCompute,ms);};
 
 function clearDirections(){dirRend.set('directions',null);dirRend.setMap(null);dirRend.setMap(map);clearRouteMarkers();}
 
@@ -871,17 +874,17 @@ function displayLegs(res,stat){
   const text=`Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
   msg.textContent=text; flatMsg.textContent=text;
 }
-
 function clearLegDisplays(){document.querySelectorAll('.leg-display').forEach(d=>d.remove());}
 
 /* ====================================================================== */
-/*  MAP MARKERS / PREVIEW PINS                                             */
+/*  MAP MARKERS / PREVIEW PINS (teardrop pins)                             */
 /* ====================================================================== */
+const TEARDROP_PATH = "M0,-26 C-7.2,-26 -13,-20.2 -13,-13 c0,10.6 13,26 13,26 s13,-15.4 13,-26 C13,-20.2 7.2,-26 0,-26 z";
 function addPreviewPin(latlng,label){
   const marker=new google.maps.Marker({
     position:latlng,map,
     label:{text:label,color:'#fff',fontSize:'12px',fontWeight:'700'},
-    icon:{path:google.maps.SymbolPath.CIRCLE,scale:10,fillColor:'#4285F4',fillOpacity:1,strokeWeight:1,strokeColor:'#fff'}
+    icon:{path:TEARDROP_PATH,scale:1,fillColor:'#4285F4',fillOpacity:1,strokeWeight:1,strokeColor:'#fff',anchor:new google.maps.Point(0,0)}
   });
   previewPins.push(marker);
 }
@@ -896,7 +899,7 @@ function drawRouteMarkers(points,rows){
     const marker=new google.maps.Marker({
       position:p,map,
       label:{text:label,color:'#fff',fontSize:'12px',fontWeight:'700'},
-      icon:{path:google.maps.SymbolPath.CIRCLE,scale:10,fillColor:color.trim(),fillOpacity:1,strokeWeight:1,strokeColor:'#fff'}
+      icon:{path:TEARDROP_PATH,scale:1,fillColor:color.trim(),fillOpacity:1,strokeWeight:1,strokeColor:'#fff',anchor:new google.maps.Point(0,0)}
     });
     routeMarkers.push(marker);
   });
@@ -908,14 +911,16 @@ function clearRouteMarkers(){routeMarkers.forEach(m=>m.setMap(null));routeMarker
 /* ====================================================================== */
 
 const geocodeSmart=addr=>new Promise(res=>{
-  geocoder.geocode({address:addr,componentRestrictions:{country:'CA'}},(results,status)=>{
+  geocoder.geocode({address:addr,componentRestrictions:{country:'CA'},bounds:OK_BOUNDS},(results,status)=>{
     if(status==='OK'&&results[0]){
-      res({lat:results[0].geometry.location.lat(),lng:results[0].geometry.location.lng(),formatted:results[0].formatted_address});
+      const loc=results[0].geometry.location;
+      if(!OK_BOUNDS.contains(loc)){ res(null); return; }
+      res({lat:loc.lat(),lng:loc.lng(),formatted:results[0].formatted_address});
     }else res(null);
   });
 });
 
-/* Simple distance matrix using haversine (approx) to avoid extra API calls */
+/* Distance matrix with haversine */
 function buildDistanceMatrix(points){
   const n=points.length;
   const D=Array.from({length:n},()=>Array(n).fill(0));
@@ -936,7 +941,7 @@ function haversine(a,b){
   return 2*R*Math.asin(Math.sqrt(s));
 }
 
-/* Very small TSP nearest-neighbour + 2-opt improvement */
+/* Small-n TSP: nearest-neighbour + 2-opt */
 function solveTSPWithMatrix(D){
   const n=D.length;
   const visited=Array(n).fill(false);
@@ -950,7 +955,6 @@ function solveTSPWithMatrix(D){
     }
     order.push(bIdx);visited[bIdx]=true;
   }
-  // 2-opt
   let improved=true;
   while(improved){
     improved=false;
@@ -980,6 +984,13 @@ window.routePlannerInit=()=>{
     center:{lat:49.8879,lng:-119.4960},
     zoom:10,mapTypeControl:false,streetViewControl:true,fullscreenControl:true
   });
+
+  /* Central Okanagan bounds (approx) */
+  OK_BOUNDS = new google.maps.LatLngBounds(
+    new google.maps.LatLng(49.60,-119.80),   // SW (Peachland / West Bench)
+    new google.maps.LatLng(50.20,-119.15)    // NE (Oyama / Ellison area)
+  );
+
   new google.maps.KmlLayer({
     url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',
     map,preserveViewport:true
@@ -993,13 +1004,13 @@ window.routePlannerInit=()=>{
   buildFrameBuckets();
   buildTimelineFromDOM();
   buildAddrBar();
-  // Force startup in flat view
+
+  // Start in flat view
   dayVisible = false;
   nightVisible = false;
-  applyShiftVisibility();   // this will enter flat mode
-  focusFirstInput(true);    // caret in first field (A)
+  applyShiftVisibility();
 
-  /* buttons */
+  /* Buttons */
   document.getElementById('route').onclick=rebuildRoute;
   document.getElementById('optAll').onclick=globalOptimizeRoute;
   document.getElementById('optFrames').onclick=optimizeByFrames;
@@ -1008,47 +1019,32 @@ window.routePlannerInit=()=>{
   document.getElementById('flatOpt').onclick=globalOptimizeRoute;
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
-/* ---------------- STREET VIEW ---------------- */
-const sv = map.getStreetView();
-sv.addListener('visible_changed', () => {
-  document.getElementById('svBack').style.display = sv.getVisible() ? 'block' : 'none';
-});
-document.getElementById('svBack').onclick = () => sv.setVisible(false);
+  /* Street View back */
+  const sv = map.getStreetView();
+  sv.addListener('visible_changed', () => {
+    document.getElementById('svBack').style.display = sv.getVisible() ? 'block' : 'none';
+  });
+  document.getElementById('svBack').onclick = () => sv.setVisible(false);
 
-/* ===================== FUNCTION KEYS (F1 / F2 / F3) ===================== */
-/* Put this AFTER toggleShift() and clearAllStops() are defined. Only once. */
-(function attachFunctionKeyTrap(){
-  function trap(e){
-    const k = e.key;
-    if (k === 'F1' || k === 'F2' || k === 'F3'){
-      // Kill browser default help / search, etc.
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-
-      if (k === 'F1')      toggleShift('day');
-      else if (k === 'F2') toggleShift('night');
-      else                 clearAllStops();
-      return false;
+  /* ===================== FUNCTION KEYS (F1 / F2 / F3) ===================== */
+  (function attachFunctionKeyTrap(){
+    function trap(e){
+      const k = e.key;
+      if (k === 'F1' || k === 'F2' || k === 'F3'){
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        if (k === 'F1')      toggleShift('day');
+        else if (k === 'F2') toggleShift('night');
+        else                 clearAllStops();
+        return false;
+      }
     }
-  }
-  // Capture so we see it before anyone else (including the browser)
-  window.addEventListener('keydown', trap, {capture:true, passive:false});
-  window.addEventListener('keyup',   trap, {capture:true, passive:false}); // Edge sometimes fires help on keyup
+    window.addEventListener('keydown', trap, {capture:true, passive:false});
+    window.addEventListener('keyup',   trap, {capture:true, passive:false});
+    document.onhelp = () => false; window.onhelp = () => false;
+  })();
 
-  // Legacy fallback (old Edge / IE)
-  document.onhelp = () => false;
-  window.onhelp   = () => false;
-})();
-
-/* Keep this if you had it for completeness */
-if(window.__mapsApiReady){ /* no-op */ }
+  if(window.__mapsApiReady){ /* already signaled; nothing else needed */ }
 };
-  
-/* ----------- END routePlannerInit (if this is inside it) ----------- */
-// };// end routePlannerInit   <-- uncomment/keep ONLY if this block is inside routePlannerInit
-
-/* ====================================================================== */
 </script>
 </body>
 </html>
