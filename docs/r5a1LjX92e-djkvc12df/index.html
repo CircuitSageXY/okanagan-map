@@ -572,7 +572,7 @@ async function multiPaste(e){
   const startIdx=rows.indexOf(startRow);
   const need=Math.max(0,startIdx+lines.length-rows.length);
   for(let i=0;i<need;i++){
-    if(flatMode) addRowToAddrBar(false); else addRowToFrame(+startRow.dataset.frame,false,false);
+    if(flatMode) addRowToAddrBar(false,false); else addRowToFrame(+startRow.dataset.frame,false,false);
   }
   rows=[...container.querySelectorAll('.row')];
 
@@ -661,23 +661,41 @@ function buildAddrBar(){
     handle:'.drag',animation:150,
     onEnd:()=>{renumber();scheduleAutoCompute(120,false);}
   });
-  document.getElementById('addrAdd').onclick=()=>addRowToAddrBar(false);
+  // FIX(1): When user presses +, focus the new input explicitly.
+  document.getElementById('addrAdd').onclick=()=>addRowToAddrBar(true,false);
   document.getElementById('toggleDay').onclick=()=>toggleShift('day');
   document.getElementById('toggleNight').onclick=()=>toggleShift('night');
 }
-function addRowToAddrBar(select=false){
+
+// FIX(1): addRowToAddrBar now supports "focus" flag to prevent focus bouncing
+function addRowToAddrBar(focus=true,select=false){
   const list=document.getElementById('addrList');
   const row=makeRow(0);list.appendChild(row);renumber();
   if(select) setSelected(row,true);
-  row.querySelector('.stop').focus({preventScroll:true});
+  if(focus) row.querySelector('.stop').focus({preventScroll:true});
+  return row;
 }
+
+// FIX(1): focus the first available input if none is active
+function focusFirstFlatInputIfNone(){
+  if(document.activeElement && document.activeElement.classList.contains('stop')) return;
+  const list=document.getElementById('addrList');
+  const firstEmpty=[...list.querySelectorAll('.stop')].find(i=>!i.value.trim()) || list.querySelector('.stop');
+  if(firstEmpty) firstEmpty.focus({preventScroll:true});
+}
+
 function enterFlatMode(){
   if(flatMode) return; flatMode=true;
   document.getElementById('panel').classList.add('flat');
   document.getElementById('addrBar').classList.add('active');
   const list=document.getElementById('addrList');
-  if(list.querySelectorAll('.row').length===0)
-    for(let i=0;i<INITIAL_FLAT_ROWS;i++) addRowToAddrBar(false);
+  if(list.querySelectorAll('.row').length===0){
+    // FIX(1): Focus only the first placeholder, suppress focus on the rest.
+    addRowToAddrBar(true,false);
+    for(let i=1;i<INITIAL_FLAT_ROWS;i++) addRowToAddrBar(false,false);
+  }else{
+    focusFirstFlatInputIfNone();
+  }
   clearDirections(); clearLegDisplays();
 }
 function exitFlatMode(){
@@ -831,7 +849,8 @@ function pruneListGaps(list, placeholdersAtEnd){
 }
 function pruneEmptyGapsVisible(){
   if(flatMode){
-    pruneListGaps(document.getElementById('addrList'), INITIAL_FLAT_ROWS);
+    // FIX(2): Do not auto-add placeholders in flat mode.
+    pruneListGaps(document.getElementById('addrList'), 0);
   }else{
     FRAMES.forEach(fr=>{
       const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
@@ -843,19 +862,46 @@ function pruneEmptyGapsVisible(){
   renumber();
 }
 
+// FIX(3): helpers for optimization cleanup
+function removeAllEmptyRowsFlat(){
+  const list=document.getElementById('addrList');
+  [...list.querySelectorAll('.row')].forEach(r=>{
+    const v=r.querySelector('.stop').value.trim();
+    if(!v) r.remove();
+  });
+  renumber();
+}
+function pruneFramesOnOptimize(){
+  // remove empties inside visible frames, and hide frames that end up empty
+  FRAMES.forEach(fr=>{
+    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
+    const visible=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
+    if(!visible || sec.classList.contains('collapsed') || sec.style.display==='none') return;
+    const list=document.getElementById('frame-'+fr.id);
+    // remove empty rows
+    [...list.querySelectorAll('.row')].forEach(r=>{ if(!r.querySelector('.stop').value.trim()) r.remove(); });
+    const filled=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim()).length;
+    if(filled===0){
+      sec.style.display='none'; // auto-hide this frame
+    }
+  });
+  renumber();
+  rebalanceFrameHeights();
+  buildTimelineFromDOM();
+}
+
 /* Main autoCompute */
 async function autoCompute(){
   const rows=getOrderedRows();
-  const filled=rows.filter(r=>r.querySelector('.stop').value.trim());
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
 
-  if(filled.length===0){
+  if(filledCount(rows)===0){
     clearPreviewPins();clearLegDisplays();msg.textContent='';flatMsg.textContent='';clearDirections();return;
   }
 
-  if(filled.some(r=>!r.querySelector('.stop').dataset.lat)){
+  if(rows.some(r=>!r.querySelector('.stop').dataset.lat)){
     if(autoResolveNext){
-      await ensureCoords(filled,{parallel:true});
+      await ensureCoords(rows,{parallel:true});
       autoResolveNext=false;
     }else{
       clearDirections(); clearLegDisplays(); return;
@@ -864,14 +910,16 @@ async function autoCompute(){
 
   pruneEmptyGapsVisible();
 
-  if(filled.length===1){
+  if(rows.length===1){
     clearDirections();clearLegDisplays();clearPreviewPins();
-    const inp=filled[0].querySelector('.stop');
+    const inp=rows[0].querySelector('.stop');
     addPreviewPin({lat:+inp.dataset.lat,lng:+inp.dataset.lng},'A');
     msg.textContent='';flatMsg.textContent='';
   }else{
     clearPreviewPins(); await rebuildRoute();
   }
+
+  function filledCount(rlist){return rlist.filter(r=>r.querySelector('.stop').value.trim()).length;}
 }
 
 /* Rebuild directions on map */
@@ -880,7 +928,7 @@ async function rebuildRoute(){
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
   clearLegDisplays();clearRouteMarkers();
   if(rows.length<2){msg.textContent='';flatMsg.textContent='';clearDirections();return;}
-  const ok = await ensureCoords(rows,{parallel:true});
+  const ok=await ensureCoords(rows,{parallel:true});
   if(!ok){msg.textContent='One or more stops can’t be located – please edit.';flatMsg.textContent=msg.textContent;return;}
   const locs=rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
   return new Promise(resolve=>{
@@ -1003,6 +1051,10 @@ async function globalOptimizeRoute(){
   const rows=getOrderedRows();
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
   clearLegDisplays();
+
+  // FIX(3): In Flat view, remove all empty rows prior to optimize.
+  if(flatMode) removeAllEmptyRowsFlat();
+
   if(rows.length<3){await rebuildRoute();return;}
 
   const ok=await ensureCoords(rows,{parallel:true});
@@ -1023,7 +1075,10 @@ async function optimizeByFramesTwoPass(){
   const msg=document.getElementById('msg'); const flatMsg=document.getElementById('flatMsg');
   msg.textContent='Optimizing by frames…'; flatMsg.textContent=msg.textContent;
 
-  const visFrames=FRAMES.filter(f=>{
+  // FIX(3): Clean up empties and hide empty frames right before optimizing.
+  pruneFramesOnOptimize();
+
+  let visFrames=FRAMES.filter(f=>{
     const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
     return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) && !sec.classList.contains('collapsed') && sec.style.display!=='none';
   });
@@ -1113,6 +1168,8 @@ async function optimizeByFramesTwoPass(){
 
   renumber();
   await rebuildRoute();
+  rebalanceFrameHeights();
+  buildTimelineFromDOM();
   msg.textContent='Optimized by frames.'; flatMsg.textContent=msg.textContent;
 }
 
@@ -1144,11 +1201,11 @@ window.routePlannerInit=()=>{
   dayVisible=false; nightVisible=false; applyShiftVisibility();
 
   document.getElementById('route').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); rebuildRoute();};
-  document.getElementById('optAll').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); globalOptimizeRoute();};
+  document.getElementById('optAll').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); if(flatMode) removeAllEmptyRowsFlat(); globalOptimizeRoute();}; // FIX(3)
   document.getElementById('optFrames').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); optimizeByFramesTwoPass();};
   document.getElementById('delSel').onclick=deleteSelected;
   document.getElementById('flatRoute').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); rebuildRoute();};
-  document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); globalOptimizeRoute();};
+  document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); removeAllEmptyRowsFlat(); globalOptimizeRoute();}; // FIX(3)
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
   const sv = map.getStreetView();
@@ -1175,10 +1232,4 @@ window.routePlannerInit=()=>{
     document.onhelp = () => false; window.onhelp = () => false;
   })();
 
-  window.addEventListener('resize', ()=>{ clearTimeout(window.__rb); window.__rb=setTimeout(rebalanceFrameHeights,150); });
-
-  if(window.__mapsApiReady){ /* no-op */ }
-};
-</script>
-</body>
-</html>
+  window.addEventListener('resize', ()=>{ clearTimeout(window.__rb); window.__rb=setTimeout(re
