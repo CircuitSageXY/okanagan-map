@@ -849,7 +849,7 @@ function pruneListGaps(list, placeholdersAtEnd){
 }
 function pruneEmptyGapsVisible(){
   if(flatMode){
-    // FIX(2): Do not auto-add placeholders in flat mode.
+    /* FIX(2): Do not auto-add placeholders in flat mode. */
     pruneListGaps(document.getElementById('addrList'), 0);
   }else{
     FRAMES.forEach(fr=>{
@@ -862,7 +862,7 @@ function pruneEmptyGapsVisible(){
   renumber();
 }
 
-// FIX(3): helpers for optimization cleanup
+/* FIX(3): helpers for optimization cleanup */
 function removeAllEmptyRowsFlat(){
   const list=document.getElementById('addrList');
   [...list.querySelectorAll('.row')].forEach(r=>{
@@ -895,7 +895,7 @@ async function autoCompute(){
   const rows=getOrderedRows();
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
 
-  if(filledCount(rows)===0){
+  if(rows.filter(r=>r.querySelector('.stop').value.trim()).length===0){
     clearPreviewPins();clearLegDisplays();msg.textContent='';flatMsg.textContent='';clearDirections();return;
   }
 
@@ -918,8 +918,6 @@ async function autoCompute(){
   }else{
     clearPreviewPins(); await rebuildRoute();
   }
-
-  function filledCount(rlist){return rlist.filter(r=>r.querySelector('.stop').value.trim()).length;}
 }
 
 /* Rebuild directions on map */
@@ -1104,17 +1102,15 @@ async function optimizeByFramesTwoPass(){
     ord.forEach(i=>fd.list.appendChild(fd.rows[i]));
   });
 
-  // Pass 2: forward boundary optimization (choose next‐frame start to minimize connector)
+  // Pass 2: forward boundary optimization
   for(let i=0;i<framesData.length-1;i++){
     const A=framesData[i], B=framesData[i+1];
     if((A.rows.length<1)||(B.rows.length<2)) continue;
 
-    // last point of A
     const lastArow=A.list.querySelectorAll('.row'); if(!lastArow.length) continue;
     const lastARow = lastArow[lastArow.length-1];
     const lastA={lat:+lastARow.querySelector('.stop').dataset.lat,lng:+lastARow.querySelector('.stop').dataset.lng};
 
-    // try each candidate as B.start, re‑solve B with fixedStart
     let bestStart=0, bestConnector=Infinity, bestOrder=B.baseOrder, bestCost=B.baseCost;
     for(let s=0;s<B.rows.length;s++){
       const ord=solveTSPWithMatrix(B.D,{fixedStart:s});
@@ -1125,7 +1121,6 @@ async function optimizeByFramesTwoPass(){
         if(conn<bestConnector){bestConnector=conn; bestStart=s; bestOrder=ord; bestCost=cost;}
       }
     }
-    // apply if within tolerance (never make the frame worse beyond tolerance)
     if(bestOrder!==B.baseOrder){
       const newRows = bestOrder.map(i=>B.rows[i]);
       newRows.forEach(r=>B.list.appendChild(r));
@@ -1133,20 +1128,19 @@ async function optimizeByFramesTwoPass(){
       B.baseCost  = bestCost;
       B.rows      = newRows;
       B.pts       = newRows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
-      B.D         = buildDistanceMatrix(B.pts); // re‑build in case of numeric drift
+      B.D         = buildDistanceMatrix(B.pts);
     }
   }
 
-  // Pass 3: backward boundary optimization (choose previous‐frame end to minimize connector)
+  // Pass 3: backward boundary optimization
   for(let i=framesData.length-2;i>=0;i--){
     const A=framesData[i], B=framesData[i+1];
     if((A.rows.length<2)||(B.rows.length<1)) continue;
 
-    const firstB = B.pts[B.baseOrder[0]]; // after forward pass, the chosen start
+    const firstB = B.pts[B.baseOrder[0]];
     let bestEndIdx=A.baseOrder[A.baseOrder.length-1], bestOrder=A.baseOrder, bestCost=A.baseCost, bestConnector=haversine(A.pts[bestEndIdx], firstB);
 
     for(let e=0;e<A.rows.length;e++){
-      // make e the last element by solving with fixedEnd=e
       const ord=solveTSPWithMatrix(A.D,{fixedEnd:e});
       const cost=orderCost(ord,A.D);
       if(cost <= A.baseCost*(1+TOL_PCT) + TOL_KM){
@@ -1201,11 +1195,11 @@ window.routePlannerInit=()=>{
   dayVisible=false; nightVisible=false; applyShiftVisibility();
 
   document.getElementById('route').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); rebuildRoute();};
-  document.getElementById('optAll').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); if(flatMode) removeAllEmptyRowsFlat(); globalOptimizeRoute();}; // FIX(3)
+  document.getElementById('optAll').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); if(flatMode) removeAllEmptyRowsFlat(); globalOptimizeRoute();};
   document.getElementById('optFrames').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); optimizeByFramesTwoPass();};
   document.getElementById('delSel').onclick=deleteSelected;
   document.getElementById('flatRoute').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); rebuildRoute();};
-  document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); removeAllEmptyRowsFlat(); globalOptimizeRoute();}; // FIX(3)
+  document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); removeAllEmptyRowsFlat(); globalOptimizeRoute();};
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
   const sv = map.getStreetView();
@@ -1232,14 +1226,18 @@ window.routePlannerInit=()=>{
     document.onhelp = () => false; window.onhelp = () => false;
   })();
 
-  window.addEventListener('resize', ()=>{ clearTimeout(window.__rb); window.__rb=setTimeout(re
+  window.addEventListener('resize', ()=>{
+    clearTimeout(window.__rb);
+    window.__rb=setTimeout(rebalanceFrameHeights,150);
+  });
 
-  if(window.__mapsApiReady){ /* no-op */ }
+  /* If the Google API loaded before this function was defined, init() set the flag.
+     In that case, we’re already inside routePlannerInit, so nothing special is needed. */
 };
+
+/* If the Google loader fired before routePlannerInit existed, init() set __mapsApiReady.
+   Call routePlannerInit now to finish bootstrapping. */
+if(window.__mapsApiReady){ window.routePlannerInit(); }
 </script>
 </body>
 </html>
-
-
-
-                                                                                            
