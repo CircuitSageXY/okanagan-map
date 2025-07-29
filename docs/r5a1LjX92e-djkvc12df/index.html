@@ -58,20 +58,20 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   box-shadow:0 1px 2px rgba(0,0,0,.08);position:relative;display:flex;flex-direction:column;
 }
 .frame-header{
-  /* was sticky; removed so it scrolls with content */
+  /* not sticky; scrolls with content */
   display:flex;align-items:center;gap:8px;padding:6px 10px;
   font-size:15px;font-weight:500;color:#000;border-bottom:1px solid #e0e0e0;background:#fafafa;
 }
 .frame-header .swatch{width:16px;height:16px;border-radius:3px;flex:none;}
 .frame-hide{margin-left:auto;cursor:pointer;color:#666;font-size:20px;line-height:20px;}
 .frame-hide:hover{color:#000;}
-.frame.collapsed .frame-body,.frame.collapsed .addRowBtn{display:none;}
+.frame.collapsed .frame-body{display:none;}
 .frame.collapsed{opacity:.55;}
 .frame.collapsed .frame-hide{color:#c00;}
 
 .frame-body{
   display:grid;grid-template-columns: var(--tlW) 1fr;column-gap:12px;
-  align-items:stretch; padding:12px 10px 8px 6px; /* extra top space below header */
+  align-items:stretch; padding:12px 10px 8px 6px; /* give space between name and first tick */
 }
 
 /* Per-frame timeline visuals */
@@ -91,11 +91,10 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .tl-seg{position:absolute;left:0;right:0;border-radius:3px;opacity:.08;}
 
 .frame-list{overflow:visible;flex:1 1 auto;}
-.addRowBtn{
-  margin:6px 10px 10px calc(10px + var(--tlW));
-  background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
-  padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;flex:none;}
-.addRowBtn:hover{background:#e7e7e7;}
+
+/* "+ Add stop" button removed intentionally (auto-add on Tab) */
+
+.addRowBtn{display:none;} /* guard if any leftover */
 
 /* colored borders per frame */
 .frame[data-frame="0"]{border-left:4px solid var(--f-early);}
@@ -186,8 +185,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .toggleChip.active.day  {background:var(--f-afternoon);color:#fff;}
 .toggleChip.active.night{background:var(--f-evening);color:#fff;}
 
-#addrAdd{background:var(--clrPanelBg);border:1px solid #bbb;border-radius:50%;width:24px;height:24px;font-size:16px;line-height:22px;text-align:center;cursor:pointer;flex:none;}
-#addrAdd:hover{background:#f2f2f2;}
+/* “+” removed; we keep no icon there */
 
 #addrList .row{margin:6px 0;}
 
@@ -195,14 +193,17 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 #flatMsg{font-size:16px;font-weight:700;color:#0066cc;flex:1 1 100%;}
 #flatButtons{display:flex;gap:8px;}
 #flatButtons button{padding:6px 12px;font-size:13px;border-radius:6px;cursor:pointer;border:none;}
-#flatRoute{background:var(--clrA);color:#fff;}
+/* Route button removed */
 #flatOpt{background:var(--clrB);color:#fff;}
 #flatDelSel{background:#db4437;color:#fff;display:none;}
 
-/* ---------- KML Info label (FIX 2) ---------- */
-.kml-label{min-width:160px;max-width:260px;font-family:var(--fontMain);}
-.kml-title{font-size:14px;font-weight:700;margin-bottom:2px;color:#0d47a1;}
+/* ---------- KML Info label (KML FIX) ---------- */
+.kml-label{min-width:170px;max-width:280px;font-family:var(--fontMain);}
+.kml-title{font-size:16px;font-weight:700;margin-bottom:2px;color:#0d47a1;letter-spacing:.2px;}
 .kml-desc{font-size:12px;color:#333;}
+
+/* subtle emphasis inside InfoWindow content */
+.kml-label{filter:drop-shadow(0 1px 1px rgba(0,0,0,.1));}
 </style>
 
 <script>
@@ -234,14 +235,14 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
       <span id="toggleDay"   class="toggleChip day">Day</span>
       <span id="toggleNight" class="toggleChip night">Night</span>
     </div>
-    <button id="addrAdd" title="Add stop">+</button>
+    <!-- "+" removed -->
   </div>
   <div id="addrList"></div>
 
   <div id="addrFooter">
     <div id="flatMsg"></div>
     <div id="flatButtons">
-      <button id="flatRoute">Route</button>
+      <!-- Route removed -->
       <button id="flatOpt">Optimize</button>
       <button id="flatDelSel">Delete Selected</button>
     </div>
@@ -253,8 +254,8 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 <script>
 /* =================== CONFIG / CONSTANTS =================== */
 const PX_PER_MIN = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxPerMin'));
-const BASE_EMPTY_PER_FRAME = 4;
-const INITIAL_FLAT_ROWS     = 2;
+const BASE_EMPTY_PER_FRAME = 1;            /* only one starter slot in empty frames */
+const INITIAL_FLAT_ROWS     = 1;            /* one starter slot in flat view */
 
 const TOL_PCT = 0.03;  // 3%
 const TOL_KM  = 0.30;  // 0.3 km
@@ -265,7 +266,7 @@ let autoTimer=null, autoResolveNext=false;
 let dayVisible=false, nightVisible=false, flatMode=false;
 let OK_BOUNDS;
 
-/* one-shot guard for placeholder top-up */
+/* prevent auto top-up immediately after certain actions */
 let suppressTopUpOnce = false;
 
 /* ---------- FRAMES ---------- */
@@ -335,10 +336,7 @@ function buildFrameBuckets(){
 
     sec.appendChild(body);
 
-    const addBtn=document.createElement('button');
-    addBtn.className='addRowBtn';addBtn.textContent='+ Add stop';
-    addBtn.onclick=()=>addRowToFrame(fr.id,true,false);
-    sec.appendChild(addBtn);
+    /* "+ Add stop" button intentionally not created */
 
     container.appendChild(sec);
 
@@ -378,7 +376,7 @@ function makeRow(frameId){
   d.querySelector('.remove').onclick=()=>{
     const fid=+d.dataset.frame; const sh=FRAMES.find(f=>f.id===fid).shift;
     d.remove(); renumber();
-    suppressTopUpOnce = true;                 /* prevent any top‑up on this tick (FIX 1) */
+    suppressTopUpOnce = true;                      /* prevent any top‑up this tick */
     normalizeShiftLayout(sh);
     scheduleAutoCompute(120,false); scheduleTimelineBuild(); showDeleteBtns();
   };
@@ -392,6 +390,16 @@ function addRowToFrame(frameId,focus=true,select=false){
   renumber();scheduleTimelineBuild();
   if(focus) row.querySelector('.stop').focus({preventScroll:true});
   if(select) setSelected(row,true);
+  return row;
+}
+/* insert a row immediately after a given row */
+function addRowAfter(row){
+  const list=row.parentElement;
+  const frameId = flatMode ? 0 : +row.dataset.frame;
+  const newRow = makeRow(frameId);
+  if(row.nextSibling) list.insertBefore(newRow,row.nextSibling); else list.appendChild(newRow);
+  renumber(); scheduleTimelineBuild();
+  return newRow;
 }
 function ensurePlaceholdersForFrame(frameId){
   const list=document.getElementById('frame-'+frameId); if(!list) return;
@@ -475,7 +483,7 @@ function showDeleteBtns(){
 function deleteSelected(){
   document.querySelectorAll('.row.selected').forEach(r=>r.remove());
   showDeleteBtns();renumber();
-  suppressTopUpOnce = true;                 /* prevent top-up after multi-delete (FIX 1) */
+  suppressTopUpOnce = true;
   normalizeShiftLayoutVisible();
   scheduleAutoCompute(120,false);scheduleTimelineBuild();
 }
@@ -530,9 +538,10 @@ function attachInputEvents(inp){
 
   inp.addEventListener('input',()=>{ inp.dataset.dirty='1'; inp.dataset.lat=''; inp.dataset.lng=''; scheduleAutoCompute(200,false); });
 
+  /* AUTO‑ADD ON TAB/ENTER */
   inp.addEventListener('keydown',e=>{
-    if(e.key==='Tab'&&!e.shiftKey){e.preventDefault();acceptTopPrediction(inp);}
-    else if(e.key==='Enter'){e.preventDefault();acceptTopPrediction(inp);}
+    if(e.key==='Tab'&&!e.shiftKey){e.preventDefault();acceptTopPrediction(inp,true);}
+    else if(e.key==='Enter'){e.preventDefault();acceptTopPrediction(inp,true);}
   });
 
   inp.addEventListener('paste',multiPaste);
@@ -579,9 +588,7 @@ function pruneListGaps(list, placeholdersAtEnd, addPlaceholders=true){
   }
 }
 
-/* Normalize shift to avoid gaps between frames.
-   FIX 1: If a frame contains any filled rows -> keep **zero** placeholders.
-          Only empty frames get BASE_EMPTY_PER_FRAME placeholders. */
+/* PLACEHOLDER POLICY (no gaps; allow 1 trailing empty only if last row is empty) */
 function normalizeShiftLayout(shift){
   if(flatMode) return;
   const framesInShift=FRAMES.filter(f=>f.shift===shift);
@@ -592,10 +599,19 @@ function normalizeShiftLayout(shift){
     if(!vis || sec.classList.contains('collapsed') || sec.style.display==='none') return;
 
     const list=document.getElementById('frame-'+f.id);
-    const hasFilled=[...list.querySelectorAll('.row')].some(r=>r.querySelector('.stop').value.trim());
+    const rows=[...list.querySelectorAll('.row')];
+    const filledIdx=rows.findIndex(r=>r.querySelector('.stop').value.trim());
+    const hasFilled = filledIdx>-1;
 
-    const targetPlaceholders = hasFilled ? 0 : BASE_EMPTY_PER_FRAME;
-    const allowAdd = !hasFilled && !suppressTopUpOnce;
+    let targetPlaceholders = BASE_EMPTY_PER_FRAME;  // default for completely empty frames
+    let allowAdd = !hasFilled && !suppressTopUpOnce;
+
+    if(hasFilled){
+      const lastRow = rows[rows.length-1];
+      const lastIsEmpty = lastRow && !lastRow.querySelector('.stop').value.trim();
+      targetPlaceholders = lastIsEmpty ? 1 : 0;    /* keep one trailing only if last is empty */
+      allowAdd = false;
+    }
 
     compactFrameList(list);
     pruneListGaps(list, targetPlaceholders, allowAdd);
@@ -681,15 +697,17 @@ async function multiPaste(e){
   collapseEmptyFramesInShift(shift);
 }
 
-/* Accept top prediction on Tab/Enter */
-function acceptTopPrediction(input){
+/* Accept top prediction on Tab/Enter; when done, move focus / auto-add */
+function acceptTopPrediction(input, doAutoAdd=false){
+  const finalize = () => { if(doAutoAdd) focusNextInput(input,true); else focusNextInput(input,false); scheduleAutoCompute(0,true); };
+
   if (input.dataset.lat && input.dataset.lng){
-    delete input.dataset.dirty; focusNextInput(input); scheduleAutoCompute(0,true); return;
+    delete input.dataset.dirty; return finalize();
   }
   acService.getPlacePredictions(
     {input:input.value, componentRestrictions:{country:'ca'}, types:['address'], locationBias:OK_BOUNDS},
     (preds,status)=>{
-      if (status !== google.maps.places.PlacesServiceStatus.OK || !preds?.length){ focusNextInput(input); scheduleAutoCompute(0,false); return; }
+      if (status !== google.maps.places.PlacesServiceStatus.OK || !preds?.length){ return finalize(); }
       placeSvc.getDetails({placeId:preds[0].place_id, fields:['formatted_address','geometry']},
         (place, st)=>{
           if (st === google.maps.places.PlacesServiceStatus.OK && place?.geometry){
@@ -698,17 +716,42 @@ function acceptTopPrediction(input){
             input.dataset.lng=place.geometry.location.lng();
             delete input.dataset.dirty;
           }
-          focusNextInput(input); scheduleAutoCompute(0,true);
+          return finalize();
         }
       );
     }
   );
 }
-function focusNextInput(current){
+
+/* AUTO‑ADD ON TAB: ensure there is an empty slot immediately after */
+function focusNextInput(current, autoAdd){
   const all=[...document.querySelectorAll('input.stop')];
   const idx=all.indexOf(current);
   const next=all[idx+1];
-  if(next) next.focus({preventScroll:true});
+
+  const curRow=current.closest('.row');
+
+  if(next){
+    if(!next.value.trim()){
+      next.focus({preventScroll:true}); return;
+    }
+    if(autoAdd){
+      const r=addRowAfter(curRow);
+      const el=r.querySelector('.stop');
+      el.focus({preventScroll:true});
+      suppressTopUpOnce = true;                       /* don't prune it on this tick */
+      return;
+    }else{
+      next.focus({preventScroll:true}); return;
+    }
+  }else{
+    if(autoAdd){
+      const r=addRowAfter(curRow);
+      const el=r.querySelector('.stop');
+      el.focus({preventScroll:true});
+      suppressTopUpOnce = true;
+    }
+  }
 }
 
 /* =================== SHIFT / FLAT =================== */
@@ -742,7 +785,6 @@ function buildAddrBar(){
   Sortable.create(document.getElementById('addrList'),{
     handle:'.drag',animation:150, onEnd:()=>{renumber();scheduleAutoCompute(120,false);}
   });
-  document.getElementById('addrAdd').onclick=()=>addRowToAddrBar(true,false);
   document.getElementById('toggleDay').onclick=()=>toggleShift('day');
   document.getElementById('toggleNight').onclick=()=>toggleShift('night');
 }
@@ -1035,7 +1077,7 @@ function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){
   return ord;
 }
 
-/* =================== GLOBAL OPTIMIZER (used by Flat View "Optimize") =================== */
+/* =================== GLOBAL OPTIMIZER (Flat view) =================== */
 async function globalOptimizeRoute(){
   const rows=getOrderedRows();
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
@@ -1057,6 +1099,12 @@ async function globalOptimizeRoute(){
     arr.forEach(({r})=>p.appendChild(r));
     compactFrameList(p);
   });
+
+  /* remove all unused rows in Flat view after optimize */
+  if(flatMode){
+    const list=document.getElementById('addrList');
+    [...list.querySelectorAll('.row')].forEach(r=>{ if(!r.querySelector('.stop').value.trim()) r.remove(); });
+  }
 
   renumber();
   await rebuildRoute();
@@ -1176,13 +1224,16 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)
   );
 
-  /* KML layer + custom info window (FIX 2) */
+  /* KML layer + custom info window (KML FIX) */
   const kmlLayer = new google.maps.KmlLayer({
     url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',
     map, preserveViewport:true, suppressInfoWindows:true, screenOverlays:false, clickable:true, zIndex:0
   });
   const kmlInfo = new google.maps.InfoWindow();
+  let lastKmlClickAt = 0;
+
   kmlLayer.addListener('click', (ev)=>{
+    lastKmlClickAt = Date.now();
     const name = (ev.featureData && ev.featureData.name) ? ev.featureData.name : 'Area';
     const desc = (ev.featureData && ev.featureData.description) ? ev.featureData.description : '';
     const html = `<div class="kml-label"><div class="kml-title">${name}</div>${desc?`<div class="kml-desc">${desc}</div>`:''}</div>`;
@@ -1190,8 +1241,9 @@ window.routePlannerInit=()=>{
     kmlInfo.setPosition(ev.latLng);
     kmlInfo.open({map});
   });
-  map.addListener('click', ()=>kmlInfo.close());
-  map.addListener('dblclick', ()=>{ /* show also on double click if KML sent click first */ });
+  /* close only when clicking elsewhere (not the same double-click that opened) */
+  map.addListener('click', ()=>{ if(Date.now()-lastKmlClickAt>400) kmlInfo.close(); });
+  map.addListener('dblclick', ()=>{ /* allow zoom without closing immediately */ });
 
   dirSvc=new google.maps.DirectionsService();
   dirRend=new google.maps.DirectionsRenderer({map,suppressMarkers:true});
@@ -1203,8 +1255,7 @@ window.routePlannerInit=()=>{
 
   dayVisible=false; nightVisible=false; applyShiftVisibility();
 
-  // Flat view buttons remain
-  document.getElementById('flatRoute').onclick=()=>{autoResolveNext=true; normalizeShiftLayoutVisible(); rebuildRoute();};
+  // Flat view buttons (Route removed)
   document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; normalizeShiftLayoutVisible(); globalOptimizeRoute();};
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
