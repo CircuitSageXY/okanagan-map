@@ -308,6 +308,15 @@ function scheduleTimelineBuild(){
   if(__tl_req) return;
   __tl_req = requestAnimationFrame(() => { __tl_req = 0; buildTimelineFromDOM(); });
 }
+  
+/* Close the Google Autocomplete dropdown bound to an input, then blur it */
+function forceCloseAutocomplete(inp){
+  try{
+    // Ask the widget (if open) to close by simulating Escape
+    inp.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
+  }catch(e){}
+  inp.blur(); // ensures the dropdown is closed even if the key event is ignored
+}
 
 /* =================== UI BUILD =================== */
 function setFrameCollapsed(id, collapse, source='user'){
@@ -744,58 +753,61 @@ function acceptTopPrediction(input){
   );
 }
 
-/* Robust next-focus for Day/Night frames */
+/* Robust next-focus for Day/Night frames – never create a row when a blank already exists */
 function focusNextInFrameOrCreate(currentInput){
-  const currentRow=currentInput.closest('.row');
-  const frameId=+currentRow.dataset.frame;
-  const list=document.getElementById('frame-'+frameId);
-  const rows=[...list.querySelectorAll('.row')];
-  const idx=rows.indexOf(currentRow);
+  const currentRow = currentInput.closest('.row');
+  const frameId    = +currentRow.dataset.frame;
+  const list       = document.getElementById('frame-'+frameId);
+  const rows       = [...list.querySelectorAll('.row')];
+  const idx        = rows.indexOf(currentRow);
 
-  // 1) first empty after current?
-  const firstEmptyAfter = rows.slice(idx+1).find(r=>!r.querySelector('.stop').value.trim());
+  // 1) If there is an empty after the current row, go there (no new rows).
+  const firstEmptyAfter = rows.slice(idx+1).find(r => !r.querySelector('.stop').value.trim());
   if(firstEmptyAfter){
+    // Prevent the one-tick "top-up" that would otherwise add a new empty row.
+    suppressTopUpOnce = true;
+    // Close any open Google autocomplete dropdown on the old input.
+    forceCloseAutocomplete(currentInput);
     firstEmptyAfter.querySelector('.stop').focus({preventScroll:true});
     return;
   }
 
-  // 2) there is a next row but it's filled -> create a fresh one after current
+  // 2) If there is a next row but it's filled, insert a fresh one immediately after.
   if(rows[idx+1]){
-    const newRow=insertRowAfter(currentRow);
+    forceCloseAutocomplete(currentInput);
+    const newRow = insertRowAfter(currentRow);
     newRow.querySelector('.stop').focus({preventScroll:true});
     return;
   }
 
-  // 3) no next row at all -> append one
-  const added=addRowToFrame(frameId,true,false);
+  // 3) No next row at all – append one at the end of the same frame.
+  forceCloseAutocomplete(currentInput);
+  const added = addRowToFrame(frameId, true, false);
   added.querySelector('.stop').focus({preventScroll:true});
 }
 
 /* Robust next-focus for Flat view */
 function focusNextInFlatOrCreate(currentInput){
-  const currentRow=currentInput.closest('.row');
-  const list=document.getElementById('addrList');
-  const rows=[...list.querySelectorAll('.row')];
-  const idx=rows.indexOf(currentRow);
+  const currentRow = currentInput.closest('.row');
+  const list       = document.getElementById('addrList');
+  const rows       = [...list.querySelectorAll('.row')];
+  const idx        = rows.indexOf(currentRow);
 
-  // first empty after current?
-  const firstEmptyAfter = rows.slice(idx+1).find(r=>!r.querySelector('.stop').value.trim());
+  const firstEmptyAfter = rows.slice(idx+1).find(r => !r.querySelector('.stop').value.trim());
+  forceCloseAutocomplete(currentInput);
+
   if(firstEmptyAfter){
     firstEmptyAfter.querySelector('.stop').focus({preventScroll:true});
     return;
   }
-
-  // there is a next row but it's filled -> insert fresh one after current
   if(rows[idx+1]){
-    const newRow=makeRow(0);
+    const newRow = makeRow(0);
     currentRow.insertAdjacentElement('afterend', newRow);
     renumber();
     newRow.querySelector('.stop').focus({preventScroll:true});
     return;
   }
-
-  // no next at all -> append
-  const newRow=addRowToAddrBar(true,false);
+  const newRow = addRowToAddrBar(true,false);
   newRow.querySelector('.stop').focus({preventScroll:true});
 }
 
