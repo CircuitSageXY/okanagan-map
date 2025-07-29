@@ -26,7 +26,7 @@
   --f-evening:#BA68C8; --f-lateev:#F44336;
 
   /* layout sizing */
-  --panelW:480px;          /* was 520px */
+  --panelW:480px;          /* slightly narrower */
   --tlW:74px;              /* per-frame timeline column */
   --axis-w:4px;
   --tick-minor:#9e9e9e; --tick-major:#424242;
@@ -59,7 +59,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   box-shadow:0 1px 2px rgba(0,0,0,.08);position:relative;display:flex;flex-direction:column;
 }
 .frame-header{
-  position:sticky;top:52px; /* below toolbar height */
+  position:sticky;top:0; /* toolbar removed -> stick to top */
   z-index:1;display:flex;align-items:center;gap:8px;padding:6px 10px;
   font-size:15px;font-weight:500;color:#000;border-bottom:1px solid #e0e0e0;background:#fafafa;
 }
@@ -151,26 +151,8 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   transition:transform var(--transFast),background var(--transFast);}
 .remove:hover{background:#f75a4d;transform:scale(1.08);} .remove:active{transform:scale(.94);}
 
-/* ---------- TOOLBAR (integrated controls) ---------- */
-#actions{
-  position:sticky; top:8px; z-index:3; align-self:flex-start;
-  margin:0 0 8px 12px; display:flex; gap:8px; flex-wrap:nowrap;
-  padding:6px 8px; border-radius:10px; border:1px solid rgba(0,0,0,.10);
-  background:rgba(255,255,255,.85); backdrop-filter:blur(2px);
-  box-shadow:0 2px 6px rgba(0,0,0,.15);
-}
-#actions button{
-  padding:6px 10px;font-size:13px;border-radius:8px;border:1px solid transparent;
-  cursor:pointer;transition:background var(--transFast),transform var(--transFast);
-}
-#route{background:var(--clrA);color:#fff;border-color:var(--clrA);}        #route:hover{background:#5b9bff;} #route:active{transform:scale(.96);}
-#optAll{background:var(--clrB);color:#fff;border-color:var(--clrB);}       #optAll:hover{background:#26c36c;} #optAll:active{transform:scale(.96);}
-#optFrames{background:#795548;color:#fff;border-color:#795548;}            #optFrames:hover{background:#8d6e63;} #optFrames:active{transform:scale(.96);}
-#delSel{background:#db4437;color:#fff;border-color:#db4437;display:none;}
-
+/* ---------- LEG SUMMARY / MSG ---------- */
 #msg{margin:8px 0 10px 12px;color:#0066cc;font-weight:700;font-size:16px;}
-
-/* ---------- LEG SUMMARY ---------- */
 .leg-display{margin:6px 0 0 28px;font-size:16px;font-weight:600;color:#1b1b1b;
   padding:4px 10px;border-radius:6px;background:rgba(0,0,0,.06);display:inline-block;line-height:1.25;white-space:nowrap;}
 .leg-A{background:rgba(66,133,244,.15);border-left:4px solid var(--clrA);}
@@ -194,7 +176,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 #panel.flat{width:auto;background:transparent;border:none;box-shadow:none;pointer-events:none;}
 #panel.flat #content{display:none;}
 #panel.flat #scroller{padding:12px;}
-#panel.flat #msg,#panel.flat #actions{display:none;}
+#panel.flat #msg{display:none;}
 
 #addrBar{
   position:absolute;top:12px;left:12px;width:380px;z-index:8;
@@ -237,16 +219,7 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 
 <div id="panel">
   <div id="scroller">
-    <!-- Integrated toolbar -->
-    <div id="actions">
-      <button id="route">Route</button>
-      <button id="optAll"    title="Optimize entire day">Optimize</button>
-      <button id="optFrames" title="Optimize each time frame separately">Optimize by Frames</button>
-      <button id="delSel" title="Delete selected stops">Delete Selected</button>
-    </div>
-
     <div id="msg"></div>
-
     <div id="content">
       <div id="timelineCol"><div id="timeline"></div></div>
       <div id="framesContainer"></div>
@@ -494,8 +467,10 @@ function setSelected(row,on){
 }
 function showDeleteBtns(){
   const any=document.querySelector('.row.selected');
-  document.getElementById('delSel').style.display=any&&!flatMode?'inline-block':'none';
-  document.getElementById('flatDelSel').style.display=any&&flatMode?'inline-block':'none';
+  const delBtn=document.getElementById('delSel'); /* not present in this build */
+  if(delBtn) delBtn.style.display=any&&!flatMode?'inline-block':'none';
+  const flatDel=document.getElementById('flatDelSel');
+  if(flatDel) flatDel.style.display=any&&flatMode?'inline-block':'none';
 }
 function deleteSelected(){
   document.querySelectorAll('.row.selected').forEach(r=>r.remove());
@@ -591,7 +566,15 @@ function pruneListGaps(list, placeholdersAtEnd){
   }
   const now=[...list.querySelectorAll('.row')];
   const blanks=now.filter(r=>!r.querySelector('.stop').value.trim()).length;
-  for(let i=blanks;i<placeholdersAtEnd;i++){ const row=makeRow(+list.id.replace('frame-','')||0); list.appendChild(row); }
+  // keep at most placeholdersAtEnd at the end
+  if(blanks>placeholdersAtEnd){
+    let toRemove = blanks - placeholdersAtEnd;
+    for(let i=now.length-1;i>=0 && toRemove>0;i--){
+      if(!now[i].querySelector('.stop').value.trim()){ now[i].remove(); toRemove--; }
+    }
+  }else if(blanks<placeholdersAtEnd){
+    for(let i=blanks;i<placeholdersAtEnd;i++){ const row=makeRow(+list.id.replace('frame-','')||0); list.appendChild(row); }
+  }
 }
 function pruneEmptyGapsVisible(){
   if(flatMode){ pruneListGaps(document.getElementById('addrList'), 0); }
@@ -606,7 +589,7 @@ function pruneEmptyGapsVisible(){
   renumber();
 }
 
-/* ====== Multi‑paste with cross‑frame distribution (NO new rows, NO gaps) ====== */
+/* ====== Multi‑paste (NO new rows, NO gaps; uses only existing empties) ====== */
 async function multiPaste(e){
   const clip=(e.clipboardData||window.clipboardData).getData('text');
   const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -615,68 +598,68 @@ async function multiPaste(e){
 
   const startRow=e.target.closest('.row');
 
+  /* Flat view: keep existing behavior (add rows as needed) */
   if(flatMode){
     const container=document.getElementById('addrList');
     let rows=[...container.querySelectorAll('.row')];
     const startIdx=rows.indexOf(startRow);
-    const empties=rows.slice(startIdx).filter(r=>!r.querySelector('.stop').value.trim());
-    const n=Math.min(lines.length, empties.length);
-    for(let i=0;i<n;i++){
-      const el=empties[i].querySelector('.stop'); el.value=lines[i]; el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1';
-    }
-    if(lines.length>n){ document.getElementById('flatMsg').textContent=`${lines.length-n} item(s) skipped – not enough empty rows.`; }
+    const need=Math.max(0,startIdx+lines.length-rows.length);
+    for(let i=0;i<need;i++) addRowToAddrBar(false,false);
+    rows=[...container.querySelectorAll('.row')];
+    lines.forEach((addr,i)=>{const r=rows[startIdx+i]; if(!r) return; const el=r.querySelector('.stop'); el.value=addr; el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1';});
     renumber();
-    await ensureCoords(empties.slice(0,n),{parallel:true});
-    pruneListGaps(container, 0); // no gaps after paste
+    await ensureCoords(lines.map((_,i)=>rows[startIdx+i]).filter(Boolean),{parallel:true});
+    pruneListGaps(container, 0);
     scheduleAutoCompute(0,true);
     return;
   }
 
+  /* Day/Night view: fill only into existing empties across frames from the start frame onward */
   const firstFrameId=+startRow.dataset.frame;
   const frMeta=FRAMES.find(f=>f.id===firstFrameId);
   const shift=frMeta.shift;
   const framesInShift = FRAMES.filter(f=>f.shift===shift);
   const startIndexInShift = framesInShift.findIndex(f=>f.id===firstFrameId);
 
-  let remaining=[...lines];
-  const touchedLists=[];
-  let skipped=0;
+  // Collect all empty inputs from the current frame onward (top-to-bottom order)
+  const targets=[];
+  const touchedLists=new Set();
 
-  for(let k=startIndexInShift; k<framesInShift.length && remaining.length>0; k++){
+  for(let k=startIndexInShift; k<framesInShift.length; k++){
     const fid=framesInShift[k].id;
     const list=document.getElementById('frame-'+fid);
-    touchedLists.push(list);
+    touchedLists.add(list);
     const rows=[...list.querySelectorAll('.row')];
-
-    let startAt=0;
-    if(fid===firstFrameId) startAt=rows.indexOf(startRow);
-
-    const empties=rows.slice(startAt).filter(r=>!r.querySelector('.stop').value.trim());
-    const n=Math.min(remaining.length, empties.length);
-    for(let i=0;i<n;i++){
-      const inp=empties[i].querySelector('.stop');
-      const addr=remaining.shift();
-      inp.value=addr; inp.dataset.lat=''; inp.dataset.lng=''; inp.dataset.dirty='1';
-    }
+    rows.forEach(r=>{
+      const inp=r.querySelector('.stop');
+      if(!inp.value.trim()) targets.push(inp);
+    });
   }
-  if(remaining.length>0){ skipped=remaining.length; }
 
-  // compact + remove any blanks up to the last filled; keep 0 placeholders after paste (prevents between-frame gaps)
+  // Fill as many as we can without creating new rows
+  let i=0;
+  while(i<lines.length && i<targets.length){
+    const inp=targets[i];
+    inp.value=lines[i]; inp.dataset.lat=''; inp.dataset.lng=''; inp.dataset.dirty='1';
+    i++;
+  }
+  const skipped = lines.length - i;
+
+  // For each touched list: compact -> remove internal gaps -> keep exactly 4 placeholders at end
   touchedLists.forEach(list=>{
     compactFrameList(list);
-    pruneListGaps(list, 0);
+    pruneListGaps(list, BASE_EMPTY_PER_FRAME);
   });
 
   renumber();
   await ensureCoords(getOrderedRows(true),{parallel:true});
   scheduleAutoCompute(0,true);
 
-  // hide empty frames in the current view
+  // Optional: hide empty frames in the current view (keeps your previous behavior)
   collapseEmptyFramesInShift(shift);
 
   const m=document.getElementById('msg');
-  if(skipped>0){ m.textContent=`${skipped} item(s) skipped – not enough empty rows.`; }
-  else{ m.textContent=''; }
+  if(skipped>0){ m.textContent=`${skipped} item(s) skipped – not enough empty rows.`; } else { m.textContent=''; }
 }
 
 /* Accept top prediction on Tab/Enter */
@@ -693,7 +676,7 @@ function acceptTopPrediction(input){
           if (st === google.maps.places.PlacesServiceStatus.OK && place?.geometry){
             input.value=place.formatted_address||input.value;
             input.dataset.lat=place.geometry.location.lat();
-            input.dataset.lng=place.geometry.location.lng();
+            input.dataset.lng=input.dataset.lng=place.geometry.location.lng();
             delete input.dataset.dirty;
           }
           focusNextInput(input); scheduleAutoCompute(0,true);
@@ -906,7 +889,6 @@ async function autoCompute(){
     else{ clearDirections(); clearLegDisplays(); return; }
   }
 
-  // keep standard placeholders elsewhere, paste-path used 0 placeholders already
   pruneEmptyGapsVisible();
 
   if(rows.length===1){
@@ -1033,7 +1015,7 @@ function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){
   return ord;
 }
 
-/* =================== GLOBAL OPTIMIZER =================== */
+/* =================== GLOBAL OPTIMIZER (unchanged internally) =================== */
 async function globalOptimizeRoute(){
   const rows=getOrderedRows();
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
@@ -1048,7 +1030,6 @@ async function globalOptimizeRoute(){
   const D=buildDistanceMatrix(pts);
   const ord=solveTSPWithMatrix(D);
 
-  // keep rows within their original frame lists
   const grouped=new Map();
   rows.forEach((r,i)=>{ const p=r.parentElement; if(!grouped.has(p)) grouped.set(p,[]); grouped.get(p).push({r,i}); });
   grouped.forEach((arr,p)=>{ arr.sort((a,b)=>ord.indexOf(a.i)-ord.indexOf(b.i)); arr.forEach(({r})=>p.appendChild(r)); compactFrameList(p); });
@@ -1149,7 +1130,7 @@ async function optimizeByFramesTwoPass(){
   scheduleTimelineBuild();
 }
 
-/* Hide empty frames in the given shift (after paste) */
+/* Hide empty frames in the given shift (used after paste) */
 function collapseEmptyFramesInShift(shift){
   FRAMES.filter(f=>f.shift===shift).forEach(f=>{
     const list=document.getElementById('frame-'+f.id);
@@ -1185,10 +1166,7 @@ window.routePlannerInit=()=>{
 
   dayVisible=false; nightVisible=false; applyShiftVisibility();
 
-  document.getElementById('route').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); rebuildRoute();};
-  document.getElementById('optAll').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); globalOptimizeRoute();};
-  document.getElementById('optFrames').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); optimizeByFramesTwoPass();};
-  document.getElementById('delSel').onclick=deleteSelected;
+  // Flat view buttons remain
   document.getElementById('flatRoute').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); rebuildRoute();};
   document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); globalOptimizeRoute();};
   document.getElementById('flatDelSel').onclick=deleteSelected;
@@ -1201,15 +1179,18 @@ window.routePlannerInit=()=>{
 
   (function attachFunctionKeyTrap(){
     function onDown(e){
-      if(!['F1','F2','F3'].includes(e.key)) return;
+      if(!['F1','F2','F3','F4'].includes(e.key)) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
       if(e.repeat) return;
       if(e.key==='F1') toggleShift('day');
       else if(e.key==='F2') toggleShift('night');
-      else clearAllStops();
+      else if(e.key==='F3') clearAllStops();
+      else if(e.key==='F4'){ // Optimize by Frames (only in Day/Night view)
+        if(!flatMode){ autoResolveNext=true; pruneEmptyGapsVisible(); optimizeByFramesTwoPass(); }
+      }
     }
     function onUp(e){
-      if(!['F1','F2','F3'].includes(e.key)) return;
+      if(!['F1','F2','F3','F4'].includes(e.key)) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
     }
     window.addEventListener('keydown', onDown, {capture:true, passive:false});
