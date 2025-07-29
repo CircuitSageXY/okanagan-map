@@ -25,8 +25,9 @@
   --f-afternoon:#03A9F4; --f-supper:#FF9800;
   --f-evening:#BA68C8; --f-lateev:#F44336;
 
-  /* timeline sizing */
-  --tlW:74px;             /* width of the per-frame timeline column */
+  /* layout sizing */
+  --panelW:480px;          /* was 520px */
+  --tlW:74px;              /* per-frame timeline column */
   --axis-w:4px;
   --tick-minor:#9e9e9e; --tick-major:#424242;
 
@@ -40,28 +41,26 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 
 /* ---------- SIDE PANEL ---------- */
 #panel{
-  position:absolute;top:0;left:0;z-index:5;width:520px;height:100%;
+  position:absolute;top:0;left:0;z-index:5;width:var(--panelW);height:100%;
   background:var(--clrPanelBg);border-right:1px solid var(--clrPanelBorder);
   box-shadow:var(--clrPanelShadow);border-top-right-radius:var(--radiusLg);
   border-bottom-right-radius:var(--radiusLg);display:flex;flex-direction:column;
 }
-#scroller{flex:1;overflow:auto;position:relative;padding:12px 12px 96px 0;}
+#scroller{flex:1;overflow:auto;position:relative;padding:12px 12px 16px 0;}
 #content{display:flex;align-items:flex-start;position:relative;}
 
 /* ---------- (OLD) GLOBAL TIMELINE COLUMN ---------- */
-/* ==== CHANGES: hide legacy global timeline; per-frame timelines are used */
-#timelineCol{display:none;}
-#timeline{display:none;}
+#timelineCol{display:none;} #timeline{display:none;}
 
 /* ---------- FRAMES ---------- */
 #framesContainer{flex:1;min-width:0;}
 .frame{
   border:1px solid var(--clrPanelBorder);border-radius:6px;margin-bottom:14px;background:#fff;
-  box-shadow:0 1px 2px rgba(0,0,0,.08);position:relative;
-  display:flex;flex-direction:column;
+  box-shadow:0 1px 2px rgba(0,0,0,.08);position:relative;display:flex;flex-direction:column;
 }
 .frame-header{
-  position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:8px;padding:6px 10px;
+  position:sticky;top:52px; /* below toolbar height */
+  z-index:1;display:flex;align-items:center;gap:8px;padding:6px 10px;
   font-size:15px;font-weight:500;color:#000;border-bottom:1px solid #e0e0e0;background:#fafafa;
 }
 .frame-header .swatch{width:16px;height:16px;border-radius:3px;flex:none;}
@@ -71,9 +70,9 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .frame.collapsed{opacity:.55;}
 .frame.collapsed .frame-hide{color:#c00;}
 
-/* ==== CHANGES: two-column body: left = per-frame timeline; right = rows */
+/* per-frame body: left timeline + right rows */
 .frame-body{
-  display:grid;grid-template-columns: var(--tlW) 1fr;column-gap:12px; /* spacing so ticks/labels don't touch rows */
+  display:grid;grid-template-columns: var(--tlW) 1fr;column-gap:12px;
   align-items:stretch; padding:6px 10px 8px 6px;
 }
 
@@ -90,18 +89,18 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   transform:translate(-50%,-50%);box-shadow:0 0 4px rgba(0,0,0,.4);animation:pulse 2s infinite;z-index:3;}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(0,0,0,.35);}70%{box-shadow:0 0 0 6px rgba(0,0,0,0);}100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}}
 
-/* Subtle shaded segment behind list to hint time span */
+/* subtle shaded time band */
 .tl-seg{position:absolute;left:0;right:0;border-radius:3px;opacity:.08;}
 
-/* The row list lives in column 2 */
+/* rows column */
 .frame-list{overflow:visible;flex:1 1 auto;}
 .addRowBtn{
-  margin:6px 10px 10px calc(10px + var(--tlW)); /* align under list column */
+  margin:6px 10px 10px calc(10px + var(--tlW));
   background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
   padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;flex:none;}
 .addRowBtn:hover{background:#e7e7e7;}
 
-/* colored left borders per frame (unchanged) */
+/* colored left borders per frame */
 .frame[data-frame="0"]{border-left:4px solid var(--f-early);}
 .frame[data-frame="1"]{border-left:4px solid var(--f-late);}
 .frame[data-frame="2"]{border-left:4px solid var(--f-lunch);}
@@ -152,15 +151,24 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   transition:transform var(--transFast),background var(--transFast);}
 .remove:hover{background:#f75a4d;transform:scale(1.08);} .remove:active{transform:scale(.94);}
 
-/* ---------- ACTION BUTTONS / MESSAGES ---------- */
-#actions{position:absolute;bottom:12px;left:16px;right:16px;display:flex;gap:10px;flex-wrap:wrap;z-index:7;}
-#actions button{padding:8px 14px;font-size:14px;border-radius:var(--radiusMd);border:1px solid transparent;cursor:pointer;transition:background var(--transFast),transform var(--transFast);}
+/* ---------- TOOLBAR (integrated controls) ---------- */
+#actions{
+  position:sticky; top:8px; z-index:3; align-self:flex-start;
+  margin:0 0 8px 12px; display:flex; gap:8px; flex-wrap:nowrap;
+  padding:6px 8px; border-radius:10px; border:1px solid rgba(0,0,0,.10);
+  background:rgba(255,255,255,.85); backdrop-filter:blur(2px);
+  box-shadow:0 2px 6px rgba(0,0,0,.15);
+}
+#actions button{
+  padding:6px 10px;font-size:13px;border-radius:8px;border:1px solid transparent;
+  cursor:pointer;transition:background var(--transFast),transform var(--transFast);
+}
 #route{background:var(--clrA);color:#fff;border-color:var(--clrA);}        #route:hover{background:#5b9bff;} #route:active{transform:scale(.96);}
 #optAll{background:var(--clrB);color:#fff;border-color:var(--clrB);}       #optAll:hover{background:#26c36c;} #optAll:active{transform:scale(.96);}
 #optFrames{background:#795548;color:#fff;border-color:#795548;}            #optFrames:hover{background:#8d6e63;} #optFrames:active{transform:scale(.96);}
 #delSel{background:#db4437;color:#fff;border-color:#db4437;display:none;}
 
-#msg{margin:12px 0;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 0;}
+#msg{margin:8px 0 10px 12px;color:#0066cc;font-weight:700;font-size:16px;}
 
 /* ---------- LEG SUMMARY ---------- */
 .leg-display{margin:6px 0 0 28px;font-size:16px;font-weight:600;color:#1b1b1b;
@@ -229,18 +237,20 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 
 <div id="panel">
   <div id="scroller">
+    <!-- Integrated toolbar -->
+    <div id="actions">
+      <button id="route">Route</button>
+      <button id="optAll"    title="Optimize entire day">Optimize</button>
+      <button id="optFrames" title="Optimize each time frame separately">Optimize by Frames</button>
+      <button id="delSel" title="Delete selected stops">Delete Selected</button>
+    </div>
+
+    <div id="msg"></div>
+
     <div id="content">
-      <!-- ==== CHANGES: keep legacy nodes for safety; hidden by CSS -->
       <div id="timelineCol"><div id="timeline"></div></div>
       <div id="framesContainer"></div>
     </div>
-    <div id="msg"></div>
-  </div>
-  <div id="actions">
-    <button id="route">Route</button>
-    <button id="optAll"    title="Optimize entire day">Optimize</button>
-    <button id="optFrames" title="Optimize each time frame separately">Optimize by Frames</button>
-    <button id="delSel" title="Delete selected stops">Delete Selected</button>
   </div>
 </div>
 
@@ -300,16 +310,12 @@ const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);};
 const pad=n=>n.toString().padStart(2,'0');
 
-  // ==== HOTFIX: timeline rebuild guard + debounced scheduler
+/* ==== Guard + debounced scheduler for timelines ==== */
 let __buildingTimeline = false;
 let __tl_req = 0, __tl_to = 0;
-
 function scheduleTimelineBuild(){
   if(__tl_req) return;
-  __tl_req = requestAnimationFrame(() => {
-    __tl_req = 0;
-    buildTimelineFromDOM();
-  });
+  __tl_req = requestAnimationFrame(() => { __tl_req = 0; buildTimelineFromDOM(); });
 }
 
 /* =================== UI BUILD =================== */
@@ -319,12 +325,8 @@ function setFrameCollapsed(id, collapse, source='user'){
   if(collapse) el.classList.add('collapsed'); else el.classList.remove('collapsed');
   if(source==='user'){ el.dataset.userOverride='1'; delete el.dataset.autoCollapsed; }
   if(source==='auto'){ el.dataset.autoCollapsed='1'; }
-  // ==== CHANGES: when un‑collapsing, ensure base placeholders exist and rebuild timeline
-  if(!collapse){
-    ensurePlaceholdersForFrame(id);
-    buildTimelineForFrame(id);
-  }
-  renumber(); buildTimelineFromDOM();
+  if(!collapse){ ensurePlaceholdersForFrame(id); buildTimelineForFrame(id); }
+  renumber(); scheduleTimelineBuild();
 }
 
 function buildFrameBuckets(){
@@ -345,17 +347,15 @@ function buildFrameBuckets(){
     head.appendChild(hideBtn);
     sec.appendChild(head);
 
-    /* ==== CHANGES: per-frame grid body with timeline + list */
     const body=document.createElement('div');
     body.className='frame-body';
 
     const tl=document.createElement('div');
-    tl.className='frame-timeline';
-    tl.id='timeline-frame-'+fr.id;
+    tl.className='frame-timeline'; tl.id='timeline-frame-'+fr.id;
     body.appendChild(tl);
 
     const list=document.createElement('div');
-    list.className='frame-list';list.id='frame-'+fr.id;
+    list.className='frame-list'; list.id='frame-'+fr.id;
     body.appendChild(list);
 
     sec.appendChild(body);
@@ -371,24 +371,21 @@ function buildFrameBuckets(){
       group:'stops', handle:'.drag', animation:150,
       onEnd:evt=>{
         evt.item.dataset.frame=list.parentElement.parentElement.dataset.frame;
-        renumber();scheduleAutoCompute(120,false);buildTimelineFromDOM();
+        renumber();scheduleAutoCompute(120,false);scheduleTimelineBuild();
       }
     });
   });
 
-  // ==== CHANGES: seed both Day and Night frames with base 4 rows on first build
   FRAMES.forEach(fr=>ensurePlaceholdersForFrame(fr.id));
-
   renumber();
 
-  // Rebuild per-frame timelines on resize or DOM mutations
- const ro=new ResizeObserver(()=>scheduleTimelineBuild());
-document.querySelectorAll('.frame').forEach(f=>ro.observe(f));
-const mo=new MutationObserver(()=>{
-  clearTimeout(__tl_to);
-  __tl_to = setTimeout(scheduleTimelineBuild, 50);
-});
-document.querySelectorAll('.frame-list').forEach(fl=>mo.observe(fl,{childList:true,subtree:true}));
+  const ro=new ResizeObserver(()=>scheduleTimelineBuild());
+  document.querySelectorAll('.frame').forEach(f=>ro.observe(f));
+  const mo=new MutationObserver(()=>{
+    clearTimeout(__tl_to);
+    __tl_to = setTimeout(scheduleTimelineBuild, 50);
+  });
+  document.querySelectorAll('.frame-list').forEach(fl=>mo.observe(fl,{childList:true,subtree:true}));
 }
 
 function rebalanceFrameHeights(){
@@ -405,7 +402,7 @@ function makeRow(frameId){
     <input class="stop" placeholder="Enter stop" autocomplete="off" autocorrect="off" spellcheck="false">
     <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
     <span class="remove" title="Remove stop">×</span>`;
-  d.querySelector('.remove').onclick=()=>{d.remove();renumber();scheduleAutoCompute(120,false);buildTimelineFromDOM();showDeleteBtns();};
+  d.querySelector('.remove').onclick=()=>{d.remove();renumber();scheduleAutoCompute(120,false);scheduleTimelineBuild();showDeleteBtns();};
   d.addEventListener('click',rowSelectToggle);
   attachInputEvents(d.querySelector('.stop'));
   return d;
@@ -413,7 +410,7 @@ function makeRow(frameId){
 function addRowToFrame(frameId,focus=true,select=false){
   const list=document.getElementById('frame-'+frameId);
   const row=makeRow(frameId);list.appendChild(row);
-  renumber();buildTimelineFromDOM();
+  renumber();scheduleTimelineBuild();
   if(focus) row.querySelector('.stop').focus({preventScroll:true});
   if(select) setSelected(row,true);
 }
@@ -427,10 +424,9 @@ function ensurePlaceholdersForFrame(frameId){
 }
 
 /* =================== TIMELINE (per-frame; fused) =================== */
-// ==== CHANGES: build a timeline INSIDE each visible, uncollapsed frame
 function buildTimelineFromDOM(){
   if(flatMode) return;
-  if(__buildingTimeline) return;       // guard against re-entrancy
+  if(__buildingTimeline) return;
   __buildingTimeline = true;
   try{
     FRAMES.forEach(fr=>{
@@ -457,38 +453,26 @@ function buildTimelineForFrame(frameId){
   const list=sec.querySelector('.frame-list');
   const h=list.offsetHeight||1;
 
-  // colored translucent strip to hint time band width
   const seg=document.createElement('div');
-  seg.className='tl-seg';
-  seg.style.top='0px';
-  seg.style.height=h+'px';
+  seg.className='tl-seg'; seg.style.top='0px'; seg.style.height=h+'px';
   seg.style.background = getComputedStyle(sec).borderLeftColor;
   tl.appendChild(seg);
 
-  // axis
   const axis=document.createElement('div');
-  axis.className='tl-axis';
-  axis.style.top='0px';
-  axis.style.height=h+'px';
+  axis.className='tl-axis'; axis.style.top='0px'; axis.style.height=h+'px';
   tl.appendChild(axis);
 
-  // ticks/labels, mapped proportionally to the frame’s start/end
   const startM=parseHM(meta.start), endM=parseHM(meta.end);
   const span=endM-startM||1;
   const step=30;
   for(let t=startM;t<=endM;t+=step){
-    const y=(t-startM)/span*h;
-    addTick(t,y,t%60===0);
+    const y=(t-startM)/span*h; addTick(t,y,t%60===0);
   }
   if((endM-startM)%step!==0) addTick(endM, h, true);
 
-  // now marker (only if current time within this frame)
   const now=new Date(); const m=now.getHours()*60+now.getMinutes();
-  const inWindow=(m>=startM && m<=endM);
-  if(inWindow){
-    const y=(m-startM)/span*h;
-    const mark=document.createElement('div');mark.className='nowMarker';mark.style.top=y+'px';
-    tl.appendChild(mark);
+  if(m>=startM && m<=endM){
+    const y=(m-startM)/span*h; const mark=document.createElement('div');mark.className='nowMarker';mark.style.top=y+'px'; tl.appendChild(mark);
   }
 
   function addTick(totalMins,y,bold=false){
@@ -515,7 +499,7 @@ function showDeleteBtns(){
 }
 function deleteSelected(){
   document.querySelectorAll('.row.selected').forEach(r=>r.remove());
-  showDeleteBtns();renumber();scheduleAutoCompute(120,false);buildTimelineFromDOM();
+  showDeleteBtns();renumber();scheduleAutoCompute(120,false);scheduleTimelineBuild();
 }
 document.addEventListener('keydown',e=>{
   if((e.key==='Delete'||e.key==='Backspace')&&document.querySelector('.row.selected')){
@@ -534,26 +518,26 @@ document.addEventListener('click',e=>{
 
 function idxToLabel(i){let s='',n=i+1;while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;}
 
-/* ==== CHANGES: renumber per frame (keeps A.. within each frame), global in Flat mode */
+/* ==== Global renumber across visible frames (A..Z, AA..) ==== */
 function renumber(){
   if(flatMode){
     const rows=[...document.querySelectorAll('#addrList .row')];
     rows.forEach((r,i)=>{
-      const b=r.querySelector('.bullet');
-      b.textContent=idxToLabel(i);
+      const b=r.querySelector('.bullet'); b.textContent=idxToLabel(i);
       b.className='bullet '+(['A','B','C','D','E','F','G','H'][i%8]||'defaultBullet');
     });
     return;
   }
+  let i=0;
   FRAMES.forEach(fr=>{
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
     const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
     if(!vis || sec.classList.contains('collapsed') || sec.style.display==='none') return;
     const rows=[...document.getElementById('frame-'+fr.id).querySelectorAll('.row')];
-    rows.forEach((r,i)=>{
-      const b=r.querySelector('.bullet');
-      b.textContent=idxToLabel(i);
+    rows.forEach(r=>{
+      const b=r.querySelector('.bullet'); b.textContent=idxToLabel(i);
       b.className='bullet '+(['A','B','C','D','E','F','G','H'][i%8]||'defaultBullet');
+      i++;
     });
   });
 }
@@ -561,23 +545,12 @@ function renumber(){
 /* =================== INPUT / AUTOCOMPLETE =================== */
 function attachInputEvents(inp){
   inp.addEventListener('mousedown',ev=>{
-    if(document.activeElement!==inp){
-      ev.preventDefault();
-      inp.focus({preventScroll:true});
-      setTimeout(()=>inp.select(),0);
-    }
+    if(document.activeElement!==inp){ ev.preventDefault(); inp.focus({preventScroll:true}); setTimeout(()=>inp.select(),0); }
   });
-
-  inp.addEventListener('focus',e=>{
-    inp.closest('.row').classList.add('focused'); setTimeout(()=>e.target.select(),0);
-  });
+  inp.addEventListener('focus',e=>{ inp.closest('.row').classList.add('focused'); setTimeout(()=>e.target.select(),0); });
   inp.addEventListener('blur',()=>inp.closest('.row').classList.remove('focused'));
 
-  inp.addEventListener('input',()=>{
-    inp.dataset.dirty='1';
-    inp.dataset.lat=''; inp.dataset.lng='';
-    scheduleAutoCompute(200,false);
-  });
+  inp.addEventListener('input',()=>{ inp.dataset.dirty='1'; inp.dataset.lat=''; inp.dataset.lng=''; scheduleAutoCompute(200,false); });
 
   inp.addEventListener('keydown',e=>{
     if(e.key==='Tab'&&!e.shiftKey){e.preventDefault();acceptTopPrediction(inp);}
@@ -588,9 +561,7 @@ function attachInputEvents(inp){
 
   const ac=new google.maps.places.Autocomplete(inp,{
     fields:['formatted_address','geometry','place_id'],
-    types:['address'],
-    componentRestrictions:{country:'ca'},
-    bounds:OK_BOUNDS, strictBounds:true
+    types:['address'], componentRestrictions:{country:'ca'}, bounds:OK_BOUNDS, strictBounds:true
   });
   ac.addListener('place_changed',()=>{
     const p=ac.getPlace();
@@ -604,15 +575,38 @@ function attachInputEvents(inp){
   });
 }
 
-/* ---------- Compaction helper (no gaps inside a frame) ---------- */
+/* ---------- Helpers for compaction / pruning ---------- */
 function compactFrameList(list){
   const rows=[...list.querySelectorAll('.row')];
   const filled=rows.filter(r=>r.querySelector('.stop').value.trim());
   const empties=rows.filter(r=>!r.querySelector('.stop').value.trim());
   [...filled,...empties].forEach(r=>list.appendChild(r));
 }
+function pruneListGaps(list, placeholdersAtEnd){
+  const rows=[...list.querySelectorAll('.row')];
+  let lastFilled=-1;
+  for(let i=rows.length-1;i>=0;i--){ if(rows[i].querySelector('.stop').value.trim()){ lastFilled=i; break; } }
+  if(lastFilled>=0){
+    for(let i=0;i<lastFilled;i++){ const r=rows[i]; if(!r.querySelector('.stop').value.trim()) r.remove(); }
+  }
+  const now=[...list.querySelectorAll('.row')];
+  const blanks=now.filter(r=>!r.querySelector('.stop').value.trim()).length;
+  for(let i=blanks;i<placeholdersAtEnd;i++){ const row=makeRow(+list.id.replace('frame-','')||0); list.appendChild(row); }
+}
+function pruneEmptyGapsVisible(){
+  if(flatMode){ pruneListGaps(document.getElementById('addrList'), 0); }
+  else{
+    FRAMES.forEach(fr=>{
+      const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
+      const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
+      if(!vis || sec.classList.contains('collapsed') || sec.style.display==='none') return;
+      pruneListGaps(document.getElementById('frame-'+fr.id), BASE_EMPTY_PER_FRAME);
+    });
+  }
+  renumber();
+}
 
-/* ====== Multi‑paste with cross‑frame distribution (no extra rows, compact) ====== */
+/* ====== Multi‑paste with cross‑frame distribution (NO new rows, NO gaps) ====== */
 async function multiPaste(e){
   const clip=(e.clipboardData||window.clipboardData).getData('text');
   const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -625,13 +619,15 @@ async function multiPaste(e){
     const container=document.getElementById('addrList');
     let rows=[...container.querySelectorAll('.row')];
     const startIdx=rows.indexOf(startRow);
-    const need=Math.max(0,startIdx+lines.length-rows.length);
-    for(let i=0;i<need;i++) addRowToAddrBar(false,false);
-    rows=[...container.querySelectorAll('.row')];
-    lines.forEach((addr,i)=>{const r=rows[startIdx+i]; if(!r) return; const el=r.querySelector('.stop'); el.value=addr; el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1';});
+    const empties=rows.slice(startIdx).filter(r=>!r.querySelector('.stop').value.trim());
+    const n=Math.min(lines.length, empties.length);
+    for(let i=0;i<n;i++){
+      const el=empties[i].querySelector('.stop'); el.value=lines[i]; el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1';
+    }
+    if(lines.length>n){ document.getElementById('flatMsg').textContent=`${lines.length-n} item(s) skipped – not enough empty rows.`; }
     renumber();
-    await ensureCoords(lines.map((_,i)=>rows[startIdx+i]).filter(Boolean),{parallel:true});
-    pruneEmptyGapsVisible();
+    await ensureCoords(empties.slice(0,n),{parallel:true});
+    pruneListGaps(container, 0); // no gaps after paste
     scheduleAutoCompute(0,true);
     return;
   }
@@ -644,6 +640,7 @@ async function multiPaste(e){
 
   let remaining=[...lines];
   const touchedLists=[];
+  let skipped=0;
 
   for(let k=startIndexInShift; k<framesInShift.length && remaining.length>0; k++){
     const fid=framesInShift[k].id;
@@ -654,57 +651,43 @@ async function multiPaste(e){
     let startAt=0;
     if(fid===firstFrameId) startAt=rows.indexOf(startRow);
 
-    for(let i=startAt;i<rows.length && remaining.length>0;i++){
-      const inp=rows[i].querySelector('.stop');
-      if(!inp.value.trim()){
-        const addr=remaining.shift();
-        inp.value=addr; inp.dataset.lat=''; inp.dataset.lng=''; inp.dataset.dirty='1';
-      }
-    }
-
-    if(k===framesInShift.length-1 && remaining.length>0){
-      // spill over only into the very last frame
-      const list2=document.getElementById('frame-'+fid);
-      while(remaining.length){
-        addRowToFrame(fid,false,false);
-        const el=list2.querySelector('.row:last-child .stop');
-        el.value=remaining.shift(); el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1';
-      }
+    const empties=rows.slice(startAt).filter(r=>!r.querySelector('.stop').value.trim());
+    const n=Math.min(remaining.length, empties.length);
+    for(let i=0;i<n;i++){
+      const inp=empties[i].querySelector('.stop');
+      const addr=remaining.shift();
+      inp.value=addr; inp.dataset.lat=''; inp.dataset.lng=''; inp.dataset.dirty='1';
     }
   }
+  if(remaining.length>0){ skipped=remaining.length; }
 
-  // ==== CHANGES: force “filled first, empties at end” on each touched frame to avoid gaps
+  // compact + remove any blanks up to the last filled; keep 0 placeholders after paste (prevents between-frame gaps)
   touchedLists.forEach(list=>{
     compactFrameList(list);
-    // also ensure no interleaved empties remain
-    const rows=[...list.querySelectorAll('.row')];
-    const filled=rows.filter(r=>r.querySelector('.stop').value.trim());
-    const empties=rows.filter(r=>!r.querySelector('.stop').value.trim());
-    [...filled,...empties].forEach(r=>list.appendChild(r));
+    pruneListGaps(list, 0);
   });
 
   renumber();
   await ensureCoords(getOrderedRows(true),{parallel:true});
   scheduleAutoCompute(0,true);
 
-  // ==== CHANGES: do NOT auto-collapse empty frames; keep the default 4 rows visible
-  // autoCollapseEmptyFramesInShift(shift); // (disabled)
+  // hide empty frames in the current view
+  collapseEmptyFramesInShift(shift);
+
+  const m=document.getElementById('msg');
+  if(skipped>0){ m.textContent=`${skipped} item(s) skipped – not enough empty rows.`; }
+  else{ m.textContent=''; }
 }
 
 /* Accept top prediction on Tab/Enter */
 function acceptTopPrediction(input){
   if (input.dataset.lat && input.dataset.lng){
-    delete input.dataset.dirty;
-    focusNextInput(input);
-    scheduleAutoCompute(0,true);
-    return;
+    delete input.dataset.dirty; focusNextInput(input); scheduleAutoCompute(0,true); return;
   }
   acService.getPlacePredictions(
     {input:input.value, componentRestrictions:{country:'ca'}, types:['address'], locationBias:OK_BOUNDS},
     (preds,status)=>{
-      if (status !== google.maps.places.PlacesServiceStatus.OK || !preds?.length){
-        focusNextInput(input); scheduleAutoCompute(0,false); return;
-      }
+      if (status !== google.maps.places.PlacesServiceStatus.OK || !preds?.length){ focusNextInput(input); scheduleAutoCompute(0,false); return; }
       placeSvc.getDetails({placeId:preds[0].place_id, fields:['formatted_address','geometry']},
         (place, st)=>{
           if (st === google.maps.places.PlacesServiceStatus.OK && place?.geometry){
@@ -713,8 +696,7 @@ function acceptTopPrediction(input){
             input.dataset.lng=place.geometry.location.lng();
             delete input.dataset.dirty;
           }
-          focusNextInput(input);
-          scheduleAutoCompute(0,true);
+          focusNextInput(input); scheduleAutoCompute(0,true);
         }
       );
     }
@@ -742,7 +724,6 @@ function applyShiftVisibility(){
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
     const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
     sec.style.display=vis?'block':'none';
-    // ==== CHANGES: ensure base rows only when a frame is shown and not collapsed
     if(vis && !sec.classList.contains('collapsed')) ensurePlaceholdersForFrame(fr.id);
   });
 
@@ -756,8 +737,7 @@ function applyShiftVisibility(){
 }
 function buildAddrBar(){
   Sortable.create(document.getElementById('addrList'),{
-    handle:'.drag',animation:150,
-    onEnd:()=>{renumber();scheduleAutoCompute(120,false);}
+    handle:'.drag',animation:150, onEnd:()=>{renumber();scheduleAutoCompute(120,false);}
   });
   document.getElementById('addrAdd').onclick=()=>addRowToAddrBar(true,false);
   document.getElementById('toggleDay').onclick=()=>toggleShift('day');
@@ -784,9 +764,7 @@ function enterFlatMode(){
   if(list.querySelectorAll('.row').length===0){
     addRowToAddrBar(true,false);
     for(let i=1;i<INITIAL_FLAT_ROWS;i++) addRowToAddrBar(false,false);
-  }else{
-    focusFirstFlatInputIfNone();
-  }
+  }else{ focusFirstFlatInputIfNone(); }
   clearDirections(); clearLegDisplays();
 }
 function exitFlatMode(){
@@ -805,7 +783,7 @@ function clearAllStops(){
   clearPreviewPins();clearDirections();clearLegDisplays();
   document.getElementById('msg').textContent='';
   document.getElementById('flatMsg').textContent='';
-  showDeleteBtns(); buildTimelineFromDOM(); renumber();
+  showDeleteBtns(); scheduleTimelineBuild(); renumber();
 }
 
 /* =================== ROUTING / OPTIMIZATION =================== */
@@ -850,9 +828,7 @@ async function resolveAddress(text){
   const prediction = await new Promise(res=>{
     acService.getPlacePredictions(
       {input:text, componentRestrictions:{country:'ca'}, types:['address'], locationBias:OK_BOUNDS},
-      (preds,status)=>{
-        if(status===google.maps.places.PlacesServiceStatus.OK && preds?.length) res(preds[0]); else res(null);
-      }
+      (preds,status)=>{ if(status===google.maps.places.PlacesServiceStatus.OK && preds?.length) res(preds[0]); else res(null); }
     );
   });
   if(prediction){
@@ -895,12 +871,9 @@ async function ensureCoords(rows,{parallel=false}={}){
     for(const t of tasks){ const ok=await t(); if(!ok) return false; }
     return true;
   }else{
-    const CONC=4;
-    let i=0, okAll=true;
+    const CONC=4; let i=0, okAll=true;
     await Promise.all(Array.from({length:CONC},async ()=> {
-      while(i<tasks.length){
-        const my=i++; const ok=await tasks[my](); if(!ok) okAll=false;
-      }
+      while(i<tasks.length){ const my=i++; const ok=await tasks[my](); if(!ok) okAll=false; }
     }));
     return okAll;
   }
@@ -919,39 +892,6 @@ function getOrderedRows(includeHidden=false){
   return rows.filter(r=>r.querySelector('.stop').value.trim());
 }
 
-/* remove empties that appear before the last filled row, then keep base empties at end */
-function pruneListGaps(list, placeholdersAtEnd){
-  const rows=[...list.querySelectorAll('.row')];
-  let lastFilled=-1;
-  for(let i=rows.length-1;i>=0;i--){
-    if(rows[i].querySelector('.stop').value.trim()){ lastFilled=i; break; }
-  }
-  if(lastFilled>=0){
-    for(let i=0;i<lastFilled;i++){
-      const r=rows[i]; if(!r.querySelector('.stop').value.trim()) r.remove();
-    }
-  }
-  const now=[...list.querySelectorAll('.row')];
-  const blanks=now.filter(r=>!r.querySelector('.stop').value.trim()).length;
-  for(let i=blanks;i<placeholdersAtEnd;i++){
-    const row=makeRow(+list.id.replace('frame-','')||0);
-    list.appendChild(row);
-  }
-}
-function pruneEmptyGapsVisible(){
-  if(flatMode){
-    pruneListGaps(document.getElementById('addrList'), 0);
-  }else{
-    FRAMES.forEach(fr=>{
-      const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
-      const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
-      if(!vis || sec.classList.contains('collapsed') || sec.style.display==='none') return;
-      pruneListGaps(document.getElementById('frame-'+fr.id), BASE_EMPTY_PER_FRAME);
-    });
-  }
-  renumber();
-}
-
 /* Main autoCompute */
 async function autoCompute(){
   const rows=getOrderedRows();
@@ -962,14 +902,11 @@ async function autoCompute(){
   }
 
   if(rows.some(r=>!r.querySelector('.stop').dataset.lat)){
-    if(autoResolveNext){
-      await ensureCoords(rows,{parallel:true});
-      autoResolveNext=false;
-    }else{
-      clearDirections(); clearLegDisplays(); return;
-    }
+    if(autoResolveNext){ await ensureCoords(rows,{parallel:true}); autoResolveNext=false; }
+    else{ clearDirections(); clearLegDisplays(); return; }
   }
 
+  // keep standard placeholders elsewhere, paste-path used 0 placeholders already
   pruneEmptyGapsVisible();
 
   if(rows.length===1){
@@ -1049,19 +986,14 @@ function haversine(a,b){
   return 2*R*Math.asin(Math.sqrt(s));
 }
 function orderCost(order,D){
-  let c=0;
-  for(let i=0;i<order.length-1;i++) c+=D[order[i]][order[i+1]];
-  return c;
+  let c=0; for(let i=0;i<order.length-1;i++) c+=D[order[i]][order[i+1]]; return c;
 }
 function nearestNeighbour(D, start=0){
   const n=D.length; const visited=Array(n).fill(false);
   const ord=[start]; visited[start]=true;
   for(let k=1;k<n;k++){
-    const last=ord[ord.length-1];
-    let best=Infinity,idx=-1;
-    for(let j=0;j<n;j++){
-      if(!visited[j] && D[last][j]<best){best=D[last][j]; idx=j;}
-    }
+    const last=ord[ord.length-1]; let best=Infinity,idx=-1;
+    for(let j=0;j<n;j++){ if(!visited[j] && D[last][j]<best){best=D[last][j]; idx=j;} }
     ord.push(idx); visited[idx]=true;
   }
   return ord;
@@ -1073,10 +1005,7 @@ function twoOpt(order,D){
     for(let i=1;i<n-2;i++){
       for(let j=i+1;j<n-1;j++){
         const a=order[i-1],b=order[i],c=order[j],d=order[j+1];
-        if(D[a][b]+D[c][d] > D[a][c]+D[b][d]){
-          order.splice(i,j-i+1,...order.slice(i,j+1).reverse());
-          improved=true;
-        }
+        if(D[a][b]+D[c][d] > D[a][c]+D[b][d]){ order.splice(i,j-i+1,...order.slice(i,j+1).reverse()); improved=true; }
       }
     }
   }
@@ -1119,20 +1048,10 @@ async function globalOptimizeRoute(){
   const D=buildDistanceMatrix(pts);
   const ord=solveTSPWithMatrix(D);
 
-  /* ==== CHANGES: keep rows within their original frame lists; no cross-frame moves here.
-     We re-append in optimized order only INSIDE the parent list of each row. */
+  // keep rows within their original frame lists
   const grouped=new Map();
-  rows.forEach((r,i)=>{
-    const p=r.parentElement;
-    if(!grouped.has(p)) grouped.set(p,[]);
-    grouped.get(p).push({r,i});
-  });
-  // apply local order using ord but only within each list
-  grouped.forEach((arr,p)=>{
-    arr.sort((a,b)=>ord.indexOf(a.i)-ord.indexOf(b.i));
-    arr.forEach(({r})=>p.appendChild(r));
-    compactFrameList(p);
-  });
+  rows.forEach((r,i)=>{ const p=r.parentElement; if(!grouped.has(p)) grouped.set(p,[]); grouped.get(p).push({r,i}); });
+  grouped.forEach((arr,p)=>{ arr.sort((a,b)=>ord.indexOf(a.i)-ord.indexOf(b.i)); arr.forEach(({r})=>p.appendChild(r)); compactFrameList(p); });
 
   renumber();
   await rebuildRoute();
@@ -1152,7 +1071,7 @@ async function optimizeByFramesTwoPass(){
   const framesData=[];
   for(const fr of visFrames){
     const list=document.getElementById('frame-'+fr.id);
-    compactFrameList(list); // keep filled rows at top
+    compactFrameList(list);
     const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
     if(rows.length<2){ framesData.push({fr, list, rows, pts:[], D:null, baseOrder:null, baseCost:0}); continue; }
     const ok=await ensureCoords(rows,{parallel:true}); if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
@@ -1167,7 +1086,7 @@ async function optimizeByFramesTwoPass(){
     if(fd.rows.length<2) return;
     const ord=fd.baseOrder;
     ord.forEach(i=>fd.list.appendChild(fd.rows[i]));
-    compactFrameList(fd.list); // filled rows at top, empties at end
+    compactFrameList(fd.list);
   });
 
   for(let i=0;i<framesData.length-1;i++){
@@ -1191,11 +1110,9 @@ async function optimizeByFramesTwoPass(){
     if(bestOrder!==B.baseOrder){
       const newRows = bestOrder.map(i=>B.rows[i]);
       newRows.forEach(r=>B.list.appendChild(r));
-      B.baseOrder = bestOrder;
-      B.baseCost  = bestCost;
-      B.rows      = newRows;
-      B.pts       = newRows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
-      B.D         = buildDistanceMatrix(B.pts);
+      B.baseOrder = bestOrder; B.baseCost  = bestCost;
+      B.rows = newRows; B.pts  = newRows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
+      B.D = buildDistanceMatrix(B.pts);
       compactFrameList(B.list);
     }
   }
@@ -1219,19 +1136,26 @@ async function optimizeByFramesTwoPass(){
     if(bestOrder!==A.baseOrder){
       const newRows = bestOrder.map(i=>A.rows[i]);
       newRows.forEach(r=>A.list.appendChild(r));
-      A.baseOrder = bestOrder;
-      A.baseCost  = bestCost;
-      A.rows      = newRows;
-      A.pts       = newRows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
-      A.D         = buildDistanceMatrix(A.pts);
+      A.baseOrder = bestOrder; A.baseCost  = bestCost;
+      A.rows = newRows; A.pts  = newRows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
+      A.D = buildDistanceMatrix(A.pts);
       compactFrameList(A.list);
     }
   }
 
-  renumber();                // per-frame A.. kept stable
+  renumber();
   await rebuildRoute();
   rebalanceFrameHeights();
-  buildTimelineFromDOM();
+  scheduleTimelineBuild();
+}
+
+/* Hide empty frames in the given shift (after paste) */
+function collapseEmptyFramesInShift(shift){
+  FRAMES.filter(f=>f.shift===shift).forEach(f=>{
+    const list=document.getElementById('frame-'+f.id);
+    const hasFilled=[...list.querySelectorAll('.row')].some(r=>r.querySelector('.stop').value.trim());
+    if(!hasFilled) setFrameCollapsed(f.id, true, 'auto');
+  });
 }
 
 /* =================== INIT =================== */
@@ -1257,7 +1181,7 @@ window.routePlannerInit=()=>{
   acService=new google.maps.places.AutocompleteService();
   placeSvc=new google.maps.places.PlacesService(map);
 
-  buildFrameBuckets(); buildTimelineFromDOM(); buildAddrBar();
+  buildFrameBuckets(); scheduleTimelineBuild(); buildAddrBar();
 
   dayVisible=false; nightVisible=false; applyShiftVisibility();
 
@@ -1297,12 +1221,6 @@ window.routePlannerInit=()=>{
 
   if(window.__mapsApiReady){ /* no-op */ }
 };
-
-/* ==== CHANGES: disable auto-collapse behavior to keep base 4 rows in each visible frame */
-function autoCollapseEmptyFramesInShift(shift){
-  /* intentionally disabled to always show 4 default rows by frame */
-  return;
-}
 </script>
 </body>
 </html>
