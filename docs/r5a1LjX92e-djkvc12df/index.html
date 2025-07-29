@@ -438,6 +438,21 @@ function setFrameCollapsed(id, collapse, source='user'){
   if(!collapse){ ensurePlaceholdersForFrame(id); buildTimelineForFrame(id); }
   renumber(); scheduleTimelineBuild();
 }
+  
+  let pendingFocusEl = null;               // who should be focused next (if any)
+let suppressAutoSelectUntil = 0;         // guard for select-on-focus
+function queueFocus(el){
+  if(!el) return;
+  pendingFocusEl = el;
+  suppressAutoSelectUntil = Date.now() + 400; // don't select text unless it's the queued one
+  [0,10,30,80,160].forEach(d => setTimeout(() => {
+    if(pendingFocusEl === el) safeFocus(el);
+  }, d));
+}
+function clearPendingFocus(el){
+  if(pendingFocusEl === el) pendingFocusEl = null;
+}
+
 function buildFrameBuckets(){
   const container=document.getElementById('framesContainer');
 
@@ -670,14 +685,21 @@ function attachInputEvents(inp){
   inp.addEventListener('mousedown',ev=>{
     if(document.activeElement!==inp){ ev.preventDefault(); safeFocus(inp); setTimeout(()=>inp.select(),0); }
   });
-  inp.addEventListener('focus',e=>{
-    inp.closest('.row').classList.add('focused');
+ inp.addEventListener('focus', e=>{
+  inp.closest('.row').classList.add('focused');
+
+  // Only select text when this input is the queued target OR enough time has passed.
+  const okToSelect = (pendingFocusEl === inp) || (Date.now() >= suppressAutoSelectUntil);
+  if(okToSelect){
     setTimeout(()=>e.target.select(),0);
-    // show suggestions if there’s partial text
-    if(!inp.dataset.lat && (inp.value||'').trim().length>=3){
-      fetchPredictions(inp.value, preds => SG.openFor(inp, preds));
-    }
-  });
+  }
+
+  // Show suggestions if partial text
+  if(!inp.dataset.lat && (inp.value||'').trim().length>=3){
+    fetchPredictions(inp.value, preds => SG.openFor(inp, preds));
+  }
+});
+  
   inp.addEventListener('blur',()=>{
     inp.closest('.row').classList.remove('focused');
     // Delay hide slightly so click on dropdown registers
@@ -702,42 +724,33 @@ function attachInputEvents(inp){
   });
 
   // Shift+Tab: previous input
-  inp.addEventListener('keydown', e=>{
-    if(e.key==='Tab' && e.shiftKey){
-      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-      forceCloseAutocomplete(inp);
-      if (flatMode) { focusPrevInFlat(inp); }
-      else          { focusPrevInFrame(inp); }
-    }
-  });
-
-  // Tab/Enter: accept top suggestion in background; move focus now
   inp.addEventListener('keydown', e => {
-    const isAdvanceKey = (e.key === 'Enter') || (e.key === 'Tab' && !e.shiftKey);
-    if (!isAdvanceKey) return;
+  const isAdvanceKey = (e.key === 'Enter') || (e.key === 'Tab' && !e.shiftKey);
+  if (!isAdvanceKey) return;
 
-    e.preventDefault();
-    e.stopPropagation();
-    e.stopImmediatePropagation();
+  e.preventDefault();
+  e.stopPropagation();
+  e.stopImmediatePropagation();
 
-    forceCloseAutocomplete(inp);
+  forceCloseAutocomplete(inp);
 
-    suppressTopUpOnce = true;
-    __noTopUpUntil = Date.now() + 250;
+  suppressTopUpOnce = true;
+  __noTopUpUntil = Date.now() + 350; // give the reflow a bit more time
 
-    // If our dropdown is open and user pressed Enter, accept highlighted/first
-    if(SG.isOpen() && e.key==='Enter'){ SG.chooseHot(); return; }
+  // If our dropdown is open and Enter was pressed, choose highlighted/first.
+  if(SG.isOpen() && e.key==='Enter'){ SG.chooseHot(); return; }
 
-    // Headless accept of the top prediction; we don't wait for it to finish
-    acceptTopPrediction(inp, { advance:false });
+  // Pre-calc where we're going, then move immediately (queued focus withstands DOM churn)
+  if (flatMode) { focusNextInFlatOrCreate(inp, /*queueOnly*/ true); }
+  else          { focusNextInFrameOrCreate(inp, /*queueOnly*/ true); }
 
-    // Move focus immediately to the next empty/row
-    if (flatMode) { focusNextInFlatOrCreate(inp); }
-    else          { focusNextInFrameOrCreate(inp); }
+  // Fire a headless accept of the top prediction, but don't wait.
+  acceptTopPrediction(inp, { advance:false });
 
-    SG.hide();
-    scheduleAutoCompute(0, true);
-  });
+  SG.hide();
+  // Delay autoCompute a hair so we don't fight for focus in the same frame
+  scheduleAutoCompute(150, true);
+});
 
   inp.addEventListener('paste',multiPaste);
 }
@@ -938,7 +951,7 @@ function acceptTopPrediction(input, { advance = true } = {}){
 }
 
 /* Robust next-focus */
-function focusNextInFrameOrCreate(currentInput){
+function focusNextInFrameOrCreate(currentInput, queueOnly=false){
   const currentRow = currentInput.closest('.row');
   const frameId    = +currentRow.dataset.frame;
   const list       = document.getElementById('frame-'+frameId);
@@ -946,39 +959,41 @@ function focusNextInFrameOrCreate(currentInput){
   const idx        = rows.indexOf(currentRow);
 
   const firstEmptyAfter = rows.slice(idx+1).find(r => !r.querySelector('.stop').value.trim());
+  let target;
   if(firstEmptyAfter){
-    suppressTopUpOnce = true; __noTopUpUntil = Date.now() + 250;
-    forceCloseAutocomplete(currentInput);
-    safeFocus(firstEmptyAfter.querySelector('.stop'));
-    return;
-  }
-  if(rows[idx+1]){
-    forceCloseAutocomplete(currentInput);
+    suppressTopUpOnce = true; __noTopUpUntil = Date.now() + 350;
+    target = firstEmptyAfter.querySelector('.stop');
+  }else if(rows[idx+1]){
     const newRow = insertRowAfter(currentRow);
-    safeFocus(newRow.querySelector('.stop'));
-    return;
+    target = newRow.querySelector('.stop');
+  }else{
+    const added = addRowToFrame(frameId, false, false);
+    target = added.querySelector('.stop');
   }
-  forceCloseAutocomplete(currentInput);
-  const added = addRowToFrame(frameId, true, false);
-  safeFocus(added.querySelector('.stop'));
+  if(queueOnly) queueFocus(target); else safeFocus(target);
 }
-function focusNextInFlatOrCreate(currentInput){
+
+function focusNextInFlatOrCreate(currentInput, queueOnly=false){
   const currentRow = currentInput.closest('.row');
   const list       = document.getElementById('addrList');
   const rows       = [...list.querySelectorAll('.row')];
   const idx        = rows.indexOf(currentRow);
 
+  let target;
   const firstEmptyAfter = rows.slice(idx+1).find(r => !r.querySelector('.stop').value.trim());
-  forceCloseAutocomplete(currentInput);
-
-  if(firstEmptyAfter){ safeFocus(firstEmptyAfter.querySelector('.stop')); return; }
-  if(rows[idx+1]){
+  if(firstEmptyAfter){
+    target = firstEmptyAfter.querySelector('.stop');
+  }else if(rows[idx+1]){
     const newRow = makeRow(0);
     currentRow.insertAdjacentElement('afterend', newRow);
     renumber();
-    safeFocus(newRow.querySelector('.stop'));
-    return;
+    target = newRow.querySelector('.stop');
+  }else{
+    const newRow = addRowToAddrBar(false,false);
+    target = newRow.querySelector('.stop');
   }
+  if(queueOnly) queueFocus(target); else safeFocus(target);
+}
   const newRow = addRowToAddrBar(true,false);
   safeFocus(newRow.querySelector('.stop'));
 }
