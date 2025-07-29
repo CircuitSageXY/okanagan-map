@@ -42,7 +42,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   box-shadow:var(--clrPanelShadow);border-top-right-radius:var(--radiusLg);
   border-bottom-right-radius:var(--radiusLg);display:flex;flex-direction:column;
 }
-#scroller{flex:1;overflow:auto;position:relative;padding:12px 12px 0 0;}
+#scroller{flex:1;overflow:auto;position:relative;padding:12px 12px 96px 0;}
 #content{display:flex;align-items:flex-start;position:relative;}
 
 /* ---------- TIMELINE COLUMN ---------- */
@@ -59,6 +59,9 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   position:absolute;left:2px;width:12px;height:12px;border:2px solid #000;background:#fff;border-radius:50%;
   transform:translate(-50%,-50%);box-shadow:0 0 4px rgba(0,0,0,.4);animation:pulse 2s infinite;z-index:3;}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(0,0,0,.35);}70%{box-shadow:0 0 0 6px rgba(0,0,0,0);}100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}}
+
+/* A subtle “scale break” marker at frame boundaries (piecewise timeline) */
+.tl-break{position:absolute;left:2px;width:12px;height:2px;background:#000;opacity:.35;border-radius:1px;transform:translateX(-50%);}
 
 /* ---------- FRAMES ---------- */
 #framesContainer{flex:1;min-width:0;}
@@ -78,16 +81,12 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .frame.collapsed{opacity:.55;}
 .frame.collapsed .frame-hide{color:#c00;}
 
-.frame-list{
-  padding:6px 10px 8px 6px;overflow:visible; /* <— show all stops inside the frame */
-  flex:1 1 auto;
-}
+.frame-list{padding:6px 10px 8px 6px;overflow:visible;flex:1 1 auto;} /* show all rows (no inner scroll) */
 .addRowBtn{
   margin:6px 0 8px 28px;background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
   padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;flex:none;}
 .addRowBtn:hover{background:#e7e7e7;}
 
-/* per‑frame colors */
 .frame[data-frame="0"]{border-left:4px solid var(--f-early);}
 .frame[data-frame="1"]{border-left:4px solid var(--f-late);}
 .frame[data-frame="2"]{border-left:4px solid var(--f-lunch);}
@@ -138,20 +137,15 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   transition:transform var(--transFast),background var(--transFast);}
 .remove:hover{background:#f75a4d;transform:scale(1.08);} .remove:active{transform:scale(.94);}
 
-/* ---------- ACTION BAR (integrated) ---------- */
-#actions{
-  position:sticky;bottom:0;left:0;right:0;z-index:7;
-  display:flex;gap:10px;flex-wrap:wrap;align-items:center;
-  padding:10px 12px;border-top:1px solid var(--clrPanelBorder);
-  background:linear-gradient(180deg, rgba(255,255,255,0.8), #fff 70%);
-}
+/* ---------- ACTION BUTTONS / MESSAGES ---------- */
+#actions{position:absolute;bottom:12px;left:16px;right:16px;display:flex;gap:10px;flex-wrap:wrap;z-index:7;}
 #actions button{padding:8px 14px;font-size:14px;border-radius:var(--radiusMd);border:1px solid transparent;cursor:pointer;transition:background var(--transFast),transform var(--transFast);}
 #route{background:var(--clrA);color:#fff;border-color:var(--clrA);}        #route:hover{background:#5b9bff;} #route:active{transform:scale(.96);}
 #optAll{background:var(--clrB);color:#fff;border-color:var(--clrB);}       #optAll:hover{background:#26c36c;} #optAll:active{transform:scale(.96);}
 #optFrames{background:#795548;color:#fff;border-color:#795548;}            #optFrames:hover{background:#8d6e63;} #optFrames:active{transform:scale(.96);}
 #delSel{background:#db4437;color:#fff;border-color:#db4437;display:none;}
 
-#msg{margin:12px 12px;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 0;}
+#msg{margin:12px 0;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 0;}
 
 /* ---------- LEG SUMMARY ---------- */
 .leg-display{margin:6px 0 0 28px;font-size:16px;font-weight:600;color:#1b1b1b;
@@ -224,16 +218,13 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
       <div id="timelineCol"><div id="timeline"></div></div>
       <div id="framesContainer"></div>
     </div>
-
     <div id="msg"></div>
-
-    <!-- Integrated actions footer (sticky inside scroller) -->
-    <div id="actions">
-      <button id="route">Route</button>
-      <button id="optAll"    title="Optimize entire day">Optimize</button>
-      <button id="optFrames" title="Optimize each time frame separately">Optimize by Frames</button>
-      <button id="delSel" title="Delete selected stops">Delete Selected</button>
-    </div>
+  </div>
+  <div id="actions">
+    <button id="route">Route</button>
+    <button id="optAll"    title="Optimize entire day">Optimize</button>
+    <button id="optFrames" title="Optimize each time frame separately">Optimize by Frames</button>
+    <button id="delSel" title="Delete selected stops">Delete Selected</button>
   </div>
 </div>
 
@@ -264,10 +255,13 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 <script>
 /* =================== CONFIG / CONSTANTS =================== */
 const PX_PER_MIN = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxPerMin'));
+const colourCycle = ['A','B','C','D','E','F','G','H'];
 const BASE_EMPTY_PER_FRAME = 4;
 const INITIAL_FLAT_ROWS     = 2;
 
-const TOL_PCT = 0.03, TOL_KM  = 0.30;
+/* by‑frames optimizer tolerance — stay within this of frame‑best */
+const TOL_PCT = 0.03;  // 3%
+const TOL_KM  = 0.30;  // 0.3 km
 
 let map,dirSvc,dirRend,geocoder,acService,placeSvc;
 let previewPins=[],routeMarkers=[];
@@ -292,16 +286,16 @@ const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);};
 const pad=n=>n.toString().padStart(2,'0');
 
-/* Helpers */
-function visibleFrameIdsInOrder(){
-  return FRAMES.filter(fr=>{
-    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
-    const shiftOn = (fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
-    return shiftOn && sec.style.display!=='none' && !sec.classList.contains('collapsed');
-  }).map(fr=>fr.id);
+/* =================== UI BUILD =================== */
+function setFrameCollapsed(id, collapse, source='user'){
+  const el=document.querySelector(`.frame[data-frame="${id}"]`);
+  if(!el) return;
+  if(collapse) el.classList.add('collapsed'); else el.classList.remove('collapsed');
+  if(source==='user'){ el.dataset.userOverride='1'; delete el.dataset.autoCollapsed; }
+  if(source==='auto'){ el.dataset.autoCollapsed='1'; }
+  renumber(); buildTimelineFromDOM();
 }
 
-/* =================== UI BUILD =================== */
 function buildFrameBuckets(){
   const container=document.getElementById('framesContainer');
 
@@ -312,18 +306,18 @@ function buildFrameBuckets(){
 
     const head=document.createElement('div');
     head.className='frame-header';
-    head.innerHTML=`<span class="swatch" style="background:${fr.color}"></span>${fr.name}`;
+    head.innerHTML=`<span class="swatch" style="background:${fr.color}"></span>${fr.name} <span style="margin-left:6px;font-size:12px;color:#666">(${fr.start}–${fr.end})</span>`;
     const hideBtn=document.createElement('span');
     hideBtn.className='material-icons frame-hide';
     hideBtn.textContent='visibility_off';
     hideBtn.title='Hide / show this time frame';
-    hideBtn.onclick=()=>toggleFrame(fr.id);
+    hideBtn.onclick=()=>setFrameCollapsed(fr.id, !sec.classList.contains('collapsed'), 'user'); // ==== CHANGES
     head.appendChild(hideBtn);
     sec.appendChild(head);
 
     const list=document.createElement('div');
     list.className='frame-list';list.id='frame-'+fr.id;
-    list.style.maxHeight=(dur*PX_PER_MIN)+'px';
+    list.style.maxHeight='none'; /* show all rows, fuse with timeline */
     sec.appendChild(list);
 
     const addBtn=document.createElement('button');
@@ -342,8 +336,7 @@ function buildFrameBuckets(){
     });
   });
 
-  // ensure 4 rows exist everywhere initially (also for collapsed/hidden)
-  FRAMES.forEach(fr=>ensurePlaceholdersForFrame(fr.id, true, true));
+  FRAMES.filter(f=>f.shift==='day').forEach(fr=>ensurePlaceholdersForFrame(fr.id));
   renumber();
 
   const ro=new ResizeObserver(()=>buildTimelineFromDOM());
@@ -352,42 +345,10 @@ function buildFrameBuckets(){
   document.querySelectorAll('.frame-list').forEach(fl=>mo.observe(fl,{childList:true,subtree:true}));
 }
 
-/* ====== Height rebalance: show all stops, keep proportional minimum ====== */
+/* With “show all rows”, rebalancing just rebuilds timeline. */
 function rebalanceFrameHeights(){
   if(flatMode) return;
-
-  const vis = FRAMES.filter(fr=>{
-    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
-    return sec.style.display!=='none' &&
-           !sec.classList.contains('collapsed') &&
-           ((fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible));
-  });
-
-  if(!vis.length) return;
-
-  const scroller = document.getElementById('scroller');
-  const avail = Math.max(240, scroller.clientHeight - 24);
-
-  const fixedById = {};
-  let fixedTotal = 0;
-  vis.forEach(fr=>{
-    const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
-    const headH = sec.querySelector('.frame-header').offsetHeight || 0;
-    const addH  = sec.querySelector('.addRowBtn').offsetHeight || 0;
-    const chrome = headH + addH + 26;
-    fixedById[fr.id] = chrome;
-    fixedTotal += chrome;
-  });
-
-  const free = Math.max(120, avail - fixedTotal);
-  const totalSpan = vis.reduce((s,fr)=>s + (parseHM(fr.end)-parseHM(fr.start)), 0);
-
-  vis.forEach(fr=>{
-    const list = document.getElementById('frame-'+fr.id);
-    const proportional = Math.max(120, Math.floor(free * (parseHM(fr.end)-parseHM(fr.start)) / totalSpan));
-    const content = list.scrollHeight + 2; // all rows visible
-    list.style.maxHeight = Math.max(proportional, content) + 'px';
-  });
+  buildTimelineFromDOM();
 }
 
 /* rows */
@@ -411,25 +372,23 @@ function addRowToFrame(frameId,focus=true,select=false){
   if(focus) row.querySelector('.stop').focus({preventScroll:true});
   if(select) setSelected(row,true);
 }
-function ensurePlaceholdersForFrame(frameId, includeCollapsed=false, ignoreVisibility=false){
+function ensurePlaceholdersForFrame(frameId){
   const list=document.getElementById('frame-'+frameId); if(!list) return;
   const frameEl=list.closest('.frame');
-  const isVisible = frameEl.style.display!=='none' && !flatMode;
-  const isCollapsed = frameEl.classList.contains('collapsed');
-  if(!ignoreVisibility && (!isVisible || (!includeCollapsed && isCollapsed))) return;
-
-  const total=list.querySelectorAll('.row').length;
-  for(let i=total;i<BASE_EMPTY_PER_FRAME;i++) addRowToFrame(frameId,false,false);
+  const visible = frameEl.style.display!=='none' && !frameEl.classList.contains('collapsed') && !flatMode;
+  if(!visible) return;
+  const empties=[...list.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());
+  for(let i=empties.length;i<BASE_EMPTY_PER_FRAME;i++) addRowToFrame(frameId,false,false);
 }
 
-/* =================== TIMELINE =================== */
+/* =================== TIMELINE (piecewise scale) =================== */
 function buildTimelineFromDOM(){
   const tl=document.getElementById('timeline');tl.innerHTML='';
   if(flatMode) return;
 
   const visibleFrames=FRAMES.filter(fr=>{
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
-    return ((fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible)) && sec.style.display!=='none' && !sec.classList.contains('collapsed');
+    return ((fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible)) && sec.style.display!=='none';
   });
   if(!visibleFrames.length) return;
 
@@ -448,37 +407,51 @@ function buildTimelineFromDOM(){
   axis.style.height=height+'px';
   tl.appendChild(axis);
 
+  // Draw per-frame ticks and segments
   ['day','night'].forEach(shift=>{
     if(shift==='day'&&!dayVisible) return;
     if(shift==='night'&&!nightVisible) return;
+
     const fInShift=visibleFrames.filter(f=>f.shift===shift);
     if(!fInShift.length) return;
 
-    const visStart = Math.min(...fInShift.map(f=>parseHM(FRAMES.find(x=>x.id===f.id).start)));
-    const visEnd   = Math.max(...fInShift.map(f=>parseHM(FRAMES.find(x=>x.id===f.id).end)));
-
-    const firstDom=document.querySelector(`.frame[data-frame="${fInShift[0].id}"]`);
-    const lastDom =document.querySelector(`.frame[data-frame="${fInShift[fInShift.length-1].id}"]`);
-    const sTop=firstDom.offsetTop;
-    const eBot=lastDom.offsetTop+lastDom.offsetHeight;
-
-    const pxSpan=eBot-sTop, minSpan=visEnd-visStart, pxPerMin=pxSpan/minSpan;
-
-    for(let t=visStart;t<=visEnd;t+=30){addTick(t,sTop+(t-visStart)*pxPerMin,t%60===0);}
-    if((visEnd-visStart)%30!==0) addTick(visEnd,sTop+(visEnd-visStart)*pxPerMin,true);
-
-    fInShift.forEach(fr=>{
+    fInShift.forEach((fr,idx)=>{
       const dom=document.querySelector(`.frame[data-frame="${fr.id}"]`);
+      const list = document.getElementById('frame-'+fr.id);
+      const startM=parseHM(fr.start), endM=parseHM(fr.end);
+      const top=dom.offsetTop, h=dom.offsetHeight;
+      const pxPerMin = h / (endM-startM || 1);
+
+      // segment shading
       const seg=document.createElement('div');seg.className='tl-seg';seg.style.background=fr.color;
-      seg.style.top=dom.offsetTop+'px';seg.style.height=dom.offsetHeight+'px';tl.appendChild(seg);
+      seg.style.top=top+'px';seg.style.height=h+'px';tl.appendChild(seg);
+
+      // ticks inside this frame
+      const step=30;
+      for(let t=startM; t<=endM; t+=step){
+        const y = top + (t-startM)*pxPerMin;
+        addTick(t, y, t%60===0);
+      }
+      if((endM-startM)%step!==0) addTick(endM, top+(endM-startM)*pxPerMin, true);
+
+      // scale break between frames
+      if(idx>0){
+        const br=document.createElement('div'); br.className='tl-break'; br.style.top=(top-2)+'px';
+        tl.appendChild(br);
+      }
     });
 
+    // "Now" marker using piecewise mapping
     const mark=document.createElement('div');mark.className='nowMarker';tl.appendChild(mark);
     const tickNow=()=>{
-      const d=new Date(),m=d.getHours()*60+d.getMinutes();
-      const show=(m>=visStart && m<=visEnd);
-      mark.style.display=show?'block':'none';
-      if(show) mark.style.top=(sTop+(m-visStart)*pxPerMin)+'px';
+      const d=new Date(); const m=d.getHours()*60+d.getMinutes();
+      const holder=fInShift.find(fr=> m>=parseHM(fr.start) && m<=parseHM(fr.end));
+      if(!holder){ mark.style.display='none'; return; }
+      const dom=document.querySelector(`.frame[data-frame="${holder.id}"]`);
+      const top=dom.offsetTop, h=dom.offsetHeight;
+      const pxPerMin = h / (parseHM(holder.end)-parseHM(holder.start) || 1);
+      mark.style.display='block';
+      mark.style.top = (top + (m-parseHM(holder.start))*pxPerMin) + 'px';
     };
     tickNow(); setInterval(tickNow,60000);
   });
@@ -503,6 +476,7 @@ function setSelected(row,on){
 function showDeleteBtns(){
   const any=document.querySelector('.row.selected');
   document.getElementById('delSel').style.display=any&&!flatMode?'inline-block':'none';
+  document.getElementById('flatDelSel').style.display=any&&flatMode?'inline-block':'none';
 }
 function deleteSelected(){
   document.querySelectorAll('.row.selected').forEach(r=>r.remove());
@@ -517,7 +491,7 @@ document.addEventListener('click',e=>{
   if(e.ctrlKey||e.metaKey) return;
   if(!document.querySelector('.row.selected')) return;
   const inRow = e.target.closest('.row');
-  const onDel = e.target.closest('#delSel');
+  const onDel = e.target.closest('#delSel, #flatDelSel');
   if(inRow || onDel) return;
   document.querySelectorAll('.row.selected').forEach(r=>r.classList.remove('selected'));
   showDeleteBtns();
@@ -530,9 +504,9 @@ function renumber(){
     rows=[...document.querySelectorAll('#addrList .row')];
   }else{
     rows=[...document.querySelectorAll('.row')].filter(r=>{
-      const fr=r.closest('.frame'); if(!fr || fr.classList.contains('collapsed')) return false;
+      const fr=r.closest('.frame'); if(!fr) return false;
       const vis=(fr.dataset.shift==='day'?dayVisible:nightVisible);
-      return vis && fr.style.display!=='none';
+      return vis && fr.style.display!=='none' && !fr.classList.contains('collapsed');
     });
   }
   rows.forEach((r,i)=>{
@@ -544,6 +518,7 @@ function renumber(){
 
 /* =================== INPUT / AUTOCOMPLETE =================== */
 function attachInputEvents(inp){
+  /* select all on first click */
   inp.addEventListener('mousedown',ev=>{
     if(document.activeElement!==inp){
       ev.preventDefault();
@@ -557,6 +532,7 @@ function attachInputEvents(inp){
   });
   inp.addEventListener('blur',()=>inp.closest('.row').classList.remove('focused'));
 
+  /* mark as dirty while typing; DO NOT resolve here */
   inp.addEventListener('input',()=>{
     inp.dataset.dirty='1';
     inp.dataset.lat=''; inp.dataset.lng='';
@@ -588,7 +564,7 @@ function attachInputEvents(inp){
   });
 }
 
-/* =================== MULTI‑PASTE (distribute; then auto‑hide empties) =================== */
+/* ====== Multi‑paste with cross‑frame distribution (no auto-hide elsewhere) ====== */
 async function multiPaste(e){
   const clip=(e.clipboardData||window.clipboardData).getData('text');
   const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -596,68 +572,83 @@ async function multiPaste(e){
   e.preventDefault();
 
   const startRow=e.target.closest('.row');
-
   if(flatMode){
-    const container = document.getElementById('addrList');
+    // Flat-mode: just extend the flat list (behaviour unchanged)
+    const container=document.getElementById('addrList');
     let rows=[...container.querySelectorAll('.row')];
     const startIdx=rows.indexOf(startRow);
     const need=Math.max(0,startIdx+lines.length-rows.length);
     for(let i=0;i<need;i++) addRowToAddrBar(false,false);
     rows=[...container.querySelectorAll('.row')];
-    lines.forEach((addr,i)=>{
-      const r=rows[startIdx+i]; if(!r) return;
-      const el=r.querySelector('.stop');
-      if(!el.value.trim()){ el.value=addr; el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1'; }
-    });
-  }else{
-    const startFrameId=+startRow.dataset.frame;
-    const orderedIds=visibleFrameIdsInOrder();
-    const startFrameIdx=Math.max(0, orderedIds.indexOf(startFrameId));
-    const framesToUse=orderedIds.slice(startFrameIdx);
-
-    let targets=[];
-    { // current frame from paste row down – only empties
-      const list=document.getElementById('frame-'+startFrameId);
-      const rows=[...list.querySelectorAll('.row')];
-      const startIdx=rows.indexOf(startRow);
-      rows.slice(startIdx).forEach(r=>{
-        const el=r.querySelector('.stop');
-        if(!el.value.trim()) targets.push(el);
-      });
-    }
-    for(let i=1;i<framesToUse.length && targets.length<lines.length;i++){
-      const fid=framesToUse[i];
-      const list=document.getElementById('frame-'+fid);
-      [...list.querySelectorAll('.row')].forEach(r=>{
-        if(targets.length>=lines.length) return;
-        const el=r.querySelector('.stop');
-        if(!el.value.trim()) targets.push(el);
-      });
-    }
-    if(targets.length<lines.length){
-      const lastFid = framesToUse.length ? framesToUse[framesToUse.length-1] : startFrameId;
-      const list=document.getElementById('frame-'+lastFid);
-      const toAdd = lines.length - targets.length;
-      for(let i=0;i<toAdd;i++){
-        addRowToFrame(lastFid,false,false);
-        const newRow=list.querySelectorAll('.row')[list.querySelectorAll('.row').length-1];
-        targets.push(newRow.querySelector('.stop'));
-      }
-    }
-    lines.forEach((addr,i)=>{
-      const el=targets[i]; if(!el) return;
-      el.value=addr; el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1';
-    });
+    lines.forEach((addr,i)=>{const r=rows[startIdx+i]; if(!r) return; const el=r.querySelector('.stop'); el.value=addr; el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1';});
+    renumber();
+    await ensureCoords(lines.map((_,i)=>rows[startIdx+i]).filter(Boolean),{parallel:true});
+    pruneEmptyGapsVisible();
+    scheduleAutoCompute(0,true);
+    return;
   }
 
+  // Frames: distribute to existing rows in this and following frames within the same shift
+  const firstFrameId=+startRow.dataset.frame;
+  const frMeta=FRAMES.find(f=>f.id===firstFrameId);
+  const shift=frMeta.shift;
+
+  const framesInShift = FRAMES.filter(f=>f.shift===shift);
+  const startIndexInShift = framesInShift.findIndex(f=>f.id===firstFrameId);
+
+  let remaining=[...lines];
+  for(let k=startIndexInShift; k<framesInShift.length && remaining.length>0; k++){
+    const fid=framesInShift[k].id;
+    const list=document.getElementById('frame-'+fid);
+    const rows=[...list.querySelectorAll('.row')];
+
+    // capacity: empties from the start row (first frame) or from beginning (subsequent frames)
+    let startAt=0;
+    if(fid===firstFrameId) startAt=rows.indexOf(startRow);
+
+    // fill empties top-down in this slice
+    for(let i=startAt;i<rows.length && remaining.length>0;i++){
+      const inp=rows[i].querySelector('.stop');
+      if(!inp.value.trim()){
+        const addr=remaining.shift();
+        inp.value=addr; inp.dataset.lat=''; inp.dataset.lng=''; inp.dataset.dirty='1';
+      }
+    }
+
+    // Do not auto-add new rows unless this is the last frame in shift and we still have leftovers
+    if(k===framesInShift.length-1 && remaining.length>0){
+      for(let j=0;j<remaining.length;j++){
+        addRowToFrame(fid,false,false);
+        const last=list.querySelectorAll('.row:last-child .stop');
+        const inp=last[last.length-1] || list.querySelector('.row:last-child .stop');
+        inp.value=remaining[j]; inp.dataset.lat=''; inp.dataset.lng=''; inp.dataset.dirty='1';
+      }
+      remaining=[]; // consumed
+    }
+  }
+
+  // Clean inner gaps only where we pasted, but keep base placeholders at end
+  framesInShift.slice(startIndexInShift).forEach(fr=>{
+    const list=document.getElementById('frame-'+fr.id);
+    pruneListGaps(list, BASE_EMPTY_PER_FRAME);
+  });
+
   renumber();
-  const allRows = flatMode
-    ? [...document.getElementById('addrList').querySelectorAll('.row')]
-    : [...document.querySelectorAll('.frame-list .row')];
-  await ensureCoords(allRows,{parallel:true});
-  pruneEmptyGapsVisible();
-  autoCollapseEmptyFrames();       // <— hide empty frames immediately after paste
+  await ensureCoords(getOrderedRows(true),{parallel:true}); // resolve all we touched
   scheduleAutoCompute(0,true);
+
+  // ==== CHANGES: Auto‑collapse EMPTY frames in this shift ONCE (paste only)
+  autoCollapseEmptyFramesInShift(shift);
+}
+
+function autoCollapseEmptyFramesInShift(shift){
+  FRAMES.filter(f=>f.shift===shift).forEach(f=>{
+    const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
+    if(sec.dataset.userOverride==='1') return; // user decides
+    const list=document.getElementById('frame-'+f.id);
+    const filled=[...list.querySelectorAll('.row')].some(r=>r.querySelector('.stop').value.trim());
+    setFrameCollapsed(f.id, !filled, 'auto');
+  });
 }
 
 /* Accept top prediction on Tab/Enter */
@@ -703,7 +694,9 @@ function updateToggleChips(){
 }
 function toggleFrame(id){
   const el=document.querySelector(`.frame[data-frame="${id}"]`);
-  el.classList.toggle('collapsed');
+  const collapsed = el.classList.toggle('collapsed');
+  if(!collapsed) ensurePlaceholdersForFrame(id);
+  el.dataset.userOverride='1'; // user action
   rebalanceFrameHeights(); buildTimelineFromDOM(); renumber(); scheduleAutoCompute(120,false);
 }
 function toggleShift(which){
@@ -716,9 +709,6 @@ function applyShiftVisibility(){
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
     const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
     sec.style.display=vis?'block':'none';
-    if(vis){
-      ensurePlaceholdersForFrame(fr.id, true, true); // restore default 4 rows when shown
-    }
   });
 
   if(!dayVisible && !nightVisible) enterFlatMode(); else exitFlatMode();
@@ -751,7 +741,6 @@ function focusFirstFlatInputIfNone(){
   const firstEmpty=[...list.querySelectorAll('.stop')].find(i=>!i.value.trim()) || list.querySelector('.stop');
   if(firstEmpty) firstEmpty.focus({preventScroll:true});
 }
-
 function enterFlatMode(){
   if(flatMode) return; flatMode=true;
   document.getElementById('panel').classList.add('flat');
@@ -895,8 +884,8 @@ function getOrderedRows(includeHidden=false){
   return rows.filter(r=>r.querySelector('.stop').value.trim());
 }
 
-/* remove empties before the last filled row; do not auto‑add */
-function pruneListGaps(list){
+/* remove empties that appear before the last filled row */
+function pruneListGaps(list, placeholdersAtEnd){
   const rows=[...list.querySelectorAll('.row')];
   let lastFilled=-1;
   for(let i=rows.length-1;i>=0;i--){
@@ -907,53 +896,25 @@ function pruneListGaps(list){
       const r=rows[i]; if(!r.querySelector('.stop').value.trim()) r.remove();
     }
   }
+  const now=[...list.querySelectorAll('.row')];
+  const blanks=now.filter(r=>!r.querySelector('.stop').value.trim()).length;
+  for(let i=blanks;i<placeholdersAtEnd;i++){
+    const row=makeRow(+list.id.replace('frame-','')||0);
+    list.appendChild(row);
+  }
 }
 function pruneEmptyGapsVisible(){
   if(flatMode){
-    pruneListGaps(document.getElementById('addrList'));
+    pruneListGaps(document.getElementById('addrList'), 0);
   }else{
     FRAMES.forEach(fr=>{
       const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
       const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
       if(!vis || sec.classList.contains('collapsed') || sec.style.display==='none') return;
-      pruneListGaps(document.getElementById('frame-'+fr.id));
+      pruneListGaps(document.getElementById('frame-'+fr.id), BASE_EMPTY_PER_FRAME);
     });
   }
   renumber();
-}
-
-/* Collapse frames with zero filled rows (used after paste & route) */
-function autoCollapseEmptyFrames(){
-  if(flatMode) return;
-  FRAMES.forEach(fr=>{
-    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
-    const visible=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
-    if(!visible) return;
-    const list=document.getElementById('frame-'+fr.id);
-    const filled=[...list.querySelectorAll('.row')].some(r=>r.querySelector('.stop').value.trim());
-    if(!filled) sec.classList.add('collapsed');
-  });
-  rebalanceFrameHeights();
-  buildTimelineFromDOM();
-}
-
-/* Optimization cleanup (collapse, don’t remove) */
-function pruneFramesOnOptimize(){
-  FRAMES.forEach(fr=>{
-    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
-    const visible=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
-    if(!visible || sec.style.display==='none') return;
-    const list=document.getElementById('frame-'+fr.id);
-    [...list.querySelectorAll('.row')].forEach(r=>{ if(!r.querySelector('.stop').value.trim()) r.remove(); });
-    const filled=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim()).length;
-    if(filled===0){
-      sec.classList.add('collapsed');
-      ensurePlaceholdersForFrame(fr.id, true, true);
-    }
-  });
-  renumber();
-  rebalanceFrameHeights();
-  buildTimelineFromDOM();
 }
 
 /* Main autoCompute */
@@ -962,7 +923,7 @@ async function autoCompute(){
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
 
   if(rows.filter(r=>r.querySelector('.stop').value.trim()).length===0){
-    clearPreviewPins();clearLegDisplays();msg.textContent='';if(flatMsg) flatMsg.textContent='';clearDirections();autoCollapseEmptyFrames();return;
+    clearPreviewPins();clearLegDisplays();msg.textContent='';flatMsg.textContent='';clearDirections();return;
   }
 
   if(rows.some(r=>!r.querySelector('.stop').dataset.lat)){
@@ -980,12 +941,10 @@ async function autoCompute(){
     clearDirections();clearLegDisplays();clearPreviewPins();
     const inp=rows[0].querySelector('.stop');
     addPreviewPin({lat:+inp.dataset.lat,lng:+inp.dataset.lng},'A');
-    msg.textContent=''; if(flatMsg) flatMsg.textContent='';
+    msg.textContent='';flatMsg.textContent='';
   }else{
     clearPreviewPins(); await rebuildRoute();
   }
-
-  autoCollapseEmptyFrames();   // <— also after any compute
 }
 
 /* Rebuild directions on map */
@@ -993,9 +952,9 @@ async function rebuildRoute(){
   const rows=getOrderedRows();
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
   clearLegDisplays();clearRouteMarkers();
-  if(rows.length<2){msg.textContent='';if(flatMsg) flatMsg.textContent='';clearDirections();return;}
+  if(rows.length<2){msg.textContent='';flatMsg.textContent='';clearDirections();return;}
   const ok=await ensureCoords(rows,{parallel:true});
-  if(!ok){msg.textContent='One or more stops can’t be located – please edit.';if(flatMsg) flatMsg.textContent=msg.textContent;return;}
+  if(!ok){msg.textContent='One or more stops can’t be located – please edit.';flatMsg.textContent=msg.textContent;return;}
   const locs=rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
   return new Promise(resolve=>{
     dirSvc.route({
@@ -1016,7 +975,7 @@ async function rebuildRoute(){
 /* Leg summaries */
 function displayLegs(res,stat){
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
-  if(stat!=='OK'){msg.textContent='Route error: '+stat;if(flatMsg) flatMsg.textContent=msg.textContent;clearDirections();return;}
+  if(stat!=='OK'){msg.textContent='Route error: '+stat;flatMsg.textContent=msg.textContent;clearDirections();return;}
   dirRend.setDirections(res);
   const rows=getOrderedRows();
   let kmTot=0,minTot=0;clearLegDisplays();
@@ -1030,7 +989,7 @@ function displayLegs(res,stat){
     rows[i].after(div);
   });
   const text=`Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
-  msg.textContent=text; if(flatMsg) flatMsg.textContent=text;
+  msg.textContent=text; flatMsg.textContent=text;
 }
 function clearLegDisplays(){document.querySelectorAll('.leg-display').forEach(d=>d.remove());}
 
@@ -1113,19 +1072,13 @@ function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){
 /* =================== GLOBAL OPTIMIZER =================== */
 async function globalOptimizeRoute(){
   const rows=getOrderedRows();
+  const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
   clearLegDisplays();
-
-  if(flatMode){
-    const list=document.getElementById('addrList');
-    [...list.querySelectorAll('.row')].forEach(r=>{ if(!r.querySelector('.stop').value.trim()) r.remove(); });
-  }else{
-    pruneFramesOnOptimize();
-  }
 
   if(rows.length<3){await rebuildRoute();return;}
 
   const ok=await ensureCoords(rows,{parallel:true});
-  if(!ok){document.getElementById('msg').textContent='One or more stops can’t be located – please edit.';return;}
+  if(!ok){msg.textContent='One or more stops can’t be located – please edit.';flatMsg.textContent=msg.textContent;return;}
 
   const pts=rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
   const D=buildDistanceMatrix(pts);
@@ -1134,14 +1087,15 @@ async function globalOptimizeRoute(){
   ord.forEach(i=>parent.appendChild(rows[i]));
   renumber();
   await rebuildRoute();
-  document.getElementById('msg').textContent='Optimized.';
+  msg.textContent='Optimized.'; flatMsg.textContent='Optimized.';
 }
 
 /* =================== BY‑FRAMES TWO‑PASS OPTIMIZER =================== */
 async function optimizeByFramesTwoPass(){
-  pruneFramesOnOptimize(); // collapse empties (not removed)
+  const msg=document.getElementById('msg'); const flatMsg=document.getElementById('flatMsg');
+  msg.textContent=''; flatMsg.textContent=''; // ==== CHANGES: no status line after optimize-by-frames
 
-  let visFrames=FRAMES.filter(f=>{
+  const visFrames=FRAMES.filter(f=>{
     const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
     return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) && !sec.classList.contains('collapsed') && sec.style.display!=='none';
   });
@@ -1151,7 +1105,7 @@ async function optimizeByFramesTwoPass(){
     const list=document.getElementById('frame-'+fr.id);
     const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
     if(rows.length<2){ framesData.push({fr, list, rows, pts:[], D:null, baseOrder:null, baseCost:0}); continue; }
-    const ok=await ensureCoords(rows,{parallel:true}); if(!ok){return;}
+    const ok=await ensureCoords(rows,{parallel:true}); if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
     const pts=rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
     const D=buildDistanceMatrix(pts);
     let ord=solveTSPWithMatrix(D);
@@ -1168,18 +1122,19 @@ async function optimizeByFramesTwoPass(){
   for(let i=0;i<framesData.length-1;i++){
     const A=framesData[i], B=framesData[i+1];
     if((A.rows.length<1)||(B.rows.length<2)) continue;
+
     const lastArow=A.list.querySelectorAll('.row'); if(!lastArow.length) continue;
     const lastARow = lastArow[lastArow.length-1];
     const lastA={lat:+lastARow.querySelector('.stop').dataset.lat,lng:+lastARow.querySelector('.stop').dataset.lng};
 
-    let bestOrder=B.baseOrder, bestCost=B.baseCost, bestConnector=Infinity;
+    let bestStart=0, bestConnector=Infinity, bestOrder=B.baseOrder, bestCost=B.baseCost;
     for(let s=0;s<B.rows.length;s++){
       const ord=solveTSPWithMatrix(B.D,{fixedStart:s});
       const cost=orderCost(ord,B.D);
       if(cost <= B.baseCost*(1+TOL_PCT) + TOL_KM){
         const startPt=B.pts[ord[0]];
         const conn=haversine(lastA,startPt);
-        if(conn<bestConnector){bestConnector=conn; bestOrder=ord; bestCost=cost;}
+        if(conn<bestConnector){bestConnector=conn; bestStart=s; bestOrder=ord; bestCost=cost;}
       }
     }
     if(bestOrder!==B.baseOrder){
@@ -1198,7 +1153,7 @@ async function optimizeByFramesTwoPass(){
     if((A.rows.length<2)||(B.rows.length<1)) continue;
 
     const firstB = B.pts[B.baseOrder[0]];
-    let bestOrder=A.baseOrder, bestCost=A.baseCost, bestConnector=haversine(A.pts[A.baseOrder[A.baseOrder.length-1]], firstB);
+    let bestEndIdx=A.baseOrder[A.baseOrder.length-1], bestOrder=A.baseOrder, bestCost=A.baseCost, bestConnector=haversine(A.pts[bestEndIdx], firstB);
 
     for(let e=0;e<A.rows.length;e++){
       const ord=solveTSPWithMatrix(A.D,{fixedEnd:e});
@@ -1206,7 +1161,7 @@ async function optimizeByFramesTwoPass(){
       if(cost <= A.baseCost*(1+TOL_PCT) + TOL_KM){
         const endPt=A.pts[ord[ord.length-1]];
         const conn=haversine(endPt, firstB);
-        if(conn<bestConnector){bestConnector=conn; bestOrder=ord; bestCost=cost;}
+        if(conn<bestConnector){bestConnector=conn; bestEndIdx=e; bestOrder=ord; bestCost=cost;}
       }
     }
     if(bestOrder!==A.baseOrder){
@@ -1221,7 +1176,7 @@ async function optimizeByFramesTwoPass(){
   }
 
   renumber();
-  await rebuildRoute();           // will write Total Distance | Time
+  await rebuildRoute();
   rebalanceFrameHeights();
   buildTimelineFromDOM();
 }
@@ -1254,10 +1209,9 @@ window.routePlannerInit=()=>{
   dayVisible=false; nightVisible=false; applyShiftVisibility();
 
   document.getElementById('route').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); rebuildRoute();};
-  document.getElementById('optAll').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); pruneFramesOnOptimize(); globalOptimizeRoute();};
+  document.getElementById('optAll').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); globalOptimizeRoute();};
   document.getElementById('optFrames').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); optimizeByFramesTwoPass();};
   document.getElementById('delSel').onclick=deleteSelected;
-
   document.getElementById('flatRoute').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); rebuildRoute();};
   document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); globalOptimizeRoute();};
   document.getElementById('flatDelSel').onclick=deleteSelected;
@@ -1286,14 +1240,10 @@ window.routePlannerInit=()=>{
     document.onhelp = () => false; window.onhelp = () => false;
   })();
 
-  window.addEventListener('resize', ()=>{
-    clearTimeout(window.__rb);
-    window.__rb=setTimeout(()=>{ rebalanceFrameHeights(); buildTimelineFromDOM(); },150);
-  });
-};
+  window.addEventListener('resize', ()=>{ clearTimeout(window.__rb); window.__rb=setTimeout(()=>{rebalanceFrameHeights();},150); });
 
-/* Handle early Google callback */
-if(window.__mapsApiReady){ window.routePlannerInit(); }
+  if(window.__mapsApiReady){ /* no-op */ }
+};
 </script>
 </body>
 </html>
