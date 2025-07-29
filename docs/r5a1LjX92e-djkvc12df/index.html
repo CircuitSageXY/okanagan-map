@@ -90,11 +90,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .tl-seg{position:absolute;left:0;right:0;border-radius:3px;opacity:.08;}
 
 .frame-list{overflow:visible;flex:1 1 auto;}
-.addRowBtn{
-  margin:6px 10px 10px calc(10px + var(--tlW));
-  background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
-  padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;flex:none;display:none;}
-.addRowBtn:hover{background:#e7e7e7;}
+.addRowBtn{display:none;} /* rows are added by Tab */
 
 /* colored borders per frame */
 .frame[data-frame="0"]{border-left:4px solid var(--f-early);}
@@ -185,14 +181,14 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .toggleChip.active.day  {background:var(--f-afternoon);color:#fff;}
 .toggleChip.active.night{background:var(--f-evening);color:#fff;}
 
-#addrAdd{display:none;} /* add-on-demand via Tab logic */
+#addrAdd{display:none;} /* grow by Tab */
 #addrList .row{margin:6px 0;}
 
 #addrFooter{margin-top:10px;border-top:1px solid #dadada;padding-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 #flatMsg{font-size:16px;font-weight:700;color:#0066cc;flex:1 1 100%;}
 #flatButtons{display:flex;gap:8px;}
 #flatButtons button{padding:6px 12px;font-size:13px;border-radius:6px;cursor:pointer;border:none;}
-#flatRoute{display:none;}      /* removed – routing is auto */
+#flatRoute{display:none;}  /* removed */
 #flatOpt{background:var(--clrB);color:#fff;}
 #flatDelSel{background:#db4437;color:#fff;display:none;}
 
@@ -206,9 +202,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   pointer-events:auto;
   z-index:5;
 }
-.region-label.show{
-  opacity:1; transform:translate(-50%,-105%) scale(1);
-}
+.region-label.show{ opacity:1; transform:translate(-50%,-105%) scale(1); }
 .region-card{
   min-width:110px; max-width:220px;
   background:rgba(33,33,33,.55);
@@ -720,7 +714,7 @@ async function multiPaste(e){
 function acceptTopPrediction(input){
   if (input.dataset.lat && input.dataset.lng){
     delete input.dataset.dirty;
-    if(flatMode){ focusNextInputGlobal(input); }
+    if(flatMode){ focusNextInFlatOrCreate(input); }
     else{ focusNextInFrameOrCreate(input); }
     scheduleAutoCompute(0,true);
     return;
@@ -729,7 +723,7 @@ function acceptTopPrediction(input){
     {input:input.value, componentRestrictions:{country:'ca'}, types:['address'], locationBias:OK_BOUNDS},
     (preds,status)=>{
       if (status !== google.maps.places.PlacesServiceStatus.OK || !preds?.length){
-        if(flatMode){ focusNextInputGlobal(input); }
+        if(flatMode){ focusNextInFlatOrCreate(input); }
         else{ focusNextInFrameOrCreate(input); }
         scheduleAutoCompute(0,false); return;
       }
@@ -741,7 +735,7 @@ function acceptTopPrediction(input){
             input.dataset.lng=place.geometry.location.lng();
             delete input.dataset.dirty;
           }
-          if(flatMode){ focusNextInputGlobal(input); }
+          if(flatMode){ focusNextInFlatOrCreate(input); }
           else{ focusNextInFrameOrCreate(input); }
           scheduleAutoCompute(0,true);
         }
@@ -750,40 +744,59 @@ function acceptTopPrediction(input){
   );
 }
 
-/* New: next focus within SAME frame, create row if needed or if next is filled */
+/* Robust next-focus for Day/Night frames */
 function focusNextInFrameOrCreate(currentInput){
   const currentRow=currentInput.closest('.row');
   const frameId=+currentRow.dataset.frame;
   const list=document.getElementById('frame-'+frameId);
   const rows=[...list.querySelectorAll('.row')];
   const idx=rows.indexOf(currentRow);
-  const next=rows[idx+1];
 
-  if(next){
-    const nInp=next.querySelector('.stop');
-    if(nInp.value.trim()){  // already used -> create a fresh empty one right after current
-      const newRow=insertRowAfter(currentRow);
-      const el=newRow.querySelector('.stop');
-      el.focus({preventScroll:true});
-      return;
-    }else{
-      nInp.focus({preventScroll:true});
-      return;
-    }
-  }else{
-    // no next row -> append a fresh one
-    const added=addRowToFrame(frameId,true,false);
-    added.querySelector('.stop').focus({preventScroll:true});
+  // 1) first empty after current?
+  const firstEmptyAfter = rows.slice(idx+1).find(r=>!r.querySelector('.stop').value.trim());
+  if(firstEmptyAfter){
+    firstEmptyAfter.querySelector('.stop').focus({preventScroll:true});
     return;
   }
+
+  // 2) there is a next row but it's filled -> create a fresh one after current
+  if(rows[idx+1]){
+    const newRow=insertRowAfter(currentRow);
+    newRow.querySelector('.stop').focus({preventScroll:true});
+    return;
+  }
+
+  // 3) no next row at all -> append one
+  const added=addRowToFrame(frameId,true,false);
+  added.querySelector('.stop').focus({preventScroll:true});
 }
 
-/* Old global focus used in Flat view */
-function focusNextInputGlobal(current){
-  const all=[...document.querySelectorAll('input.stop')];
-  const idx=all.indexOf(current);
-  const next=all[idx+1];
-  if(next) next.focus({preventScroll:true});
+/* Robust next-focus for Flat view */
+function focusNextInFlatOrCreate(currentInput){
+  const currentRow=currentInput.closest('.row');
+  const list=document.getElementById('addrList');
+  const rows=[...list.querySelectorAll('.row')];
+  const idx=rows.indexOf(currentRow);
+
+  // first empty after current?
+  const firstEmptyAfter = rows.slice(idx+1).find(r=>!r.querySelector('.stop').value.trim());
+  if(firstEmptyAfter){
+    firstEmptyAfter.querySelector('.stop').focus({preventScroll:true});
+    return;
+  }
+
+  // there is a next row but it's filled -> insert fresh one after current
+  if(rows[idx+1]){
+    const newRow=makeRow(0);
+    currentRow.insertAdjacentElement('afterend', newRow);
+    renumber();
+    newRow.querySelector('.stop').focus({preventScroll:true});
+    return;
+  }
+
+  // no next at all -> append
+  const newRow=addRowToAddrBar(true,false);
+  newRow.querySelector('.stop').focus({preventScroll:true});
 }
 
 /* =================== SHIFT / FLAT =================== */
@@ -1229,7 +1242,7 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)
   );
 
-  /* --- Region label overlay (now defined AFTER API load to avoid white screen) --- */
+  /* --- Region label overlay (after API load) --- */
   function nameToAccent(name){
     let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i)) % 360; }
     return `hsl(${h} 70% 70%)`;
@@ -1303,7 +1316,6 @@ window.routePlannerInit=()=>{
 
   dayVisible=false; nightVisible=false; applyShiftVisibility();
 
-  // Flat view buttons remain
   document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; normalizeShiftLayoutVisible(); globalOptimizeRoute();};
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
