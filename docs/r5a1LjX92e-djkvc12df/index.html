@@ -25,7 +25,10 @@
   --f-afternoon:#03A9F4; --f-supper:#FF9800;
   --f-evening:#BA68C8; --f-lateev:#F44336;
 
-  --tlW:74px; --tick-minor:#9e9e9e; --tick-major:#424242; --axis-w:4px;
+  /* timeline sizing */
+  --tlW:74px;             /* width of the per-frame timeline column */
+  --axis-w:4px;
+  --tick-minor:#9e9e9e; --tick-major:#424242;
 
   --pxPerMin:2;
 }
@@ -45,23 +48,10 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 #scroller{flex:1;overflow:auto;position:relative;padding:12px 12px 96px 0;}
 #content{display:flex;align-items:flex-start;position:relative;}
 
-/* ---------- TIMELINE COLUMN ---------- */
-#timelineCol{width:var(--tlW);flex:none;position:sticky;top:0;}
-#timeline{position:relative;width:100%;}
-.tl-axis{position:absolute;left:0;width:var(--axis-w);background:#000;border-radius:2px;}
-.tl-seg{position:absolute;left:20px;width:44px;border-radius:3px;opacity:.45;}
-.tl-tick{position:absolute;left:0;width:100%;pointer-events:none;}
-.tl-tick::before{content:"";position:absolute;left:var(--axis-w);width:6px;height:1px;background:var(--tick-minor);}
-.tl-tick.bold::before{width:10px;background:var(--tick-major);}
-.tl-label{position:absolute;left:14px;font-size:11px;color:#424242;background:rgba(255,255,255,.85);
-  padding:0 2px;border-radius:2px;line-height:1;}
-.nowMarker{
-  position:absolute;left:2px;width:12px;height:12px;border:2px solid #000;background:#fff;border-radius:50%;
-  transform:translate(-50%,-50%);box-shadow:0 0 4px rgba(0,0,0,.4);animation:pulse 2s infinite;z-index:3;}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(0,0,0,.35);}70%{box-shadow:0 0 0 6px rgba(0,0,0,0);}100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}}
-
-/* A subtle “scale break” marker at frame boundaries (piecewise timeline) */
-.tl-break{position:absolute;left:2px;width:12px;height:2px;background:#000;opacity:.35;border-radius:1px;transform:translateX(-50%);}
+/* ---------- (OLD) GLOBAL TIMELINE COLUMN ---------- */
+/* ==== CHANGES: hide legacy global timeline; per-frame timelines are used */
+#timelineCol{display:none;}
+#timeline{display:none;}
 
 /* ---------- FRAMES ---------- */
 #framesContainer{flex:1;min-width:0;}
@@ -77,16 +67,41 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .frame-header .swatch{width:16px;height:16px;border-radius:3px;flex:none;}
 .frame-hide{margin-left:auto;cursor:pointer;color:#666;font-size:20px;line-height:20px;}
 .frame-hide:hover{color:#000;}
-.frame.collapsed .frame-list,.frame.collapsed .addRowBtn{display:none;}
+.frame.collapsed .frame-body,.frame.collapsed .addRowBtn{display:none;}
 .frame.collapsed{opacity:.55;}
 .frame.collapsed .frame-hide{color:#c00;}
 
-.frame-list{padding:6px 10px 8px 6px;overflow:visible;flex:1 1 auto;} /* show all rows (no inner scroll) */
+/* ==== CHANGES: two-column body: left = per-frame timeline; right = rows */
+.frame-body{
+  display:grid;grid-template-columns: var(--tlW) 1fr;column-gap:12px; /* spacing so ticks/labels don't touch rows */
+  align-items:stretch; padding:6px 10px 8px 6px;
+}
+
+/* Per-frame timeline visuals */
+.frame-timeline{position:relative;}
+.tl-axis{position:absolute;left:6px;width:var(--axis-w);background:#000;border-radius:2px;}
+.tl-tick{position:absolute;left:0;width:100%;pointer-events:none;}
+.tl-tick::before{content:"";position:absolute;left:calc(6px + var(--axis-w));width:6px;height:1px;background:var(--tick-minor);}
+.tl-tick.bold::before{width:10px;background:var(--tick-major);}
+.tl-label{position:absolute;left:18px;font-size:11px;color:#424242;background:rgba(255,255,255,.85);
+  padding:0 2px;border-radius:2px;line-height:1;}
+.nowMarker{
+  position:absolute;left:calc(6px + var(--axis-w)/2);width:12px;height:12px;border:2px solid #000;background:#fff;border-radius:50%;
+  transform:translate(-50%,-50%);box-shadow:0 0 4px rgba(0,0,0,.4);animation:pulse 2s infinite;z-index:3;}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(0,0,0,.35);}70%{box-shadow:0 0 0 6px rgba(0,0,0,0);}100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}}
+
+/* Subtle shaded segment behind list to hint time span */
+.tl-seg{position:absolute;left:0;right:0;border-radius:3px;opacity:.08;}
+
+/* The row list lives in column 2 */
+.frame-list{overflow:visible;flex:1 1 auto;}
 .addRowBtn{
-  margin:6px 0 8px 28px;background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
+  margin:6px 10px 10px calc(10px + var(--tlW)); /* align under list column */
+  background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
   padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;flex:none;}
 .addRowBtn:hover{background:#e7e7e7;}
 
+/* colored left borders per frame (unchanged) */
 .frame[data-frame="0"]{border-left:4px solid var(--f-early);}
 .frame[data-frame="1"]{border-left:4px solid var(--f-late);}
 .frame[data-frame="2"]{border-left:4px solid var(--f-lunch);}
@@ -215,6 +230,7 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 <div id="panel">
   <div id="scroller">
     <div id="content">
+      <!-- ==== CHANGES: keep legacy nodes for safety; hidden by CSS -->
       <div id="timelineCol"><div id="timeline"></div></div>
       <div id="framesContainer"></div>
     </div>
@@ -291,8 +307,11 @@ function setFrameCollapsed(id, collapse, source='user'){
   if(collapse) el.classList.add('collapsed'); else el.classList.remove('collapsed');
   if(source==='user'){ el.dataset.userOverride='1'; delete el.dataset.autoCollapsed; }
   if(source==='auto'){ el.dataset.autoCollapsed='1'; }
-  // ==== CHANGES: when un‑collapsing, ensure base placeholders exist
-  if(!collapse) ensurePlaceholdersForFrame(id);
+  // ==== CHANGES: when un‑collapsing, ensure base placeholders exist and rebuild timeline
+  if(!collapse){
+    ensurePlaceholdersForFrame(id);
+    buildTimelineForFrame(id);
+  }
   renumber(); buildTimelineFromDOM();
 }
 
@@ -314,10 +333,20 @@ function buildFrameBuckets(){
     head.appendChild(hideBtn);
     sec.appendChild(head);
 
+    /* ==== CHANGES: per-frame grid body with timeline + list */
+    const body=document.createElement('div');
+    body.className='frame-body';
+
+    const tl=document.createElement('div');
+    tl.className='frame-timeline';
+    tl.id='timeline-frame-'+fr.id;
+    body.appendChild(tl);
+
     const list=document.createElement('div');
     list.className='frame-list';list.id='frame-'+fr.id;
-    list.style.maxHeight='none';
-    sec.appendChild(list);
+    body.appendChild(list);
+
+    sec.appendChild(body);
 
     const addBtn=document.createElement('button');
     addBtn.className='addRowBtn';addBtn.textContent='+ Add stop';
@@ -329,7 +358,7 @@ function buildFrameBuckets(){
     Sortable.create(list,{
       group:'stops', handle:'.drag', animation:150,
       onEnd:evt=>{
-        evt.item.dataset.frame=list.parentElement.dataset.frame;
+        evt.item.dataset.frame=list.parentElement.parentElement.dataset.frame;
         renumber();scheduleAutoCompute(120,false);buildTimelineFromDOM();
       }
     });
@@ -340,6 +369,7 @@ function buildFrameBuckets(){
 
   renumber();
 
+  // Rebuild per-frame timelines on resize or DOM mutations
   const ro=new ResizeObserver(()=>buildTimelineFromDOM());
   document.querySelectorAll('.frame').forEach(f=>ro.observe(f));
   const mo=new MutationObserver(()=>buildTimelineFromDOM());
@@ -375,82 +405,72 @@ function addRowToFrame(frameId,focus=true,select=false){
 function ensurePlaceholdersForFrame(frameId){
   const list=document.getElementById('frame-'+frameId); if(!list) return;
   const sec=list.closest('.frame');
-  const visible = sec.style.display!=='none' && !flatMode; // collapsed still shows header; base rows still ok
+  const visible = sec.style.display!=='none' && !flatMode && !sec.classList.contains('collapsed');
   if(!visible) return;
   const empties=[...list.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());
   for(let i=empties.length;i<BASE_EMPTY_PER_FRAME;i++) addRowToFrame(frameId,false,false);
 }
 
-/* =================== TIMELINE (piecewise; skips collapsed frames) =================== */
+/* =================== TIMELINE (per-frame; fused) =================== */
+// ==== CHANGES: build a timeline INSIDE each visible, uncollapsed frame
 function buildTimelineFromDOM(){
-  const tl=document.getElementById('timeline');tl.innerHTML='';
   if(flatMode) return;
 
-  const visibleFrames=FRAMES.filter(fr=>{
+  FRAMES.forEach(fr=>{
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
-    return ((fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible))
-           && sec.style.display!=='none'
-           && !sec.classList.contains('collapsed'); // ==== CHANGES
+    const visible=(fr.shift==='day'?dayVisible:nightVisible) && !sec.classList.contains('collapsed') && sec.style.display!=='none';
+    const tl=document.getElementById('timeline-frame-'+fr.id);
+    if(!tl) return;
+    tl.innerHTML='';
+    if(!visible) return;
+
+    buildTimelineForFrame(fr.id);
   });
-  if(!visibleFrames.length) return;
 
-  const firstFrame=document.querySelector(`.frame[data-frame="${visibleFrames[0].id}"]`);
-  const lastFrame =document.querySelector(`.frame[data-frame="${visibleFrames[visibleFrames.length-1].id}"]`);
-  if(!firstFrame||!lastFrame) return;
+  // renumber after any possible structure updates
+  renumber();
+}
 
-  const topY=firstFrame.offsetTop;
-  const bottomY=lastFrame.offsetTop+lastFrame.offsetHeight;
-  const height=bottomY-topY;
-  tl.style.height=bottomY+'px';
+function buildTimelineForFrame(frameId){
+  const meta=FRAMES.find(f=>f.id===frameId);
+  const tl=document.getElementById('timeline-frame-'+frameId);
+  const sec=document.querySelector(`.frame[data-frame="${frameId}"]`);
+  const list=sec.querySelector('.frame-list');
+  const h=list.offsetHeight||1;
 
+  // colored translucent strip to hint time band width
+  const seg=document.createElement('div');
+  seg.className='tl-seg';
+  seg.style.top='0px';
+  seg.style.height=h+'px';
+  seg.style.background=getComputedStyle(document.documentElement).getPropertyValue(meta.color.replace('var(','').replace(')','')).trim()||'rgba(0,0,0,.08)';
+  tl.appendChild(seg);
+
+  // axis
   const axis=document.createElement('div');
   axis.className='tl-axis';
-  axis.style.top=topY+'px';
-  axis.style.height=height+'px';
+  axis.style.top='0px';
+  axis.style.height=h+'px';
   tl.appendChild(axis);
 
-  ['day','night'].forEach(shift=>{
-    if(shift==='day'&&!dayVisible) return;
-    if(shift==='night'&&!nightVisible) return;
+  // ticks/labels, mapped proportionally to the frame’s start/end
+  const startM=parseHM(meta.start), endM=parseHM(meta.end);
+  const span=endM-startM||1;
+  const step=30;
+  for(let t=startM;t<=endM;t+=step){
+    const y=(t-startM)/span*h;
+    addTick(t,y,t%60===0);
+  }
+  if((endM-startM)%step!==0) addTick(endM, h, true);
 
-    const fInShift=visibleFrames.filter(f=>f.shift===shift);
-    if(!fInShift.length) return;
-
-    fInShift.forEach((fr,idx)=>{
-      const dom=document.querySelector(`.frame[data-frame="${fr.id}"]`);
-      const startM=parseHM(fr.start), endM=parseHM(fr.end);
-      const top=dom.offsetTop, h=dom.offsetHeight;
-      const pxPerMin = h / (endM-startM || 1);
-
-      const seg=document.createElement('div');seg.className='tl-seg';seg.style.background=fr.color;
-      seg.style.top=top+'px';seg.style.height=h+'px';tl.appendChild(seg);
-
-      const step=30;
-      for(let t=startM; t<=endM; t+=step){
-        const y = top + (t-startM)*pxPerMin;
-        addTick(t, y, t%60===0);
-      }
-      if((endM-startM)%step!==0) addTick(endM, top+(endM-startM)*pxPerMin, true);
-
-      if(idx>0){
-        const br=document.createElement('div'); br.className='tl-break'; br.style.top=(top-2)+'px';
-        tl.appendChild(br);
-      }
-    });
-
-    const mark=document.createElement('div');mark.className='nowMarker';tl.appendChild(mark);
-    const tickNow=()=>{
-      const d=new Date(); const m=d.getHours()*60+d.getMinutes();
-      const holder=fInShift.find(fr=> m>=parseHM(fr.start) && m<=parseHM(fr.end));
-      if(!holder){ mark.style.display='none'; return; }
-      const dom=document.querySelector(`.frame[data-frame="${holder.id}"]`);
-      const top=dom.offsetTop, h=dom.offsetHeight;
-      const pxPerMin = h / (parseHM(holder.end)-parseHM(holder.start) || 1);
-      mark.style.display='block';
-      mark.style.top = (top + (m-parseHM(holder.start))*pxPerMin) + 'px';
-    };
-    tickNow(); setInterval(tickNow,60000);
-  });
+  // now marker (only if current time within this frame)
+  const now=new Date(); const m=now.getHours()*60+now.getMinutes();
+  const inWindow=(m>=startM && m<=endM);
+  if(inWindow){
+    const y=(m-startM)/span*h;
+    const mark=document.createElement('div');mark.className='nowMarker';mark.style.top=y+'px';
+    tl.appendChild(mark);
+  }
 
   function addTick(totalMins,y,bold=false){
     const tick=document.createElement('div');tick.className='tl-tick'+(bold?' bold':'');tick.style.top=y+'px';
@@ -494,21 +514,28 @@ document.addEventListener('click',e=>{
 }, true);
 
 function idxToLabel(i){let s='',n=i+1;while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;}
+
+/* ==== CHANGES: renumber per frame (keeps A.. within each frame), global in Flat mode */
 function renumber(){
-  let rows;
   if(flatMode){
-    rows=[...document.querySelectorAll('#addrList .row')];
-  }else{
-    rows=[...document.querySelectorAll('.row')].filter(r=>{
-      const fr=r.closest('.frame'); if(!fr) return false;
-      const vis=(fr.dataset.shift==='day'?dayVisible:nightVisible);
-      return vis && fr.style.display!=='none' && !fr.classList.contains('collapsed');
+    const rows=[...document.querySelectorAll('#addrList .row')];
+    rows.forEach((r,i)=>{
+      const b=r.querySelector('.bullet');
+      b.textContent=idxToLabel(i);
+      b.className='bullet '+(['A','B','C','D','E','F','G','H'][i%8]||'defaultBullet');
     });
+    return;
   }
-  rows.forEach((r,i)=>{
-    const b=r.querySelector('.bullet');
-    b.textContent=idxToLabel(i);
-    b.className='bullet '+(['A','B','C','D','E','F','G','H'][i%8]||'defaultBullet');
+  FRAMES.forEach(fr=>{
+    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
+    const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
+    if(!vis || sec.classList.contains('collapsed') || sec.style.display==='none') return;
+    const rows=[...document.getElementById('frame-'+fr.id).querySelectorAll('.row')];
+    rows.forEach((r,i)=>{
+      const b=r.querySelector('.bullet');
+      b.textContent=idxToLabel(i);
+      b.className='bullet '+(['A','B','C','D','E','F','G','H'][i%8]||'defaultBullet');
+    });
   });
 }
 
@@ -627,25 +654,22 @@ async function multiPaste(e){
     }
   }
 
-  // compact frames we touched, but DO NOT top-up empties here (prevents “extra 4”)
-  touchedLists.forEach(compactFrameList);
+  // ==== CHANGES: force “filled first, empties at end” on each touched frame to avoid gaps
+  touchedLists.forEach(list=>{
+    compactFrameList(list);
+    // also ensure no interleaved empties remain
+    const rows=[...list.querySelectorAll('.row')];
+    const filled=rows.filter(r=>r.querySelector('.stop').value.trim());
+    const empties=rows.filter(r=>!r.querySelector('.stop').value.trim());
+    [...filled,...empties].forEach(r=>list.appendChild(r));
+  });
 
   renumber();
   await ensureCoords(getOrderedRows(true),{parallel:true});
   scheduleAutoCompute(0,true);
 
-  // Auto‑collapse empty frames in this shift once (paste only).
-  autoCollapseEmptyFramesInShift(shift);
-}
-
-function autoCollapseEmptyFramesInShift(shift){
-  FRAMES.filter(f=>f.shift===shift).forEach(f=>{
-    const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
-    if(sec.dataset.userOverride==='1') return;
-    const list=document.getElementById('frame-'+f.id);
-    const filled=[...list.querySelectorAll('.row')].some(r=>r.querySelector('.stop').value.trim());
-    setFrameCollapsed(f.id, !filled, 'auto');
-  });
+  // ==== CHANGES: do NOT auto-collapse empty frames; keep the default 4 rows visible
+  // autoCollapseEmptyFramesInShift(shift); // (disabled)
 }
 
 /* Accept top prediction on Tab/Enter */
@@ -699,7 +723,7 @@ function applyShiftVisibility(){
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
     const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
     sec.style.display=vis?'block':'none';
-    // ==== CHANGES: ensure base rows only when a frame is shown
+    // ==== CHANGES: ensure base rows only when a frame is shown and not collapsed
     if(vis && !sec.classList.contains('collapsed')) ensurePlaceholdersForFrame(fr.id);
   });
 
@@ -1075,8 +1099,22 @@ async function globalOptimizeRoute(){
   const pts=rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
   const D=buildDistanceMatrix(pts);
   const ord=solveTSPWithMatrix(D);
-  const parent=rows[0].parentElement;
-  ord.forEach(i=>parent.appendChild(rows[i]));
+
+  /* ==== CHANGES: keep rows within their original frame lists; no cross-frame moves here.
+     We re-append in optimized order only INSIDE the parent list of each row. */
+  const grouped=new Map();
+  rows.forEach((r,i)=>{
+    const p=r.parentElement;
+    if(!grouped.has(p)) grouped.set(p,[]);
+    grouped.get(p).push({r,i});
+  });
+  // apply local order using ord but only within each list
+  grouped.forEach((arr,p)=>{
+    arr.sort((a,b)=>ord.indexOf(a.i)-ord.indexOf(b.i));
+    arr.forEach(({r})=>p.appendChild(r));
+    compactFrameList(p);
+  });
+
   renumber();
   await rebuildRoute();
   msg.textContent='Optimized.'; flatMsg.textContent='Optimized.';
@@ -1095,7 +1133,7 @@ async function optimizeByFramesTwoPass(){
   const framesData=[];
   for(const fr of visFrames){
     const list=document.getElementById('frame-'+fr.id);
-    compactFrameList(list); // ==== CHANGES: remove gaps before solving
+    compactFrameList(list); // keep filled rows at top
     const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
     if(rows.length<2){ framesData.push({fr, list, rows, pts:[], D:null, baseOrder:null, baseCost:0}); continue; }
     const ok=await ensureCoords(rows,{parallel:true}); if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
@@ -1110,7 +1148,7 @@ async function optimizeByFramesTwoPass(){
     if(fd.rows.length<2) return;
     const ord=fd.baseOrder;
     ord.forEach(i=>fd.list.appendChild(fd.rows[i]));
-    compactFrameList(fd.list); // keep filled rows at top
+    compactFrameList(fd.list); // filled rows at top, empties at end
   });
 
   for(let i=0;i<framesData.length-1;i++){
@@ -1171,7 +1209,7 @@ async function optimizeByFramesTwoPass(){
     }
   }
 
-  renumber();
+  renumber();                // per-frame A.. kept stable
   await rebuildRoute();
   rebalanceFrameHeights();
   buildTimelineFromDOM();
@@ -1240,6 +1278,12 @@ window.routePlannerInit=()=>{
 
   if(window.__mapsApiReady){ /* no-op */ }
 };
+
+/* ==== CHANGES: disable auto-collapse behavior to keep base 4 rows in each visible frame */
+function autoCollapseEmptyFramesInShift(shift){
+  /* intentionally disabled to always show 4 default rows by frame */
+  return;
+}
 </script>
 </body>
 </html>
