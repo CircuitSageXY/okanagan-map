@@ -310,12 +310,12 @@ function scheduleTimelineBuild(){
 }
   
 /* Close the Google Autocomplete dropdown bound to an input, then blur it */
+/* Close the Google Autocomplete dropdown bound to an input, then blur it */
 function forceCloseAutocomplete(inp){
   try{
-    // Ask the widget (if open) to close by simulating Escape
     inp.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
   }catch(e){}
-  inp.blur(); // ensures the dropdown is closed even if the key event is ignored
+  inp.blur();
 }
 
 /* =================== UI BUILD =================== */
@@ -560,10 +560,18 @@ function attachInputEvents(inp){
 
   inp.addEventListener('input',()=>{ inp.dataset.dirty='1'; inp.dataset.lat=''; inp.dataset.lng=''; scheduleAutoCompute(200,false); });
 
-  inp.addEventListener('keydown',e=>{
-    if(e.key==='Tab'&&!e.shiftKey){e.preventDefault();acceptTopPrediction(inp);}
-    else if(e.key==='Enter'){e.preventDefault();acceptTopPrediction(inp);}
-  });
+  inp.addEventListener('keydown', e=>{
+  if(e.key==='Tab' && !e.shiftKey){
+    e.preventDefault();
+    // Tell the system that when a place is accepted, we should advance focus.
+    inp.dataset.advanceOnPlace = '1';
+    acceptTopPrediction(inp);
+  } else if(e.key==='Enter'){
+    e.preventDefault();
+    inp.dataset.advanceOnPlace = '1';
+    acceptTopPrediction(inp);
+  }
+});
 
   inp.addEventListener('paste',multiPaste);
 
@@ -571,16 +579,30 @@ function attachInputEvents(inp){
     fields:['formatted_address','geometry','place_id'],
     types:['address'], componentRestrictions:{country:'ca'}, bounds:OK_BOUNDS, strictBounds:true
   });
-  ac.addListener('place_changed',()=>{
-    const p=ac.getPlace();
-    if(p?.geometry){
-      inp.value=p.formatted_address||inp.value;
-      inp.dataset.lat=p.geometry.location.lat();
-      inp.dataset.lng=p.geometry.location.lng();
-      delete inp.dataset.dirty;
-      scheduleAutoCompute(80,true);
-    }
-  });
+ ac.addListener('place_changed', ()=>{
+  const p = ac.getPlace();
+
+  if(p?.geometry){
+    inp.value = p.formatted_address || inp.value;
+    inp.dataset.lat = p.geometry.location.lat();
+    inp.dataset.lng = p.geometry.location.lng();
+    delete inp.dataset.dirty;
+  }
+
+  // Read & clear the one‑shot flag
+  const advance = inp.dataset.advanceOnPlace === '1';
+  delete inp.dataset.advanceOnPlace;
+
+  if(advance){
+    // Close dropdown and move on
+    if (flatMode){ focusNextInFlatOrCreate(inp); }
+    else         { focusNextInFrameOrCreate(inp); }
+    scheduleAutoCompute(0, true);
+  }else{
+    // Mouse pick or other flow: just recompute
+    scheduleAutoCompute(80, true);
+  }
+});
 }
 
 /* ---------- Compaction / pruning ---------- */
@@ -721,32 +743,40 @@ async function multiPaste(e){
 
 /* Accept top prediction on Tab/Enter */
 function acceptTopPrediction(input){
+  // If we already have coords, just advance
   if (input.dataset.lat && input.dataset.lng){
     delete input.dataset.dirty;
+    // consume one‑shot advance flag (so place_changed won’t also advance)
+    delete input.dataset.advanceOnPlace;
     if(flatMode){ focusNextInFlatOrCreate(input); }
-    else{ focusNextInFrameOrCreate(input); }
-    scheduleAutoCompute(0,true);
+    else        { focusNextInFrameOrCreate(input); }
+    scheduleAutoCompute(0, true);
     return;
   }
+
   acService.getPlacePredictions(
-    {input:input.value, componentRestrictions:{country:'ca'}, types:['address'], locationBias:OK_BOUNDS},
-    (preds,status)=>{
+    { input: input.value, componentRestrictions:{country:'ca'}, types:['address'], locationBias: OK_BOUNDS },
+    (preds, status) => {
       if (status !== google.maps.places.PlacesServiceStatus.OK || !preds?.length){
+        delete input.dataset.advanceOnPlace;
         if(flatMode){ focusNextInFlatOrCreate(input); }
-        else{ focusNextInFrameOrCreate(input); }
-        scheduleAutoCompute(0,false); return;
+        else        { focusNextInFrameOrCreate(input); }
+        scheduleAutoCompute(0, false);
+        return;
       }
-      placeSvc.getDetails({placeId:preds[0].place_id, fields:['formatted_address','geometry']},
-        (place, st)=>{
+      placeSvc.getDetails({ placeId: preds[0].place_id, fields: ['formatted_address','geometry'] },
+        (place, st) => {
           if (st === google.maps.places.PlacesServiceStatus.OK && place?.geometry){
-            input.value=place.formatted_address||input.value;
-            input.dataset.lat=place.geometry.location.lat();
-            input.dataset.lng=place.geometry.location.lng();
+            input.value      = place.formatted_address || input.value;
+            input.dataset.lat = place.geometry.location.lat();
+            input.dataset.lng = place.geometry.location.lng();
             delete input.dataset.dirty;
           }
+          // consume the flag and advance
+          delete input.dataset.advanceOnPlace;
           if(flatMode){ focusNextInFlatOrCreate(input); }
-          else{ focusNextInFrameOrCreate(input); }
-          scheduleAutoCompute(0,true);
+          else        { focusNextInFrameOrCreate(input); }
+          scheduleAutoCompute(0, true);
         }
       );
     }
@@ -761,18 +791,16 @@ function focusNextInFrameOrCreate(currentInput){
   const rows       = [...list.querySelectorAll('.row')];
   const idx        = rows.indexOf(currentRow);
 
-  // 1) If there is an empty after the current row, go there (no new rows).
+  // 1) Reuse the first empty after the current row
   const firstEmptyAfter = rows.slice(idx+1).find(r => !r.querySelector('.stop').value.trim());
   if(firstEmptyAfter){
-    // Prevent the one-tick "top-up" that would otherwise add a new empty row.
-    suppressTopUpOnce = true;
-    // Close any open Google autocomplete dropdown on the old input.
-    forceCloseAutocomplete(currentInput);
+    suppressTopUpOnce = true;               // <-- prevents an extra blank being added
+    forceCloseAutocomplete(currentInput);   // <-- shuts the Google dropdown on the old field
     firstEmptyAfter.querySelector('.stop').focus({preventScroll:true});
     return;
   }
 
-  // 2) If there is a next row but it's filled, insert a fresh one immediately after.
+  // 2) Insert fresh one after current if the next is filled
   if(rows[idx+1]){
     forceCloseAutocomplete(currentInput);
     const newRow = insertRowAfter(currentRow);
@@ -780,7 +808,7 @@ function focusNextInFrameOrCreate(currentInput){
     return;
   }
 
-  // 3) No next row at all – append one at the end of the same frame.
+  // 3) No next row at all -> append
   forceCloseAutocomplete(currentInput);
   const added = addRowToFrame(frameId, true, false);
   added.querySelector('.stop').focus({preventScroll:true});
