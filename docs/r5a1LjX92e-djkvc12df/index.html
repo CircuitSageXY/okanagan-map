@@ -42,7 +42,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   box-shadow:var(--clrPanelShadow);border-top-right-radius:var(--radiusLg);
   border-bottom-right-radius:var(--radiusLg);display:flex;flex-direction:column;
 }
-#scroller{flex:1;overflow:auto;position:relative;padding:12px 12px 96px 0;}
+#scroller{flex:1;overflow:auto;position:relative;padding:12px 12px 0 0;}
 #content{display:flex;align-items:flex-start;position:relative;}
 
 /* ---------- TIMELINE COLUMN ---------- */
@@ -78,12 +78,16 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .frame.collapsed{opacity:.55;}
 .frame.collapsed .frame-hide{color:#c00;}
 
-.frame-list{padding:6px 10px 8px 6px;overflow-y:auto;flex:1 1 auto;}
+.frame-list{
+  padding:6px 10px 8px 6px;overflow:visible; /* <— show all stops inside the frame */
+  flex:1 1 auto;
+}
 .addRowBtn{
   margin:6px 0 8px 28px;background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
   padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;flex:none;}
 .addRowBtn:hover{background:#e7e7e7;}
 
+/* per‑frame colors */
 .frame[data-frame="0"]{border-left:4px solid var(--f-early);}
 .frame[data-frame="1"]{border-left:4px solid var(--f-late);}
 .frame[data-frame="2"]{border-left:4px solid var(--f-lunch);}
@@ -134,15 +138,20 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   transition:transform var(--transFast),background var(--transFast);}
 .remove:hover{background:#f75a4d;transform:scale(1.08);} .remove:active{transform:scale(.94);}
 
-/* ---------- ACTION BUTTONS / MESSAGES ---------- */
-#actions{position:absolute;bottom:12px;left:16px;right:16px;display:flex;gap:10px;flex-wrap:wrap;z-index:7;}
+/* ---------- ACTION BAR (integrated) ---------- */
+#actions{
+  position:sticky;bottom:0;left:0;right:0;z-index:7;
+  display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+  padding:10px 12px;border-top:1px solid var(--clrPanelBorder);
+  background:linear-gradient(180deg, rgba(255,255,255,0.8), #fff 70%);
+}
 #actions button{padding:8px 14px;font-size:14px;border-radius:var(--radiusMd);border:1px solid transparent;cursor:pointer;transition:background var(--transFast),transform var(--transFast);}
 #route{background:var(--clrA);color:#fff;border-color:var(--clrA);}        #route:hover{background:#5b9bff;} #route:active{transform:scale(.96);}
 #optAll{background:var(--clrB);color:#fff;border-color:var(--clrB);}       #optAll:hover{background:#26c36c;} #optAll:active{transform:scale(.96);}
 #optFrames{background:#795548;color:#fff;border-color:#795548;}            #optFrames:hover{background:#8d6e63;} #optFrames:active{transform:scale(.96);}
 #delSel{background:#db4437;color:#fff;border-color:#db4437;display:none;}
 
-#msg{margin:12px 0;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 0;}
+#msg{margin:12px 12px;color:#0066cc;font-weight:700;font-size:17px;padding:4px 0 0 0;}
 
 /* ---------- LEG SUMMARY ---------- */
 .leg-display{margin:6px 0 0 28px;font-size:16px;font-weight:600;color:#1b1b1b;
@@ -215,13 +224,16 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
       <div id="timelineCol"><div id="timeline"></div></div>
       <div id="framesContainer"></div>
     </div>
+
     <div id="msg"></div>
-  </div>
-  <div id="actions">
-    <button id="route">Route</button>
-    <button id="optAll"    title="Optimize entire day">Optimize</button>
-    <button id="optFrames" title="Optimize each time frame separately">Optimize by Frames</button>
-    <button id="delSel" title="Delete selected stops">Delete Selected</button>
+
+    <!-- Integrated actions footer (sticky inside scroller) -->
+    <div id="actions">
+      <button id="route">Route</button>
+      <button id="optAll"    title="Optimize entire day">Optimize</button>
+      <button id="optFrames" title="Optimize each time frame separately">Optimize by Frames</button>
+      <button id="delSel" title="Delete selected stops">Delete Selected</button>
+    </div>
   </div>
 </div>
 
@@ -252,12 +264,10 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 <script>
 /* =================== CONFIG / CONSTANTS =================== */
 const PX_PER_MIN = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxPerMin'));
-const BASE_EMPTY_PER_FRAME = 4;    // default bars per frame
+const BASE_EMPTY_PER_FRAME = 4;
 const INITIAL_FLAT_ROWS     = 2;
 
-/* by‑frames optimizer tolerance — stay within this of frame‑best */
-const TOL_PCT = 0.03;  // 3%
-const TOL_KM  = 0.30;  // 0.3 km
+const TOL_PCT = 0.03, TOL_KM  = 0.30;
 
 let map,dirSvc,dirRend,geocoder,acService,placeSvc;
 let previewPins=[],routeMarkers=[];
@@ -282,7 +292,7 @@ const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);};
 const pad=n=>n.toString().padStart(2,'0');
 
-/* ===== Helpers ===== */
+/* Helpers */
 function visibleFrameIdsInOrder(){
   return FRAMES.filter(fr=>{
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
@@ -332,8 +342,8 @@ function buildFrameBuckets(){
     });
   });
 
-  /* Ensure every frame starts with 4 rows (even while hidden) */
-  FRAMES.forEach(fr=>ensurePlaceholdersForFrame(fr.id, /*includeCollapsed*/ true, /*ignoreVisibility*/ true));
+  // ensure 4 rows exist everywhere initially (also for collapsed/hidden)
+  FRAMES.forEach(fr=>ensurePlaceholdersForFrame(fr.id, true, true));
   renumber();
 
   const ro=new ResizeObserver(()=>buildTimelineFromDOM());
@@ -342,7 +352,7 @@ function buildFrameBuckets(){
   document.querySelectorAll('.frame-list').forEach(fl=>mo.observe(fl,{childList:true,subtree:true}));
 }
 
-/* ======== Responsive vertical rebalancer (fills the white space) ======== */
+/* ====== Height rebalance: show all stops, keep proportional minimum ====== */
 function rebalanceFrameHeights(){
   if(flatMode) return;
 
@@ -356,7 +366,7 @@ function rebalanceFrameHeights(){
   if(!vis.length) return;
 
   const scroller = document.getElementById('scroller');
-  const avail = scroller.clientHeight - 24;
+  const avail = Math.max(240, scroller.clientHeight - 24);
 
   const fixedById = {};
   let fixedTotal = 0;
@@ -371,11 +381,12 @@ function rebalanceFrameHeights(){
 
   const free = Math.max(120, avail - fixedTotal);
   const totalSpan = vis.reduce((s,fr)=>s + (parseHM(fr.end)-parseHM(fr.start)), 0);
+
   vis.forEach(fr=>{
     const list = document.getElementById('frame-'+fr.id);
-    const prop = (parseHM(fr.end)-parseHM(fr.start)) / totalSpan;
-    const target = Math.max(120, Math.floor(free * prop));
-    list.style.maxHeight = target + 'px';
+    const proportional = Math.max(120, Math.floor(free * (parseHM(fr.end)-parseHM(fr.start)) / totalSpan));
+    const content = list.scrollHeight + 2; // all rows visible
+    list.style.maxHeight = Math.max(proportional, content) + 'px';
   });
 }
 
@@ -492,7 +503,6 @@ function setSelected(row,on){
 function showDeleteBtns(){
   const any=document.querySelector('.row.selected');
   document.getElementById('delSel').style.display=any&&!flatMode?'inline-block':'none';
-  document.getElementById('flatDelSel').style.display=any&&flatMode?'inline-block':'none';
 }
 function deleteSelected(){
   document.querySelectorAll('.row.selected').forEach(r=>r.remove());
@@ -507,7 +517,7 @@ document.addEventListener('click',e=>{
   if(e.ctrlKey||e.metaKey) return;
   if(!document.querySelector('.row.selected')) return;
   const inRow = e.target.closest('.row');
-  const onDel = e.target.closest('#delSel, #flatDelSel');
+  const onDel = e.target.closest('#delSel');
   if(inRow || onDel) return;
   document.querySelectorAll('.row.selected').forEach(r=>r.classList.remove('selected'));
   showDeleteBtns();
@@ -578,7 +588,7 @@ function attachInputEvents(inp){
   });
 }
 
-/* =================== MULTI‑PASTE =================== */
+/* =================== MULTI‑PASTE (distribute; then auto‑hide empties) =================== */
 async function multiPaste(e){
   const clip=(e.clipboardData||window.clipboardData).getData('text');
   const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -645,7 +655,8 @@ async function multiPaste(e){
     ? [...document.getElementById('addrList').querySelectorAll('.row')]
     : [...document.querySelectorAll('.frame-list .row')];
   await ensureCoords(allRows,{parallel:true});
-  pruneEmptyGapsVisible(true);
+  pruneEmptyGapsVisible();
+  autoCollapseEmptyFrames();       // <— hide empty frames immediately after paste
   scheduleAutoCompute(0,true);
 }
 
@@ -706,8 +717,7 @@ function applyShiftVisibility(){
     const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
     sec.style.display=vis?'block':'none';
     if(vis){
-      // guarantee the 4‑row default whenever a frame becomes visible
-      ensurePlaceholdersForFrame(fr.id, /*includeCollapsed*/ true, /*ignoreVisibility*/ true);
+      ensurePlaceholdersForFrame(fr.id, true, true); // restore default 4 rows when shown
     }
   });
 
@@ -885,7 +895,7 @@ function getOrderedRows(includeHidden=false){
   return rows.filter(r=>r.querySelector('.stop').value.trim());
 }
 
-/* remove empties before the last filled row; and (here) never auto‑add afterwards */
+/* remove empties before the last filled row; do not auto‑add */
 function pruneListGaps(list){
   const rows=[...list.querySelectorAll('.row')];
   let lastFilled=-1;
@@ -912,15 +922,22 @@ function pruneEmptyGapsVisible(){
   renumber();
 }
 
-/* Optimization cleanup */
-function removeAllEmptyRowsFlat(){
-  const list=document.getElementById('addrList');
-  [...list.querySelectorAll('.row')].forEach(r=>{
-    const v=r.querySelector('.stop').value.trim();
-    if(!v) r.remove();
+/* Collapse frames with zero filled rows (used after paste & route) */
+function autoCollapseEmptyFrames(){
+  if(flatMode) return;
+  FRAMES.forEach(fr=>{
+    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
+    const visible=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
+    if(!visible) return;
+    const list=document.getElementById('frame-'+fr.id);
+    const filled=[...list.querySelectorAll('.row')].some(r=>r.querySelector('.stop').value.trim());
+    if(!filled) sec.classList.add('collapsed');
   });
-  renumber();
+  rebalanceFrameHeights();
+  buildTimelineFromDOM();
 }
+
+/* Optimization cleanup (collapse, don’t remove) */
 function pruneFramesOnOptimize(){
   FRAMES.forEach(fr=>{
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
@@ -930,9 +947,8 @@ function pruneFramesOnOptimize(){
     [...list.querySelectorAll('.row')].forEach(r=>{ if(!r.querySelector('.stop').value.trim()) r.remove(); });
     const filled=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim()).length;
     if(filled===0){
-      sec.classList.add('collapsed'); // collapse instead of removing
-      // maintain the default four bars so when expanded later, they exist
-      ensurePlaceholdersForFrame(fr.id, /*includeCollapsed*/ true, /*ignoreVisibility*/ true);
+      sec.classList.add('collapsed');
+      ensurePlaceholdersForFrame(fr.id, true, true);
     }
   });
   renumber();
@@ -946,7 +962,7 @@ async function autoCompute(){
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
 
   if(rows.filter(r=>r.querySelector('.stop').value.trim()).length===0){
-    clearPreviewPins();clearLegDisplays();msg.textContent='';flatMsg.textContent='';clearDirections();return;
+    clearPreviewPins();clearLegDisplays();msg.textContent='';if(flatMsg) flatMsg.textContent='';clearDirections();autoCollapseEmptyFrames();return;
   }
 
   if(rows.some(r=>!r.querySelector('.stop').dataset.lat)){
@@ -964,10 +980,12 @@ async function autoCompute(){
     clearDirections();clearLegDisplays();clearPreviewPins();
     const inp=rows[0].querySelector('.stop');
     addPreviewPin({lat:+inp.dataset.lat,lng:+inp.dataset.lng},'A');
-    msg.textContent='';flatMsg.textContent='';
+    msg.textContent=''; if(flatMsg) flatMsg.textContent='';
   }else{
     clearPreviewPins(); await rebuildRoute();
   }
+
+  autoCollapseEmptyFrames();   // <— also after any compute
 }
 
 /* Rebuild directions on map */
@@ -975,9 +993,9 @@ async function rebuildRoute(){
   const rows=getOrderedRows();
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
   clearLegDisplays();clearRouteMarkers();
-  if(rows.length<2){msg.textContent='';flatMsg.textContent='';clearDirections();return;}
+  if(rows.length<2){msg.textContent='';if(flatMsg) flatMsg.textContent='';clearDirections();return;}
   const ok=await ensureCoords(rows,{parallel:true});
-  if(!ok){msg.textContent='One or more stops can’t be located – please edit.';flatMsg.textContent=msg.textContent;return;}
+  if(!ok){msg.textContent='One or more stops can’t be located – please edit.';if(flatMsg) flatMsg.textContent=msg.textContent;return;}
   const locs=rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
   return new Promise(resolve=>{
     dirSvc.route({
@@ -998,7 +1016,7 @@ async function rebuildRoute(){
 /* Leg summaries */
 function displayLegs(res,stat){
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
-  if(stat!=='OK'){msg.textContent='Route error: '+stat;flatMsg.textContent=msg.textContent;clearDirections();return;}
+  if(stat!=='OK'){msg.textContent='Route error: '+stat;if(flatMsg) flatMsg.textContent=msg.textContent;clearDirections();return;}
   dirRend.setDirections(res);
   const rows=getOrderedRows();
   let kmTot=0,minTot=0;clearLegDisplays();
@@ -1012,7 +1030,7 @@ function displayLegs(res,stat){
     rows[i].after(div);
   });
   const text=`Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
-  msg.textContent=text; flatMsg.textContent=text;
+  msg.textContent=text; if(flatMsg) flatMsg.textContent=text;
 }
 function clearLegDisplays(){document.querySelectorAll('.leg-display').forEach(d=>d.remove());}
 
@@ -1095,15 +1113,19 @@ function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){
 /* =================== GLOBAL OPTIMIZER =================== */
 async function globalOptimizeRoute(){
   const rows=getOrderedRows();
-  const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
   clearLegDisplays();
 
-  if(flatMode) removeAllEmptyRowsFlat(); else pruneFramesOnOptimize();
+  if(flatMode){
+    const list=document.getElementById('addrList');
+    [...list.querySelectorAll('.row')].forEach(r=>{ if(!r.querySelector('.stop').value.trim()) r.remove(); });
+  }else{
+    pruneFramesOnOptimize();
+  }
 
   if(rows.length<3){await rebuildRoute();return;}
 
   const ok=await ensureCoords(rows,{parallel:true});
-  if(!ok){msg.textContent='One or more stops can’t be located – please edit.';flatMsg.textContent=msg.textContent;return;}
+  if(!ok){document.getElementById('msg').textContent='One or more stops can’t be located – please edit.';return;}
 
   const pts=rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
   const D=buildDistanceMatrix(pts);
@@ -1112,20 +1134,18 @@ async function globalOptimizeRoute(){
   ord.forEach(i=>parent.appendChild(rows[i]));
   renumber();
   await rebuildRoute();
-  msg.textContent='Optimized.'; flatMsg.textContent='Optimized.';
+  document.getElementById('msg').textContent='Optimized.';
 }
 
 /* =================== BY‑FRAMES TWO‑PASS OPTIMIZER =================== */
 async function optimizeByFramesTwoPass(){
-  // Do not set status text here; keep the distance message after rebuildRoute().
-  pruneFramesOnOptimize(); // clean empties & collapse empty frames (not removed)
+  pruneFramesOnOptimize(); // collapse empties (not removed)
 
   let visFrames=FRAMES.filter(f=>{
     const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
     return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) && !sec.classList.contains('collapsed') && sec.style.display!=='none';
   });
 
-  // Build data structures for each frame
   const framesData=[];
   for(const fr of visFrames){
     const list=document.getElementById('frame-'+fr.id);
@@ -1139,18 +1159,15 @@ async function optimizeByFramesTwoPass(){
     framesData.push({fr, list, rows, pts, D, baseOrder:ord, baseCost});
   }
 
-  // Pass 1
   framesData.forEach(fd=>{
     if(fd.rows.length<2) return;
     const ord=fd.baseOrder;
     ord.forEach(i=>fd.list.appendChild(fd.rows[i]));
   });
 
-  // Pass 2 (forward)
   for(let i=0;i<framesData.length-1;i++){
     const A=framesData[i], B=framesData[i+1];
     if((A.rows.length<1)||(B.rows.length<2)) continue;
-
     const lastArow=A.list.querySelectorAll('.row'); if(!lastArow.length) continue;
     const lastARow = lastArow[lastArow.length-1];
     const lastA={lat:+lastARow.querySelector('.stop').dataset.lat,lng:+lastARow.querySelector('.stop').dataset.lng};
@@ -1176,7 +1193,6 @@ async function optimizeByFramesTwoPass(){
     }
   }
 
-  // Pass 3 (backward)
   for(let i=framesData.length-2;i>=0;i--){
     const A=framesData[i], B=framesData[i+1];
     if((A.rows.length<2)||(B.rows.length<1)) continue;
@@ -1205,7 +1221,7 @@ async function optimizeByFramesTwoPass(){
   }
 
   renumber();
-  await rebuildRoute();           // this sets "Total Distance | Time"
+  await rebuildRoute();           // will write Total Distance | Time
   rebalanceFrameHeights();
   buildTimelineFromDOM();
 }
@@ -1238,11 +1254,12 @@ window.routePlannerInit=()=>{
   dayVisible=false; nightVisible=false; applyShiftVisibility();
 
   document.getElementById('route').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); rebuildRoute();};
-  document.getElementById('optAll').onclick=()=>{autoResolveNext=true; if(flatMode) removeAllEmptyRowsFlat(); else pruneFramesOnOptimize(); rebuildRoute().then(()=>globalOptimizeRoute());};
-  document.getElementById('optFrames').onclick=()=>{autoResolveNext=true; optimizeByFramesTwoPass();};
+  document.getElementById('optAll').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); pruneFramesOnOptimize(); globalOptimizeRoute();};
+  document.getElementById('optFrames').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); optimizeByFramesTwoPass();};
   document.getElementById('delSel').onclick=deleteSelected;
+
   document.getElementById('flatRoute').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); rebuildRoute();};
-  document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; removeAllEmptyRowsFlat(); globalOptimizeRoute();};
+  document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); globalOptimizeRoute();};
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
   const sv = map.getStreetView();
@@ -1275,7 +1292,7 @@ window.routePlannerInit=()=>{
   });
 };
 
-/* Handle early Google callback case */
+/* Handle early Google callback */
 if(window.__mapsApiReady){ window.routePlannerInit(); }
 </script>
 </body>
