@@ -93,7 +93,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .addRowBtn{
   margin:6px 10px 10px calc(10px + var(--tlW));
   background:#e0e0e0;color:#000;border:1px solid #d0d0d0;
-  padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;flex:none;}
+  padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;flex:none;display:none;}
 .addRowBtn:hover{background:#e7e7e7;}
 
 /* colored borders per frame */
@@ -223,16 +223,9 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   border-color:rgba(33,33,33,.55) transparent transparent transparent;
   filter: drop-shadow(0 2px 1px rgba(0,0,0,.18));
 }
-.region-title{
-  font-weight:800; letter-spacing:.4px; text-align:center; font-size:13px;
-}
-.region-accent{
-  position:absolute; inset:-1px; border-radius:10px;
-  border:2px solid transparent; pointer-events:none;
-}
-.region-close{
-  position:absolute; top:4px; right:6px; cursor:pointer; font-size:16px; opacity:.9;
-}
+.region-title{ font-weight:800; letter-spacing:.4px; text-align:center; font-size:13px; }
+.region-accent{ position:absolute; inset:-1px; border-radius:10px; border:2px solid transparent; pointer-events:none; }
+.region-close{ position:absolute; top:4px; right:6px; cursor:pointer; font-size:16px; opacity:.9; }
 </style>
 
 <script>
@@ -364,7 +357,7 @@ function buildFrameBuckets(){
 
     sec.appendChild(body);
 
-    /* Add button is kept hidden; rows are grown via Tab logic */
+    /* Add button hidden; rows are grown via Tab logic */
     const addBtn=document.createElement('button');
     addBtn.className='addRowBtn';addBtn.textContent='+ Add stop';
     addBtn.style.display='none';
@@ -824,7 +817,6 @@ function buildAddrBar(){
   Sortable.create(document.getElementById('addrList'),{
     handle:'.drag',animation:150, onEnd:()=>{renumber();scheduleAutoCompute(120,false);}
   });
-  // '+' hidden; rows are grown via Tab logic
   document.getElementById('toggleDay').onclick=()=>toggleShift('day');
   document.getElementById('toggleNight').onclick=()=>toggleShift('night');
 }
@@ -1225,64 +1217,6 @@ function collapseEmptyFramesInShift(shift){
   });
 }
 
-/* =================== REGION LABEL OVERLAY =================== */
-/* Deterministic accent color from name (stable hue) */
-function nameToAccent(name){
-  let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i)) % 360; }
-  return `hsl(${h} 70% 70%)`;
-}
-
-class RegionLabelOverlay extends google.maps.OverlayView{
-  constructor(pos, text, accent){
-    super();
-    this.position=pos;
-    this.text=text||'';
-    this.accent=accent||'#9ecfff';
-    this.container=null;
-  }
-  onAdd(){
-    const div=document.createElement('div');
-    div.className='region-label';
-
-    div.innerHTML=
-      `<div class="region-card">
-         <div class="region-accent" style="border-color:${this.accent}"></div>
-         <div class="region-title">${this.text}</div>
-         <span class="region-close material-icons" title="Close">close</span>
-       </div>`;
-    div.querySelector('.region-close').onclick=()=>this.setMap(null);
-    this.container=div;
-    const panes=this.getPanes();
-    panes.floatPane.appendChild(div);
-    // show animation
-    requestAnimationFrame(()=>div.classList.add('show'));
-  }
-  draw(){
-    const proj=this.getProjection(); if(!proj||!this.container) return;
-    const pt=proj.fromLatLngToDivPixel(this.position);
-    this.container.style.left=pt.x+'px';
-    this.container.style.top=pt.y+'px';
-  }
-  onRemove(){
-    if(!this.container) return;
-    // play quick hide
-    this.container.classList.remove('show');
-    const el=this.container;
-    setTimeout(()=>{ if(el&&el.parentNode) el.parentNode.removeChild(el); }, 120);
-    this.container=null;
-  }
-}
-
-let currentRegionOverlay=null;
-function showRegionLabel(pos, name){
-  if(currentRegionOverlay){ currentRegionOverlay.setMap(null); currentRegionOverlay=null; }
-  currentRegionOverlay=new RegionLabelOverlay(pos, name, nameToAccent(name));
-  currentRegionOverlay.setMap(map);
-}
-function hideRegionLabel(){
-  if(currentRegionOverlay){ currentRegionOverlay.setMap(null); currentRegionOverlay=null; }
-}
-
 /* =================== INIT =================== */
 window.routePlannerInit=()=>{
   map=new google.maps.Map(document.getElementById('map'),{
@@ -1295,12 +1229,62 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)
   );
 
+  /* --- Region label overlay (now defined AFTER API load to avoid white screen) --- */
+  function nameToAccent(name){
+    let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i)) % 360; }
+    return `hsl(${h} 70% 70%)`;
+  }
+  class RegionLabelOverlay extends google.maps.OverlayView{
+    constructor(pos, text, accent){
+      super();
+      this.position=pos;
+      this.text=text||'';
+      this.accent=accent||'#9ecfff';
+      this.container=null;
+    }
+    onAdd(){
+      const div=document.createElement('div');
+      div.className='region-label';
+      div.innerHTML=
+        `<div class="region-card">
+           <div class="region-accent" style="border-color:${this.accent}"></div>
+           <div class="region-title">${this.text}</div>
+           <span class="region-close material-icons" title="Close">close</span>
+         </div>`;
+      div.querySelector('.region-close').onclick=()=>this.setMap(null);
+      this.container=div;
+      const panes=this.getPanes();
+      panes.floatPane.appendChild(div);
+      requestAnimationFrame(()=>div.classList.add('show'));
+    }
+    draw(){
+      const proj=this.getProjection(); if(!proj||!this.container) return;
+      const pt=proj.fromLatLngToDivPixel(this.position);
+      this.container.style.left=pt.x+'px';
+      this.container.style.top=pt.y+'px';
+    }
+    onRemove(){
+      if(!this.container) return;
+      const el=this.container;
+      el.classList.remove('show');
+      setTimeout(()=>{ if(el&&el.parentNode) el.parentNode.removeChild(el); }, 120);
+      this.container=null;
+    }
+  }
+  let currentRegionOverlay=null;
+  function showRegionLabel(pos, name){
+    if(currentRegionOverlay){ currentRegionOverlay.setMap(null); currentRegionOverlay=null; }
+    currentRegionOverlay=new RegionLabelOverlay(pos, name, nameToAccent(name));
+    currentRegionOverlay.setMap(map);
+  }
+  function hideRegionLabel(){
+    if(currentRegionOverlay){ currentRegionOverlay.setMap(null); currentRegionOverlay=null; }
+  }
+
   const kml=new google.maps.KmlLayer({
     url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',
     map, preserveViewport:true, suppressInfoWindows:true, screenOverlays:false, clickable:true, zIndex:0
   });
-
-  // Snappy region labels
   kml.addListener('click', (e)=>{
     const name=e.featureData?.name||'';
     const pos=e.latLng || e.featureData?.position || map.getCenter();
@@ -1352,6 +1336,27 @@ window.routePlannerInit=()=>{
 
   if(window.__mapsApiReady){ /* no-op */ }
 };
+
+/* --------- small, safe Flat‑view optimizer (removes empties, TSP order) --------- */
+async function globalOptimizeRoute(){
+  if(!flatMode){ return; }
+  const list=document.getElementById('addrList');
+  const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
+  if(rows.length<=1){ pruneListGaps(list, 0, false); renumber(); scheduleAutoCompute(0,true); return; }
+
+  const ok=await ensureCoords(rows,{parallel:true});
+  if(!ok){ document.getElementById('flatMsg').textContent='One or more stops can’t be located – please edit.'; return; }
+
+  const pts=rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
+  const D=buildDistanceMatrix(pts);
+  const ord=solveTSPWithMatrix(D);
+  const ordered=ord.map(i=>rows[i]);
+  ordered.forEach(r=>list.appendChild(r));
+
+  pruneListGaps(list, 0, false);  // remove all empties
+  renumber();
+  scheduleAutoCompute(0,true);
+}
 </script>
 </body>
 </html>
