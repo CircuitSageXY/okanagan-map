@@ -84,6 +84,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;flex:none;}
 .addRowBtn:hover{background:#e7e7e7;}
 
+/* colored rails for frames */
 .frame[data-frame="0"]{border-left:4px solid var(--f-early);}
 .frame[data-frame="1"]{border-left:4px solid var(--f-late);}
 .frame[data-frame="2"]{border-left:4px solid var(--f-lunch);}
@@ -252,8 +253,7 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 <script>
 /* =================== CONFIG / CONSTANTS =================== */
 const PX_PER_MIN = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxPerMin'));
-const colourCycle = ['A','B','C','D','E','F','G','H'];
-const BASE_EMPTY_PER_FRAME = 4;
+const BASE_EMPTY_PER_FRAME = 4;    // initial scaffolding only
 const INITIAL_FLAT_ROWS     = 2;
 
 /* by‑frames optimizer tolerance — stay within this of frame‑best */
@@ -333,6 +333,7 @@ function buildFrameBuckets(){
     });
   });
 
+  // provide initial scaffolding in day frames only
   FRAMES.filter(f=>f.shift==='day').forEach(fr=>ensurePlaceholdersForFrame(fr.id));
   renumber();
 
@@ -342,28 +343,46 @@ function buildFrameBuckets(){
   document.querySelectorAll('.frame-list').forEach(fl=>mo.observe(fl,{childList:true,subtree:true}));
 }
 
+/* ======== Responsive vertical rebalancer (fills the white space) ======== */
 function rebalanceFrameHeights(){
   if(flatMode) return;
-  const visibleIds = FRAMES.filter(fr=>{
+
+  // visible, uncollapsed sections
+  const vis = FRAMES.filter(fr=>{
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
-    return sec.style.display!=='none' && !sec.classList.contains('collapsed') &&
+    return sec.style.display!=='none' &&
+           !sec.classList.contains('collapsed') &&
            ((fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible));
-  }).map(f=>f.id);
+  });
 
-  if(!visibleIds.length) return;
+  if(!vis.length) return;
 
-  const sums = visibleIds.reduce((acc,id)=>{
-    const fr=FRAMES.find(f=>f.id===id);
-    acc.totalBase += (parseHM(fr.end)-parseHM(fr.start))*PX_PER_MIN;
-    acc.base[id] = (parseHM(fr.end)-parseHM(fr.start))*PX_PER_MIN;
-    return acc;
-  },{totalBase:0,base:{}});
+  // total available height inside the scroller
+  const scroller = document.getElementById('scroller');
+  const avail = scroller.clientHeight - 24; // small padding reserve
 
-  visibleIds.forEach(id=>{
-    const list=document.getElementById('frame-'+id);
-    const proportional = sums.base[id] / sums.totalBase;
-    const available = visibleIds.length * 260; // visual target height bucket
-    list.style.maxHeight = Math.max(140, available * proportional) + 'px';
+  // how much fixed UI each frame uses (header + add button + margins)
+  const fixedById = {};
+  let fixedTotal = 0;
+  vis.forEach(fr=>{
+    const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
+    const headH = sec.querySelector('.frame-header').offsetHeight || 0;
+    const addH  = sec.querySelector('.addRowBtn').offsetHeight || 0;
+    const chrome = headH + addH + 26; // paddings/margins
+    fixedById[fr.id] = chrome;
+    fixedTotal += chrome;
+  });
+
+  // free space left for lists
+  const free = Math.max(120, avail - fixedTotal);
+
+  // proportion by time span
+  const totalSpan = vis.reduce((s,fr)=>s + (parseHM(fr.end)-parseHM(fr.start)), 0);
+  vis.forEach(fr=>{
+    const list = document.getElementById('frame-'+fr.id);
+    const prop = (parseHM(fr.end)-parseHM(fr.start)) / totalSpan;
+    const target = Math.max(120, Math.floor(free * prop));
+    list.style.maxHeight = target + 'px';
   });
 }
 
@@ -566,7 +585,7 @@ function attachInputEvents(inp){
   });
 }
 
-/* Multi‑paste with cross‑frame distribution */
+/* =================== MULTI‑PASTE (cross‑frame, no auto‑add except final) =================== */
 async function multiPaste(e){
   const clip=(e.clipboardData||window.clipboardData).getData('text');
   const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -576,7 +595,6 @@ async function multiPaste(e){
   const startRow=e.target.closest('.row');
 
   if(flatMode){
-    /* Flat: keep existing behavior — expand only in the same list */
     const container = document.getElementById('addrList');
     let rows=[...container.querySelectorAll('.row')];
     const startIdx=rows.indexOf(startRow);
@@ -589,25 +607,23 @@ async function multiPaste(e){
       if(!el.value.trim()){ el.value=addr; el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1'; }
     });
   }else{
-    /* Frames: fill current frame from paste row down, then subsequent visible frames,
-       using only existing empty rows. Only if no next frame exists, append extra rows to the last frame. */
     const startFrameId=+startRow.dataset.frame;
     const orderedIds=visibleFrameIdsInOrder();
     const startFrameIdx=Math.max(0, orderedIds.indexOf(startFrameId));
-    const framesToUse=orderedIds.slice(startFrameIdx); // current -> end
+    const framesToUse=orderedIds.slice(startFrameIdx); // current -> last visible
 
     let targets=[];
-    // First frame: from start row downward, only empty inputs
+    // 1) Current frame: from the paste row downward — only empties
     {
       const list=document.getElementById('frame-'+startFrameId);
-      let rows=[...list.querySelectorAll('.row')];
+      const rows=[...list.querySelectorAll('.row')];
       const startIdx=rows.indexOf(startRow);
       rows.slice(startIdx).forEach(r=>{
         const el=r.querySelector('.stop');
         if(!el.value.trim()) targets.push(el);
       });
     }
-    // Subsequent frames: from top, only empty inputs
+    // 2) Subsequent frames: from top — only empties
     for(let i=1;i<framesToUse.length && targets.length<lines.length;i++){
       const fid=framesToUse[i];
       const list=document.getElementById('frame-'+fid);
@@ -617,7 +633,7 @@ async function multiPaste(e){
         if(!el.value.trim()) targets.push(el);
       });
     }
-    // If still not enough capacity and there are no more frames, append rows to the last frame only
+    // 3) If still not enough capacity and no later frame, append to the final visible frame only
     if(targets.length<lines.length){
       const lastFid = framesToUse.length ? framesToUse[framesToUse.length-1] : startFrameId;
       const list=document.getElementById('frame-'+lastFid);
@@ -628,7 +644,7 @@ async function multiPaste(e){
         targets.push(newRow.querySelector('.stop'));
       }
     }
-    // Apply values into targets in order
+    // Apply values
     lines.forEach((addr,i)=>{
       const el=targets[i]; if(!el) return;
       el.value=addr; el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1';
@@ -637,12 +653,15 @@ async function multiPaste(e){
 
   renumber();
 
-  // Resolve and compute as before
+  // Resolve and compute
   const allRows = flatMode
     ? [...document.getElementById('addrList').querySelectorAll('.row')]
     : [...document.querySelectorAll('.frame-list .row')];
   await ensureCoords(allRows,{parallel:true});
-  pruneEmptyGapsVisible();
+
+  // STRICT prune after paste: remove any gaps; DO NOT add placeholders
+  pruneEmptyGapsVisible(true /*noAdd*/);
+
   scheduleAutoCompute(0,true);
 }
 
@@ -690,7 +709,7 @@ function updateToggleChips(){
 function toggleFrame(id){
   const el=document.querySelector(`.frame[data-frame="${id}"]`);
   const collapsed = el.classList.toggle('collapsed');
-  if(!collapsed) ensurePlaceholdersForFrame(id);
+  // Removed auto‑adding placeholders on expand
   rebalanceFrameHeights(); buildTimelineFromDOM(); renumber(); scheduleAutoCompute(120,false);
 }
 function toggleShift(which){
@@ -879,7 +898,7 @@ function getOrderedRows(includeHidden=false){
   return rows.filter(r=>r.querySelector('.stop').value.trim());
 }
 
-/* remove empties that appear before the last filled row */
+/* remove empties that appear before the last filled row; optionally add placeholders */
 function pruneListGaps(list, placeholdersAtEnd){
   const rows=[...list.querySelectorAll('.row')];
   let lastFilled=-1;
@@ -891,14 +910,16 @@ function pruneListGaps(list, placeholdersAtEnd){
       const r=rows[i]; if(!r.querySelector('.stop').value.trim()) r.remove();
     }
   }
-  const now=[...list.querySelectorAll('.row')];
-  const blanks=now.filter(r=>!r.querySelector('.stop').value.trim()).length;
-  for(let i=blanks;i<placeholdersAtEnd;i++){
-    const row=makeRow(+list.id.replace('frame-','')||0);
-    list.appendChild(row);
+  if(placeholdersAtEnd>0){
+    const now=[...list.querySelectorAll('.row')];
+    const blanks=now.filter(r=>!r.querySelector('.stop').value.trim()).length;
+    for(let i=blanks;i<placeholdersAtEnd;i++){
+      const row=makeRow(+list.id.replace('frame-','')||0);
+      list.appendChild(row);
+    }
   }
 }
-function pruneEmptyGapsVisible(){
+function pruneEmptyGapsVisible(noAdd=false){
   if(flatMode){
     pruneListGaps(document.getElementById('addrList'), 0);
   }else{
@@ -906,7 +927,7 @@ function pruneEmptyGapsVisible(){
       const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
       const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
       if(!vis || sec.classList.contains('collapsed') || sec.style.display==='none') return;
-      pruneListGaps(document.getElementById('frame-'+fr.id), BASE_EMPTY_PER_FRAME);
+      pruneListGaps(document.getElementById('frame-'+fr.id), noAdd ? 0 : 0); // never auto‑add after edits
     });
   }
   renumber();
@@ -928,11 +949,10 @@ function pruneFramesOnOptimize(){
     const visible=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
     if(!visible || sec.style.display==='none') return;
     const list=document.getElementById('frame-'+fr.id);
-    // remove empty rows
     [...list.querySelectorAll('.row')].forEach(r=>{ if(!r.querySelector('.stop').value.trim()) r.remove(); });
     const filled=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim()).length;
     if(filled===0){
-      sec.classList.add('collapsed'); // collapse (hide body), keep header visible
+      sec.classList.add('collapsed'); // collapse instead of removing
     }
   });
   renumber();
@@ -958,7 +978,7 @@ async function autoCompute(){
     }
   }
 
-  pruneEmptyGapsVisible();
+  pruneEmptyGapsVisible(true);
 
   if(rows.length===1){
     clearDirections();clearLegDisplays();clearPreviewPins();
@@ -1120,8 +1140,7 @@ async function optimizeByFramesTwoPass(){
   const msg=document.getElementById('msg'); const flatMsg=document.getElementById('flatMsg');
   msg.textContent='Optimizing by frames…'; flatMsg.textContent=msg.textContent;
 
-  // Clean up empties and collapse empty frames first
-  pruneFramesOnOptimize();
+  pruneFramesOnOptimize(); // clean empties & collapse empty frames (not removed)
 
   let visFrames=FRAMES.filter(f=>{
     const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
@@ -1241,12 +1260,12 @@ window.routePlannerInit=()=>{
 
   dayVisible=false; nightVisible=false; applyShiftVisibility();
 
-  document.getElementById('route').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); rebuildRoute();};
-  document.getElementById('optAll').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); if(flatMode) removeAllEmptyRowsFlat(); else pruneFramesOnOptimize(); globalOptimizeRoute();};
-  document.getElementById('optFrames').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); optimizeByFramesTwoPass();};
+  document.getElementById('route').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(true); rebuildRoute();};
+  document.getElementById('optAll').onclick=()=>{autoResolveNext=true; if(flatMode) removeAllEmptyRowsFlat(); else pruneFramesOnOptimize(); rebuildRoute().then(()=>globalOptimizeRoute());};
+  document.getElementById('optFrames').onclick=()=>{autoResolveNext=true; optimizeByFramesTwoPass();};
   document.getElementById('delSel').onclick=deleteSelected;
-  document.getElementById('flatRoute').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); rebuildRoute();};
-  document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); removeAllEmptyRowsFlat(); globalOptimizeRoute();};
+  document.getElementById('flatRoute').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(true); rebuildRoute();};
+  document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; removeAllEmptyRowsFlat(); globalOptimizeRoute();};
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
   const sv = map.getStreetView();
@@ -1275,7 +1294,7 @@ window.routePlannerInit=()=>{
 
   window.addEventListener('resize', ()=>{
     clearTimeout(window.__rb);
-    window.__rb=setTimeout(rebalanceFrameHeights,150);
+    window.__rb=setTimeout(()=>{ rebalanceFrameHeights(); buildTimelineFromDOM(); },150);
   });
 };
 
