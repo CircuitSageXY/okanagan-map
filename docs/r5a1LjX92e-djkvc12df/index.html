@@ -71,7 +71,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 
 .frame-body{
   display:grid;grid-template-columns: var(--tlW) 1fr;column-gap:12px;
-  align-items:stretch; padding:12px 10px 8px 6px; /* space between name and first tick */
+  align-items:stretch; padding:12px 10px 8px 6px; /* extra space before first tick */
 }
 
 /* Per-frame timeline visuals */
@@ -184,7 +184,6 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .toggleChip.active.day  {background:var(--f-afternoon);color:#fff;}
 .toggleChip.active.night{background:var(--f-evening);color:#fff;}
 
-/* No "+" and no Route button in flat view */
 #addrList .row{margin:6px 0;}
 
 #addrFooter{margin-top:10px;border-top:1px solid #dadada;padding-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
@@ -195,21 +194,26 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 #flatDelSel{background:#db4437;color:#fff;display:none;}
 
 /* ---------- KML CARD (custom overlay) ---------- */
-/* glassy pill with centered title, pop-in animation, and matching pointer */
 .kml-card{
-  --card-bg: rgba(32,40,51,.92);
-  position:absolute; transform:translate(-50%,-100%); /* anchor bottom-center */
+  --card-bg: rgba(58,68,80,.88); /* lighter than before */
+  position:absolute; transform:translate(-50%,-100%);
   min-width:160px; max-width:320px;
-  color:#eaf2f8; background:var(--card-bg);
-  border:1px solid rgba(255,255,255,.15);
-  border-radius:14px; box-shadow:0 10px 24px rgba(0,0,0,.35);
+  color:#eef4fa; background:var(--card-bg);
+  border:1px solid rgba(255,255,255,.2);
+  border-radius:14px; box-shadow:0 12px 26px rgba(0,0,0,.35);
   overflow:hidden; z-index:2000; pointer-events:auto;
   backdrop-filter: blur(8px);
-  animation: pop .18s ease-out;
+  animation: pop .12s ease-out;
 }
-@keyframes pop{0%{opacity:0; transform:translate(-50%,-100%) scale(.9);}100%{opacity:1; transform:translate(-50%,-100%) scale(1);}}
-
-/* header laid out as 3 cols so title can be truly centered */
+@keyframes pop{
+  0%{opacity:0; transform:translate(-50%,-100%) scale(.9) rotate(-0.5deg);}
+  100%{opacity:1; transform:translate(-50%,-100%) scale(1) rotate(0);}
+}
+.kml-card.out{animation:popout .10s ease-in forwards;}
+@keyframes popout{
+  0%{opacity:1; transform:translate(-50%,-100%) scale(1);}
+  100%{opacity:0; transform:translate(-50%,-110%) scale(.95);}
+}
 .kml-card .hdr{
   display:grid; grid-template-columns:24px 1fr 24px; align-items:center;
   padding:10px 12px; letter-spacing:.3px;
@@ -221,7 +225,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   background:rgba(255,255,255,.12); color:#fff;
 }
 .kml-card .hdr .x:hover{background:rgba(255,255,255,.22);}
-.kml-card .body{padding:8px 12px; font-size:12px; color:#d4dde6; text-align:center; background:rgba(255,255,255,.04);}
+.kml-card .body{padding:8px 12px; font-size:12px; color:#d9e4ee; text-align:center; background:rgba(255,255,255,.05);}
 .kml-card::after{
   content:""; position:absolute; left:50%; bottom:-10px; transform:translateX(-50%);
   width:0; height:0; border-left:10px solid transparent; border-right:10px solid transparent; border-top:10px solid var(--card-bg);
@@ -275,7 +279,7 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 <script>
 /* =================== CONFIG / CONSTANTS =================== */
 const PX_PER_MIN = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxPerMin'));
-const BASE_EMPTY_PER_FRAME = 4;   /* keep FOUR empties when a frame is empty */
+const BASE_EMPTY_PER_FRAME = 4;
 const INITIAL_FLAT_ROWS     = 1;
 
 const TOL_PCT = 0.03;  // 3%
@@ -287,7 +291,7 @@ let autoTimer=null, autoResolveNext=false;
 let dayVisible=false, nightVisible=false, flatMode=false;
 let OK_BOUNDS;
 
-let suppressTopUpOnce = false;    // one-tick guard after deletes / inserts
+let suppressTopUpOnce = false;
 
 /* ---------- FRAMES ---------- */
 const FRAMES=[
@@ -394,7 +398,7 @@ function makeRow(frameId){
   d.querySelector('.remove').onclick=()=>{
     const fid=+d.dataset.frame; const sh=FRAMES.find(f=>f.id===fid).shift;
     d.remove(); renumber();
-    suppressTopUpOnce = true;                      /* prevent any top‑up this tick */
+    suppressTopUpOnce = true;
     normalizeShiftLayout(sh);
     scheduleAutoCompute(120,false); scheduleTimelineBuild(); showDeleteBtns();
   };
@@ -555,7 +559,7 @@ function attachInputEvents(inp){
 
   inp.addEventListener('input',()=>{ inp.dataset.dirty='1'; inp.dataset.lat=''; inp.dataset.lng=''; scheduleAutoCompute(200,false); });
 
-  /* AUTO‑ADD ON TAB/ENTER */
+  /* TAB/ENTER -> accept & move */
   inp.addEventListener('keydown',e=>{
     if(e.key==='Tab'&&!e.shiftKey){e.preventDefault();acceptTopPrediction(inp,true);}
     else if(e.key==='Enter'){e.preventDefault();acceptTopPrediction(inp,true);}
@@ -579,14 +583,12 @@ function attachInputEvents(inp){
   });
 }
 
-/* ---------- helpers for visibility ---------- */
+/* visibility helper (kept for other uses) */
 function isVisible(el){
   if(!(el instanceof Element)) return false;
   const style = window.getComputedStyle(el);
   if(style.display==='none' || style.visibility==='hidden' || +style.opacity===0) return false;
-  // exclude hidden Flat bar when not in flat mode
   if(!flatMode && document.getElementById('addrBar')?.contains(el)) return false;
-  // exclude elements inside hidden/collapsed frames
   let p=el;
   while(p){
     if(p.classList && p.classList.contains('frame')){
@@ -594,7 +596,6 @@ function isVisible(el){
     }
     p=p.parentElement;
   }
-  // final geometry check
   if(!el.offsetParent && el !== document.body) return false;
   return true;
 }
@@ -639,13 +640,13 @@ function normalizeShiftLayout(shift){
     const rows=[...list.querySelectorAll('.row')];
     const hasFilled = rows.some(r=>r.querySelector('.stop').value.trim());
 
-    let targetPlaceholders = BASE_EMPTY_PER_FRAME;     // default for empty frames
+    let targetPlaceholders = BASE_EMPTY_PER_FRAME;
     let allowAdd = !hasFilled && !suppressTopUpOnce;
 
     if(hasFilled){
       const lastRow = rows[rows.length-1];
       const lastIsEmpty = lastRow && !lastRow.querySelector('.stop').value.trim();
-      targetPlaceholders = lastIsEmpty ? 1 : 0;       // exactly one if the last is empty
+      targetPlaceholders = lastIsEmpty ? 1 : 0;
       allowAdd = false;
     }
 
@@ -733,9 +734,9 @@ async function multiPaste(e){
   collapseEmptyFramesInShift(shift);
 }
 
-/* Accept top prediction on Tab/Enter; when done, move focus / auto-add */
+/* ====== Accept top prediction, then move within SAME list ====== */
 function acceptTopPrediction(input, doAutoAdd=false){
-  const finalize = () => { if(doAutoAdd) focusNextInput(input,true); else focusNextInput(input,false); scheduleAutoCompute(0,true); };
+  const finalize = () => { focusNextInSameList(input, doAutoAdd); scheduleAutoCompute(0,true); };
 
   if (input.dataset.lat && input.dataset.lng){
     delete input.dataset.dirty; return finalize();
@@ -759,33 +760,33 @@ function acceptTopPrediction(input, doAutoAdd=false){
   );
 }
 
-/* AUTO‑ADD ON TAB: ensure there is an empty slot immediately after
-   — NOW filters to *visible* inputs so Day/Night isn’t hijacked by hidden Flat inputs */
-function focusNextInput(current, autoAdd){
-  const all=[...document.querySelectorAll('input.stop')].filter(isVisible);
-  const idx=all.indexOf(current);
-  const curRow=current.closest('.row');
+/* -------- Move to next input strictly inside the SAME list/frame -------- */
+function focusNextInSameList(current, autoAdd){
+  const list = current.closest('#addrList, .frame-list');
+  const inputs = [...list.querySelectorAll('input.stop')];
+  const idx = inputs.indexOf(current);
+  const curRow = current.closest('.row');
 
-  const next = all[idx+1];
+  const next = inputs[idx+1];
 
   if(next){
     if(!next.value.trim()){
-      next.focus({preventScroll:true}); return;
+      next.focus({preventScroll:true});
+      return;
     }
     if(autoAdd){
       const r=addRowAfter(curRow);
-      const el=r.querySelector('.stop');
-      el.focus({preventScroll:true});
-      suppressTopUpOnce = true;   // keep that new slot for this tick
+      const el=r.querySelector('.stop'); el.focus({preventScroll:true});
+      suppressTopUpOnce = true;
       return;
     }else{
-      next.focus({preventScroll:true}); return;
+      next.focus({preventScroll:true});
+      return;
     }
   }else{
     if(autoAdd){
       const r=addRowAfter(curRow);
-      const el=r.querySelector('.stop');
-      el.focus({preventScroll:true});
+      const el=r.querySelector('.stop'); el.focus({preventScroll:true});
       suppressTopUpOnce = true;
     }
   }
@@ -1159,7 +1160,6 @@ async function optimizeByFramesTwoPass(){
            !sec.classList.contains('collapsed') && sec.style.display!=='none';
   });
 
-  // Gather rows and candidate internal orders per frame
   const framesData=[];
   for(const fr of visFrames){
     const list=document.getElementById('frame-'+fr.id);
@@ -1233,7 +1233,7 @@ async function optimizeByFramesTwoPass(){
     const newRows=c.ord.map(idx=>fd.rows[idx]);
     newRows.forEach(r=>fd.list.appendChild(r));
     compactFrameList(fd.list);
-    pruneListGaps(fd.list, 0, false);  // remove empties in used frames
+    pruneListGaps(fd.list, 0, false);
   });
 
   renumber();
@@ -1279,7 +1279,7 @@ window.routePlannerInit=()=>{
 
   class CardOverlay extends google.maps.OverlayView{
     constructor(position, title, desc,bg){
-      super(); this.position=position; this.title=title||'Area'; this.desc=desc||''; this.bg=bg||'rgba(32,40,51,.92)';
+      super(); this.position=position; this.title=title||'Area'; this.desc=desc||''; this.bg=bg||'rgba(58,68,80,.88)';
       this.div=null;
     }
     onAdd(){
@@ -1289,7 +1289,7 @@ window.routePlannerInit=()=>{
       this.div.innerHTML=`<div class="hdr"><div></div><div class="title">${this.title}</div><div class="x" title="Close">✕</div></div>
                           ${this.desc?`<div class="body">${this.desc}</div>`:''}`;
       this.getPanes().floatPane.appendChild(this.div);
-      this.div.querySelector('.x').addEventListener('click',()=>{ this.setMap(null); });
+      this.div.querySelector('.x').addEventListener('click',()=>{ this.fadeOut(); });
       this.div.addEventListener('click',e=>e.stopPropagation());
     }
     draw(){
@@ -1298,13 +1298,18 @@ window.routePlannerInit=()=>{
       this.div.style.left=pt.x+'px';
       this.div.style.top =pt.y+'px';
     }
+    fadeOut(){
+      if(!this.div){ this.setMap(null); return; }
+      this.div.classList.add('out');
+      setTimeout(()=>this.setMap(null), 110);
+    }
     onRemove(){ if(this.div && this.div.parentNode) this.div.parentNode.removeChild(this.div); this.div=null; }
   }
 
   let currentCard=null;
   let currentCardName='';
 
-  function closeCard(){ if(currentCard){ currentCard.setMap(null); currentCard=null; currentCardName=''; } }
+  function closeCard(){ if(currentCard){ currentCard.fadeOut(); currentCard=null; currentCardName=''; } }
   function openCard(latLng, name, desc){
     closeCard();
     currentCard = new CardOverlay(latLng, name, desc);
@@ -1322,6 +1327,9 @@ window.routePlannerInit=()=>{
 
   map.addListener('click', closeCard);
   map.addListener('dblclick', closeCard);
+  /* Also close when clicking anywhere on the left panel (top-level and scroller) */
+  document.getElementById('panel').addEventListener('click', closeCard, true);
+  document.getElementById('scroller').addEventListener('click', closeCard, true);
 
   /* ---------- directions / services ---------- */
   dirSvc=new google.maps.DirectionsService();
