@@ -25,9 +25,8 @@
   --f-afternoon:#03A9F4; --f-supper:#FF9800;
   --f-evening:#BA68C8; --f-lateev:#F44336;
 
-  /* layout sizing */
-  --panelW:480px;          /* slightly narrower */
-  --tlW:74px;              /* per-frame timeline column */
+  --panelW:480px;
+  --tlW:74px;
   --axis-w:4px;
   --tick-minor:#9e9e9e; --tick-major:#424242;
 
@@ -46,10 +45,10 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   box-shadow:var(--clrPanelShadow);border-top-right-radius:var(--radiusLg);
   border-bottom-right-radius:var(--radiusLg);display:flex;flex-direction:column;
 }
-#scroller{flex:1;overflow:auto;position:relative;padding:12px 12px 16px 0;}
+#scroller{flex:1;overflow:auto;position:relative;padding:12px 12px 8px 0;}
 #content{display:flex;align-items:flex-start;position:relative;}
 
-/* ---------- (OLD) GLOBAL TIMELINE COLUMN ---------- */
+/* hide legacy global timeline */
 #timelineCol{display:none;} #timeline{display:none;}
 
 /* ---------- FRAMES ---------- */
@@ -59,8 +58,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   box-shadow:0 1px 2px rgba(0,0,0,.08);position:relative;display:flex;flex-direction:column;
 }
 .frame-header{
-  position:sticky;top:0;
-  z-index:1;display:flex;align-items:center;gap:8px;padding:6px 10px;
+  position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:8px;padding:6px 10px;
   font-size:15px;font-weight:500;color:#000;border-bottom:1px solid #e0e0e0;background:#fafafa;
 }
 .frame-header .swatch{width:16px;height:16px;border-radius:3px;flex:none;}
@@ -70,7 +68,6 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .frame.collapsed{opacity:.55;}
 .frame.collapsed .frame-hide{color:#c00;}
 
-/* per-frame body: left timeline + right rows */
 .frame-body{
   display:grid;grid-template-columns: var(--tlW) 1fr;column-gap:12px;
   align-items:stretch; padding:6px 10px 8px 6px;
@@ -89,10 +86,9 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   transform:translate(-50%,-50%);box-shadow:0 0 4px rgba(0,0,0,.4);animation:pulse 2s infinite;z-index:3;}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(0,0,0,.35);}70%{box-shadow:0 0 0 6px rgba(0,0,0,0);}100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}}
 
-/* subtle shaded time band */
+/* subtle shaded band */
 .tl-seg{position:absolute;left:0;right:0;border-radius:3px;opacity:.08;}
 
-/* rows column */
 .frame-list{overflow:visible;flex:1 1 auto;}
 .addRowBtn{
   margin:6px 10px 10px calc(10px + var(--tlW));
@@ -100,7 +96,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;flex:none;}
 .addRowBtn:hover{background:#e7e7e7;}
 
-/* colored left borders per frame */
+/* colored borders per frame */
 .frame[data-frame="0"]{border-left:4px solid var(--f-early);}
 .frame[data-frame="1"]{border-left:4px solid var(--f-late);}
 .frame[data-frame="2"]{border-left:4px solid var(--f-lunch);}
@@ -151,19 +147,15 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   transition:transform var(--transFast),background var(--transFast);}
 .remove:hover{background:#f75a4d;transform:scale(1.08);} .remove:active{transform:scale(.94);}
 
-/* ---------- LEG SUMMARY / MSG ---------- */
-#msg{margin:8px 0 10px 12px;color:#0066cc;font-weight:700;font-size:16px;}
-.leg-display{margin:6px 0 0 28px;font-size:16px;font-weight:600;color:#1b1b1b;
-  padding:4px 10px;border-radius:6px;background:rgba(0,0,0,.06);display:inline-block;line-height:1.25;white-space:nowrap;}
-.leg-A{background:rgba(66,133,244,.15);border-left:4px solid var(--clrA);}
-.leg-B{background:rgba(15,157,88,.18);border-left:4px solid var(--clrB);}
-.leg-C{background:rgba(244,180,0,.20);border-left:4px solid var(--clrC);}
-.leg-D{background:rgba(219,68,55,.20);border-left:4px solid var(--clrD);}
-.leg-E{background:rgba(171,71,188,.18);border-left:4px solid var(--clrE);}
-.leg-F{background:rgba(0,172,193,.18);border-left:4px solid var(--clrF);}
-.leg-G{background:rgba(255,112,67,.18);border-left:4px solid var(--clrG);}
-.leg-H{background:rgba(141,110,99,.18);border-left:4px solid var(--clrH);}
-.leg-default{background:rgba(96,125,139,.18);border-left:4px solid var(--clrDefault);}
+/* ---------- TOTALS (BOTTOM) ---------- */
+#msg{
+  position:sticky; bottom:0;
+  margin:0; padding:8px 12px 10px 12px;
+  color:#0b63c7;font-weight:700;font-size:16px;
+  background:linear-gradient(to bottom, rgba(240,248,255,.6), rgba(240,248,255,.95));
+  border-top:1px solid #d7d7d7;
+  backdrop-filter:blur(2px);
+}
 
 /* ---------- STREET VIEW BACK ---------- */
 #svBack{
@@ -176,7 +168,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 #panel.flat{width:auto;background:transparent;border:none;box-shadow:none;pointer-events:none;}
 #panel.flat #content{display:none;}
 #panel.flat #scroller{padding:12px;}
-#panel.flat #msg{display:none;}  /* flat uses its own total */
+#panel.flat #msg{display:none;}
 
 #addrBar{
   position:absolute;top:12px;left:12px;width:380px;z-index:8;
@@ -219,11 +211,12 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 
 <div id="panel">
   <div id="scroller">
-    <div id="msg"></div>
     <div id="content">
       <div id="timelineCol"><div id="timeline"></div></div>
       <div id="framesContainer"></div>
     </div>
+    <!-- totals at the very bottom of the panel -->
+    <div id="msg"></div>
   </div>
 </div>
 
@@ -266,7 +259,7 @@ let autoTimer=null, autoResolveNext=false;
 let dayVisible=false, nightVisible=false, flatMode=false;
 let OK_BOUNDS;
 
-/* one-shot switch to prevent “top-up to 4 placeholders” right after paste */
+/* prevent auto top-up immediately after paste */
 let suppressTopUpOnce = false;
 
 /* ---------- FRAMES ---------- */
@@ -286,7 +279,7 @@ const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);};
 const pad=n=>n.toString().padStart(2,'0');
 
-/* ==== Guard + debounced scheduler for timelines ==== */
+/* timeline guards */
 let __buildingTimeline = false;
 let __tl_req = 0, __tl_to = 0;
 function scheduleTimelineBuild(){
@@ -346,8 +339,9 @@ function buildFrameBuckets(){
     Sortable.create(list,{
       group:'stops', handle:'.drag', animation:150,
       onEnd:evt=>{
-        evt.item.dataset.frame=list.parentElement.parentElement.dataset.frame;
-        renumber();scheduleAutoCompute(120,false);scheduleTimelineBuild();
+       evt.item.dataset.frame=list.parentElement.parentElement.dataset.frame;
+       renumber(); normalizeShiftLayout(FRAMES.find(f=>f.id==evt.item.dataset.frame).shift);
+       scheduleAutoCompute(120,false); scheduleTimelineBuild();
       }
     });
   });
@@ -357,10 +351,7 @@ function buildFrameBuckets(){
 
   const ro=new ResizeObserver(()=>scheduleTimelineBuild());
   document.querySelectorAll('.frame').forEach(f=>ro.observe(f));
-  const mo=new MutationObserver(()=>{
-    clearTimeout(__tl_to);
-    __tl_to = setTimeout(scheduleTimelineBuild, 50);
-  });
+  const mo=new MutationObserver(()=>{ clearTimeout(__tl_to); __tl_to=setTimeout(scheduleTimelineBuild,50); });
   document.querySelectorAll('.frame-list').forEach(fl=>mo.observe(fl,{childList:true,subtree:true}));
 }
 
@@ -378,7 +369,11 @@ function makeRow(frameId){
     <input class="stop" placeholder="Enter stop" autocomplete="off" autocorrect="off" spellcheck="false">
     <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
     <span class="remove" title="Remove stop">×</span>`;
-  d.querySelector('.remove').onclick=()=>{d.remove();renumber();scheduleAutoCompute(120,false);scheduleTimelineBuild();showDeleteBtns();};
+  d.querySelector('.remove').onclick=()=>{
+    const fid=+d.dataset.frame; const sh=FRAMES.find(f=>f.id===fid).shift;
+    d.remove(); renumber(); normalizeShiftLayout(sh);
+    scheduleAutoCompute(120,false); scheduleTimelineBuild(); showDeleteBtns();
+  };
   d.addEventListener('click',rowSelectToggle);
   attachInputEvents(d.querySelector('.stop'));
   return d;
@@ -417,11 +412,8 @@ function buildTimelineFromDOM(){
       buildTimelineForFrame(fr.id);
     });
     renumber();
-  } finally {
-    __buildingTimeline = false;
-  }
+  } finally { __buildingTimeline = false; }
 }
-
 function buildTimelineForFrame(frameId){
   const meta=FRAMES.find(f=>f.id===frameId);
   const tl=document.getElementById('timeline-frame-'+frameId);
@@ -450,7 +442,6 @@ function buildTimelineForFrame(frameId){
   if(m>=startM && m<=endM){
     const y=(m-startM)/span*h; const mark=document.createElement('div');mark.className='nowMarker';mark.style.top=y+'px'; tl.appendChild(mark);
   }
-
   function addTick(totalMins,y,bold=false){
     const tick=document.createElement('div');tick.className='tl-tick'+(bold?' bold':'');tick.style.top=y+'px';
     const lbl=document.createElement('div');lbl.className='tl-label';lbl.textContent=`${pad(Math.floor(totalMins/60))}:${pad(totalMins%60)}`;
@@ -470,14 +461,12 @@ function setSelected(row,on){
 }
 function showDeleteBtns(){
   const any=document.querySelector('.row.selected');
-  const delBtn=document.getElementById('delSel'); /* not present in this build */
-  if(delBtn) delBtn.style.display=any&&!flatMode?'inline-block':'none';
   const flatDel=document.getElementById('flatDelSel');
   if(flatDel) flatDel.style.display=any&&flatMode?'inline-block':'none';
 }
 function deleteSelected(){
   document.querySelectorAll('.row.selected').forEach(r=>r.remove());
-  showDeleteBtns();renumber();scheduleAutoCompute(120,false);scheduleTimelineBuild();
+  showDeleteBtns();renumber();normalizeShiftLayoutVisible();scheduleAutoCompute(120,false);scheduleTimelineBuild();
 }
 document.addEventListener('keydown',e=>{
   if((e.key==='Delete'||e.key==='Backspace')&&document.querySelector('.row.selected')){
@@ -488,7 +477,7 @@ document.addEventListener('click',e=>{
   if(e.ctrlKey||e.metaKey) return;
   if(!document.querySelector('.row.selected')) return;
   const inRow = e.target.closest('.row');
-  const onDel = e.target.closest('#delSel, #flatDelSel');
+  const onDel = e.target.closest('#flatDelSel');
   if(inRow || onDel) return;
   document.querySelectorAll('.row.selected').forEach(r=>r.classList.remove('selected'));
   showDeleteBtns();
@@ -496,7 +485,7 @@ document.addEventListener('click',e=>{
 
 function idxToLabel(i){let s='',n=i+1;while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;}
 
-/* ==== Global renumber across visible frames (A..Z, AA..) ==== */
+/* Global renumber across visible frames (A..Z, AA..) */
 function renumber(){
   if(flatMode){
     const rows=[...document.querySelectorAll('#addrList .row')];
@@ -553,14 +542,13 @@ function attachInputEvents(inp){
   });
 }
 
-/* ---------- Helpers for compaction / pruning ---------- */
+/* ---------- Compaction / pruning ---------- */
 function compactFrameList(list){
   const rows=[...list.querySelectorAll('.row')];
   const filled=rows.filter(r=>r.querySelector('.stop').value.trim());
   const empties=rows.filter(r=>!r.querySelector('.stop').value.trim());
   [...filled,...empties].forEach(r=>list.appendChild(r));
 }
-/* addPlaceholders: if false, DON'T add rows to top-up; still removes internal gaps */
 function pruneListGaps(list, placeholdersAtEnd, addPlaceholders=true){
   const rows=[...list.querySelectorAll('.row')];
   let lastFilled=-1;
@@ -579,23 +567,47 @@ function pruneListGaps(list, placeholdersAtEnd, addPlaceholders=true){
     for(let i=blanks;i<placeholdersAtEnd;i++){ const row=makeRow(+list.id.replace('frame-','')||0); list.appendChild(row); }
   }
 }
-function pruneEmptyGapsVisible(){
-  const addPlaceholders = !suppressTopUpOnce;
-  if(flatMode){
-    pruneListGaps(document.getElementById('addrList'), 0, addPlaceholders);
-  }else{
-    FRAMES.forEach(fr=>{
-      const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
-      const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
-      if(!vis || sec.classList.contains('collapsed') || sec.style.display==='none') return;
-      pruneListGaps(document.getElementById('frame-'+fr.id), BASE_EMPTY_PER_FRAME, addPlaceholders);
-    });
-  }
-  suppressTopUpOnce = false;  // reset after first pass
+
+/* Normalize shift so there are NO empties between filled frames */
+function normalizeShiftLayout(shift){
+  if(flatMode) return;
+  const framesInShift=FRAMES.filter(f=>f.shift===shift);
+  // find last used frame (with any filled rows)
+  let lastUsed=-1;
+  framesInShift.forEach((f,idx)=>{
+    const list=document.getElementById('frame-'+f.id);
+    const hasFilled=[...list.querySelectorAll('.row')].some(r=>r.querySelector('.stop').value.trim());
+    if(hasFilled) lastUsed=idx;
+  });
+
+  framesInShift.forEach((f,idx)=>{
+    const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
+    const vis=(f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible);
+    if(!vis || sec.classList.contains('collapsed') || sec.style.display==='none') return;
+
+    const list=document.getElementById('frame-'+f.id);
+    const hasFilled=[...list.querySelectorAll('.row')].some(r=>r.querySelector('.stop').value.trim());
+
+    // If this frame has filled rows and is NOT the last used frame, keep 0 placeholders at end.
+    // If it's the last used frame, allow base placeholders (unless we just pasted).
+    // If it has no filled rows, keep base placeholders (unless auto-collapsed later).
+    const isLastUsed = (idx===lastUsed);
+    const allowAdd = isLastUsed ? !suppressTopUpOnce : false;
+    const targetPlaceholders = hasFilled ? (isLastUsed?BASE_EMPTY_PER_FRAME:0) : BASE_EMPTY_PER_FRAME;
+
+    compactFrameList(list);
+    pruneListGaps(list, targetPlaceholders, allowAdd || (!hasFilled && !suppressTopUpOnce));
+  });
+
+  suppressTopUpOnce = false;
   renumber();
 }
+function normalizeShiftLayoutVisible(){
+  if(dayVisible) normalizeShiftLayout('day');
+  if(nightVisible) normalizeShiftLayout('night');
+}
 
-/* ====== Multi‑paste (NO new rows, NO gaps; uses only existing empties) ====== */
+/* ====== Multi‑paste (NO new rows; no gaps across frames) ====== */
 async function multiPaste(e){
   const clip=(e.clipboardData||window.clipboardData).getData('text');
   const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -604,7 +616,6 @@ async function multiPaste(e){
 
   const startRow=e.target.closest('.row');
 
-  /* Flat view: use existing logic (may add rows) */
   if(flatMode){
     const container=document.getElementById('addrList');
     let rows=[...container.querySelectorAll('.row')];
@@ -616,12 +627,10 @@ async function multiPaste(e){
     renumber();
     await ensureCoords(lines.map((_,i)=>rows[startIdx+i]).filter(Boolean),{parallel:true});
     pruneListGaps(container, 0, true);
-    autoResolveNext=true;
-    await rebuildRoute();          // ensure totals show immediately
+    autoResolveNext=true; await rebuildRoute();
     return;
   }
 
-  /* Day/Night view: fill only existing empties, starting at the pasted row index */
   const firstFrameId=+startRow.dataset.frame;
   const frMeta=FRAMES.find(f=>f.id===firstFrameId);
   const shift=frMeta.shift;
@@ -637,7 +646,6 @@ async function multiPaste(e){
     touchedLists.add(list);
     const rows=[...list.querySelectorAll('.row')];
 
-    // For the first frame, start at the pasted row's index; for subsequent frames, start at 0
     let startAt=0;
     if(fid===firstFrameId) startAt=rows.indexOf(startRow);
 
@@ -647,7 +655,6 @@ async function multiPaste(e){
     }
   }
 
-  // Fill as many as we can without creating new rows
   let i=0;
   while(i<lines.length && i<targets.length){
     const inp=targets[i];
@@ -655,7 +662,6 @@ async function multiPaste(e){
     i++;
   }
 
-  // Compact & remove internal gaps (DO NOT add any new placeholders now)
   touchedLists.forEach(list=>{
     compactFrameList(list);
     pruneListGaps(list, BASE_EMPTY_PER_FRAME, false);
@@ -664,13 +670,14 @@ async function multiPaste(e){
   renumber();
   await ensureCoords(getOrderedRows(true),{parallel:true});
 
-  // Prevent the immediate recompute from adding placeholders; then compute & update totals
+  // keep frames tight across boundary on this tick
   suppressTopUpOnce = true;
-  autoResolveNext=true;
-  pruneEmptyGapsVisible();   // cleans gaps without topping up
-  await rebuildRoute();      // ensure Total Distance | Time appears right away
+  normalizeShiftLayout(shift);
 
-  // Optionally collapse empty frames in the current shift
+  autoResolveNext=true;
+  await rebuildRoute();
+
+  // Hide frames that ended up with no addresses in this shift
   collapseEmptyFramesInShift(shift);
 }
 
@@ -728,6 +735,7 @@ function applyShiftVisibility(){
   rebalanceFrameHeights();
   scheduleTimelineBuild();
   renumber();
+  normalizeShiftLayoutVisible();
   scheduleAutoCompute(120,false);
 }
 function buildAddrBar(){
@@ -901,7 +909,7 @@ async function autoCompute(){
     else{ clearDirections(); clearLegDisplays(); return; }
   }
 
-  pruneEmptyGapsVisible();
+  normalizeShiftLayoutVisible();
 
   if(rows.length===1){
     clearDirections();clearLegDisplays();clearPreviewPins();
@@ -1027,114 +1035,98 @@ function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){
   return ord;
 }
 
-/* =================== GLOBAL OPTIMIZER (unchanged) =================== */
-async function globalOptimizeRoute(){
-  const rows=getOrderedRows();
-  const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
-  clearLegDisplays();
-
-  if(rows.length<3){await rebuildRoute();return;}
-
-  const ok=await ensureCoords(rows,{parallel:true});
-  if(!ok){msg.textContent='One or more stops can’t be located – please edit.';flatMsg.textContent=msg.textContent;return;}
-
-  const pts=rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
-  const D=buildDistanceMatrix(pts);
-  const ord=solveTSPWithMatrix(D);
-
-  const grouped=new Map();
-  rows.forEach((r,i)=>{ const p=r.parentElement; if(!grouped.has(p)) grouped.set(p,[]); grouped.get(p).push({r,i}); });
-  grouped.forEach((arr,p)=>{ arr.sort((a,b)=>ord.indexOf(a.i)-ord.indexOf(b.i)); arr.forEach(({r})=>p.appendChild(r)); compactFrameList(p); });
-
-  renumber();
-  await rebuildRoute();
-  msg.textContent='Optimized.'; flatMsg.textContent='Optimized.';
-}
-
-/* =================== BY‑FRAMES TWO‑PASS OPTIMIZER =================== */
+/* =================== BY‑FRAMES OPTIMIZER (DP across frames) =================== */
 async function optimizeByFramesTwoPass(){
   const msg=document.getElementById('msg'); const flatMsg=document.getElementById('flatMsg');
   msg.textContent=''; flatMsg.textContent='';
 
   const visFrames=FRAMES.filter(f=>{
     const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
-    return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) && !sec.classList.contains('collapsed') && sec.style.display!=='none';
+    return ((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)) &&
+           !sec.classList.contains('collapsed') && sec.style.display!=='none';
   });
 
+  // Gather rows and candidate internal orders per frame
   const framesData=[];
   for(const fr of visFrames){
     const list=document.getElementById('frame-'+fr.id);
     compactFrameList(list);
     const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
-    if(rows.length<2){ framesData.push({fr, list, rows, pts:[], D:null, baseOrder:null, baseCost:0}); continue; }
+    if(rows.length===0){ framesData.push({fr,list,rows,pts:[],cands:[{ord:[],cost:0,start:null,end:null}]}); continue; }
+    if(rows.length===1){
+      const p={lat:+rows[0].querySelector('.stop').dataset.lat,lng:+rows[0].querySelector('.stop').dataset.lng};
+      framesData.push({fr,list,rows,pts:[p],cands:[{ord:[0],cost:0,start:0,end:0}]}); continue;
+    }
     const ok=await ensureCoords(rows,{parallel:true}); if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
     const pts=rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
     const D=buildDistanceMatrix(pts);
-    let ord=solveTSPWithMatrix(D);
-    const baseCost=orderCost(ord,D);
-    framesData.push({fr, list, rows, pts, D, baseOrder:ord, baseCost});
+    const base=solveTSPWithMatrix(D);
+    const baseCost=orderCost(base,D);
+
+    const cands=[];
+    const K=rows.length;
+    for(let s=0;s<K;s++){
+      // forward rotation
+      let ordF=[...base.slice(s),...base.slice(0,s)];
+      let costF=orderCost(ordF,D);
+      if(costF <= baseCost*(1+TOL_PCT)+TOL_KM){
+        cands.push({ord:ordF,cost:costF,start:ordF[0],end:ordF[ordF.length-1]});
+      }
+      // reversed rotation
+      let rev=[...base].reverse();
+      let ordR=[...rev.slice(s),...rev.slice(0,s)];
+      let costR=orderCost(ordR,D);
+      if(costR <= baseCost*(1+TOL_PCT)+TOL_KM){
+        cands.push({ord:ordR,cost:costR,start:ordR[0],end:ordR[ordR.length-1]});
+      }
+    }
+    // always include base as a candidate
+    cands.push({ord:base,cost:baseCost,start:base[0],end:base[base.length-1]});
+
+    framesData.push({fr,list,rows,pts,cands,D});
   }
 
-  framesData.forEach(fd=>{
-    if(fd.rows.length<2) return;
-    const ord=fd.baseOrder;
-    ord.forEach(i=>fd.list.appendChild(fd.rows[i]));
+  // DP over frames to minimize connectors + internal costs
+  function connCost(a,b){ if(!a||!b) return 0; return haversine(a,b); }
+  const nF=framesData.length;
+  const dp=Array.from({length:nF},()=>[]);
+  const prevIdx=Array.from({length:nF},()=>[]);
+
+  for(let ci=0; ci<framesData[0].cands.length; ci++){
+    dp[0][ci]=framesData[0].cands[ci].cost;
+    prevIdx[0][ci]=-1;
+  }
+  for(let i=1;i<nF;i++){
+    const A=framesData[i-1], B=framesData[i];
+    for(let bi=0; bi<B.cands.length; bi++){
+      let best=Infinity, bestPrev=-1;
+      const b=B.cands[bi];
+      for(let ai=0; ai<A.cands.length; ai++){
+        const a=A.cands[ai];
+        const cc = connCost(A.pts[a.end], B.pts[b.start]);
+        const val = dp[i-1][ai] + cc + b.cost;
+        if(val<best){ best=val; bestPrev=ai; }
+      }
+      dp[i][bi]=best; prevIdx[i][bi]=bestPrev;
+    }
+  }
+  // backtrack
+  let lastFrame=nF-1;
+  let bestFinal=0; let bestIdx=0;
+  dp[lastFrame].forEach((v,i)=>{ if(i===0||v<bestFinal){bestFinal=v; bestIdx=i;} });
+
+  const choice=new Array(nF);
+  choice[lastFrame]=bestIdx;
+  for(let i=lastFrame;i>0;i--) choice[i-1]=prevIdx[i][choice[i]];
+
+  // apply the chosen orders frame by frame
+  framesData.forEach((fd,i)=>{
+    const c=fd.cands[choice[i]];
+    if(!c || !fd.rows.length) return;
+    const newRows=c.ord.map(idx=>fd.rows[idx]);
+    newRows.forEach(r=>fd.list.appendChild(r));
     compactFrameList(fd.list);
   });
-
-  for(let i=0;i<framesData.length-1;i++){
-    const A=framesData[i], B=framesData[i+1];
-    if((A.rows.length<1)||(B.rows.length<2)) continue;
-
-    const lastArow=A.list.querySelectorAll('.row'); if(!lastArow.length) continue;
-    const lastARow = lastArow[lastArow.length-1];
-    const lastA={lat:+lastARow.querySelector('.stop').dataset.lat,lng:+lastARow.querySelector('.stop').dataset.lng};
-
-    let bestOrder=B.baseOrder, bestCost=B.baseCost, bestConnector=Infinity;
-    for(let s=0;s<B.rows.length;s++){
-      const ord=solveTSPWithMatrix(B.D,{fixedStart:s});
-      const cost=orderCost(ord,B.D);
-      if(cost <= B.baseCost*(1+TOL_PCT) + TOL_KM){
-        const startPt=B.pts[ord[0]];
-        const conn=haversine(lastA,startPt);
-        if(conn<bestConnector){bestConnector=conn; bestOrder=ord; bestCost=cost;}
-      }
-    }
-    if(bestOrder!==B.baseOrder){
-      const newRows = bestOrder.map(i=>B.rows[i]);
-      newRows.forEach(r=>B.list.appendChild(r));
-      B.baseOrder = bestOrder; B.baseCost  = bestCost;
-      B.rows = newRows; B.pts  = newRows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
-      B.D = buildDistanceMatrix(B.pts);
-      compactFrameList(B.list);
-    }
-  }
-
-  for(let i=framesData.length-2;i>=0;i--){
-    const A=framesData[i], B=framesData[i+1];
-    if((A.rows.length<2)||(B.rows.length<1)) continue;
-
-    const firstB = B.pts[B.baseOrder[0]];
-    let bestOrder=A.baseOrder, bestCost=A.baseCost, bestConnector=haversine(A.pts[A.baseOrder[A.baseOrder.length-1]], firstB);
-
-    for(let e=0;e<A.rows.length;e++){
-      const ord=solveTSPWithMatrix(A.D,{fixedEnd:e});
-      const cost=orderCost(ord,A.D);
-      if(cost <= A.baseCost*(1+TOL_PCT) + TOL_KM){
-        const endPt=A.pts[ord[ord.length-1]];
-        const conn=haversine(endPt, firstB);
-        if(conn<bestConnector){bestConnector=conn; bestOrder=ord; bestCost=cost;}
-      }
-    }
-    if(bestOrder!==A.baseOrder){
-      const newRows = bestOrder.map(i=>A.rows[i]);
-      newRows.forEach(r=>A.list.appendChild(r));
-      A.baseOrder = bestOrder; A.baseCost  = bestCost;
-      A.rows = newRows; A.pts  = newRows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
-      A.D = buildDistanceMatrix(A.pts);
-      compactFrameList(A.list);
-    }
-  }
 
   renumber();
   await rebuildRoute();
@@ -1179,8 +1171,8 @@ window.routePlannerInit=()=>{
   dayVisible=false; nightVisible=false; applyShiftVisibility();
 
   // Flat view buttons remain
-  document.getElementById('flatRoute').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); rebuildRoute();};
-  document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); globalOptimizeRoute();};
+  document.getElementById('flatRoute').onclick=()=>{autoResolveNext=true; normalizeShiftLayoutVisible(); rebuildRoute();};
+  document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; normalizeShiftLayoutVisible(); globalOptimizeRoute();};
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
   const sv = map.getStreetView();
@@ -1197,9 +1189,7 @@ window.routePlannerInit=()=>{
       if(e.key==='F1') toggleShift('day');
       else if(e.key==='F2') toggleShift('night');
       else if(e.key==='F3') clearAllStops();
-      else if(e.key==='F4'){ // Optimize by Frames (only in Day/Night view)
-        if(!flatMode){ autoResolveNext=true; pruneEmptyGapsVisible(); optimizeByFramesTwoPass(); }
-      }
+      else if(e.key==='F4'){ if(!flatMode){ autoResolveNext=true; normalizeShiftLayoutVisible(); optimizeByFramesTwoPass(); } }
     }
     function onUp(e){
       if(!['F1','F2','F3','F4'].includes(e.key)) return;
