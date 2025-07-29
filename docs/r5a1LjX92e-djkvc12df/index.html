@@ -283,6 +283,15 @@ const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);};
 const pad=n=>n.toString().padStart(2,'0');
 
+/* =================== UTILITIES =================== */
+function visibleFrameIdsInOrder(){
+  return FRAMES.filter(fr=>{
+    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
+    const shiftOn = (fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
+    return shiftOn && sec.style.display!=='none' && !sec.classList.contains('collapsed');
+  }).map(fr=>fr.id);
+}
+
 /* =================== UI BUILD =================== */
 function buildFrameBuckets(){
   const container=document.getElementById('framesContainer');
@@ -557,7 +566,7 @@ function attachInputEvents(inp){
   });
 }
 
-/* Multi‑paste with parallel resolve */
+/* Multi‑paste with cross‑frame distribution */
 async function multiPaste(e){
   const clip=(e.clipboardData||window.clipboardData).getData('text');
   const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -565,26 +574,74 @@ async function multiPaste(e){
   e.preventDefault();
 
   const startRow=e.target.closest('.row');
-  const container = flatMode ? document.getElementById('addrList')
-                             : document.getElementById('frame-'+(+startRow.dataset.frame));
 
-  let rows=[...container.querySelectorAll('.row')];
-  const startIdx=rows.indexOf(startRow);
-  const need=Math.max(0,startIdx+lines.length-rows.length);
-  for(let i=0;i<need;i++){
-    if(flatMode) addRowToAddrBar(false,false); else addRowToFrame(+startRow.dataset.frame,false,false);
+  if(flatMode){
+    /* Flat: keep existing behavior — expand only in the same list */
+    const container = document.getElementById('addrList');
+    let rows=[...container.querySelectorAll('.row')];
+    const startIdx=rows.indexOf(startRow);
+    const need=Math.max(0,startIdx+lines.length-rows.length);
+    for(let i=0;i<need;i++) addRowToAddrBar(false,false);
+    rows=[...container.querySelectorAll('.row')];
+    lines.forEach((addr,i)=>{
+      const r=rows[startIdx+i]; if(!r) return;
+      const el=r.querySelector('.stop');
+      if(!el.value.trim()){ el.value=addr; el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1'; }
+    });
+  }else{
+    /* Frames: fill current frame from paste row down, then subsequent visible frames,
+       using only existing empty rows. Only if no next frame exists, append extra rows to the last frame. */
+    const startFrameId=+startRow.dataset.frame;
+    const orderedIds=visibleFrameIdsInOrder();
+    const startFrameIdx=Math.max(0, orderedIds.indexOf(startFrameId));
+    const framesToUse=orderedIds.slice(startFrameIdx); // current -> end
+
+    let targets=[];
+    // First frame: from start row downward, only empty inputs
+    {
+      const list=document.getElementById('frame-'+startFrameId);
+      let rows=[...list.querySelectorAll('.row')];
+      const startIdx=rows.indexOf(startRow);
+      rows.slice(startIdx).forEach(r=>{
+        const el=r.querySelector('.stop');
+        if(!el.value.trim()) targets.push(el);
+      });
+    }
+    // Subsequent frames: from top, only empty inputs
+    for(let i=1;i<framesToUse.length && targets.length<lines.length;i++){
+      const fid=framesToUse[i];
+      const list=document.getElementById('frame-'+fid);
+      [...list.querySelectorAll('.row')].forEach(r=>{
+        if(targets.length>=lines.length) return;
+        const el=r.querySelector('.stop');
+        if(!el.value.trim()) targets.push(el);
+      });
+    }
+    // If still not enough capacity and there are no more frames, append rows to the last frame only
+    if(targets.length<lines.length){
+      const lastFid = framesToUse.length ? framesToUse[framesToUse.length-1] : startFrameId;
+      const list=document.getElementById('frame-'+lastFid);
+      const toAdd = lines.length - targets.length;
+      for(let i=0;i<toAdd;i++){
+        addRowToFrame(lastFid,false,false);
+        const newRow=list.querySelectorAll('.row')[list.querySelectorAll('.row').length-1];
+        targets.push(newRow.querySelector('.stop'));
+      }
+    }
+    // Apply values into targets in order
+    lines.forEach((addr,i)=>{
+      const el=targets[i]; if(!el) return;
+      el.value=addr; el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1';
+    });
   }
-  rows=[...container.querySelectorAll('.row')];
 
-  lines.forEach((addr,i)=>{
-    const r=rows[startIdx+i]; if(!r) return;
-    const el=r.querySelector('.stop');
-    el.value=addr; el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1';
-  });
   renumber();
 
-  const targetRows = lines.map((_,i)=>rows[startIdx+i]).filter(Boolean);
-  await ensureCoords(targetRows,{parallel:true});
+  // Resolve and compute as before
+  const allRows = flatMode
+    ? [...document.getElementById('addrList').querySelectorAll('.row')]
+    : [...document.querySelectorAll('.frame-list .row')];
+  await ensureCoords(allRows,{parallel:true});
   pruneEmptyGapsVisible();
   scheduleAutoCompute(0,true);
 }
@@ -661,13 +718,10 @@ function buildAddrBar(){
     handle:'.drag',animation:150,
     onEnd:()=>{renumber();scheduleAutoCompute(120,false);}
   });
-  // FIX(1): When user presses +, focus the new input explicitly.
   document.getElementById('addrAdd').onclick=()=>addRowToAddrBar(true,false);
   document.getElementById('toggleDay').onclick=()=>toggleShift('day');
   document.getElementById('toggleNight').onclick=()=>toggleShift('night');
 }
-
-// FIX(1): addRowToAddrBar now supports "focus" flag to prevent focus bouncing
 function addRowToAddrBar(focus=true,select=false){
   const list=document.getElementById('addrList');
   const row=makeRow(0);list.appendChild(row);renumber();
@@ -675,8 +729,6 @@ function addRowToAddrBar(focus=true,select=false){
   if(focus) row.querySelector('.stop').focus({preventScroll:true});
   return row;
 }
-
-// FIX(1): focus the first available input if none is active
 function focusFirstFlatInputIfNone(){
   if(document.activeElement && document.activeElement.classList.contains('stop')) return;
   const list=document.getElementById('addrList');
@@ -690,7 +742,6 @@ function enterFlatMode(){
   document.getElementById('addrBar').classList.add('active');
   const list=document.getElementById('addrList');
   if(list.querySelectorAll('.row').length===0){
-    // FIX(1): Focus only the first placeholder, suppress focus on the rest.
     addRowToAddrBar(true,false);
     for(let i=1;i<INITIAL_FLAT_ROWS;i++) addRowToAddrBar(false,false);
   }else{
@@ -849,7 +900,6 @@ function pruneListGaps(list, placeholdersAtEnd){
 }
 function pruneEmptyGapsVisible(){
   if(flatMode){
-    /* FIX(2): Do not auto-add placeholders in flat mode. */
     pruneListGaps(document.getElementById('addrList'), 0);
   }else{
     FRAMES.forEach(fr=>{
@@ -862,7 +912,7 @@ function pruneEmptyGapsVisible(){
   renumber();
 }
 
-/* FIX(3): helpers for optimization cleanup */
+/* Helpers for optimization cleanup */
 function removeAllEmptyRowsFlat(){
   const list=document.getElementById('addrList');
   [...list.querySelectorAll('.row')].forEach(r=>{
@@ -872,17 +922,17 @@ function removeAllEmptyRowsFlat(){
   renumber();
 }
 function pruneFramesOnOptimize(){
-  // remove empties inside visible frames, and hide frames that end up empty
+  // Remove empty rows in frames that have content; collapse frames that end up empty
   FRAMES.forEach(fr=>{
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
     const visible=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
-    if(!visible || sec.classList.contains('collapsed') || sec.style.display==='none') return;
+    if(!visible || sec.style.display==='none') return;
     const list=document.getElementById('frame-'+fr.id);
     // remove empty rows
     [...list.querySelectorAll('.row')].forEach(r=>{ if(!r.querySelector('.stop').value.trim()) r.remove(); });
     const filled=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim()).length;
     if(filled===0){
-      sec.style.display='none'; // auto-hide this frame
+      sec.classList.add('collapsed'); // collapse (hide body), keep header visible
     }
   });
   renumber();
@@ -1027,7 +1077,6 @@ function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){
   ord = twoOpt(ord,D);
 
   if(fixedEnd!=null && ord[ord.length-1]!==fixedEnd){
-    // try rotating so that fixedEnd is last; if not possible, brute force check rotations
     let best=ord, bestCost=orderCost(ord,D);
     for(let s=0;s<n;s++){
       const r=[...ord.slice(s),...ord.slice(0,s)];
@@ -1037,7 +1086,6 @@ function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){
     ord=best;
   }
   if(fixedStart!=null && ord[0]!==fixedStart){
-    // rotate to fixedStart
     const idx=ord.indexOf(fixedStart);
     if(idx>-1) ord=[...ord.slice(idx),...ord.slice(0,idx)];
   }
@@ -1050,8 +1098,7 @@ async function globalOptimizeRoute(){
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
   clearLegDisplays();
 
-  // FIX(3): In Flat view, remove all empty rows prior to optimize.
-  if(flatMode) removeAllEmptyRowsFlat();
+  if(flatMode) removeAllEmptyRowsFlat(); else pruneFramesOnOptimize();
 
   if(rows.length<3){await rebuildRoute();return;}
 
@@ -1073,7 +1120,7 @@ async function optimizeByFramesTwoPass(){
   const msg=document.getElementById('msg'); const flatMsg=document.getElementById('flatMsg');
   msg.textContent='Optimizing by frames…'; flatMsg.textContent=msg.textContent;
 
-  // FIX(3): Clean up empties and hide empty frames right before optimizing.
+  // Clean up empties and collapse empty frames first
   pruneFramesOnOptimize();
 
   let visFrames=FRAMES.filter(f=>{
@@ -1090,7 +1137,7 @@ async function optimizeByFramesTwoPass(){
     const ok=await ensureCoords(rows,{parallel:true}); if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
     const pts=rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
     const D=buildDistanceMatrix(pts);
-    let ord=solveTSPWithMatrix(D);           // best internal
+    let ord=solveTSPWithMatrix(D);
     const baseCost=orderCost(ord,D);
     framesData.push({fr, list, rows, pts, D, baseOrder:ord, baseCost});
   }
@@ -1111,14 +1158,14 @@ async function optimizeByFramesTwoPass(){
     const lastARow = lastArow[lastArow.length-1];
     const lastA={lat:+lastARow.querySelector('.stop').dataset.lat,lng:+lastARow.querySelector('.stop').dataset.lng};
 
-    let bestStart=0, bestConnector=Infinity, bestOrder=B.baseOrder, bestCost=B.baseCost;
+    let bestOrder=B.baseOrder, bestCost=B.baseCost, bestConnector=Infinity;
     for(let s=0;s<B.rows.length;s++){
       const ord=solveTSPWithMatrix(B.D,{fixedStart:s});
       const cost=orderCost(ord,B.D);
       if(cost <= B.baseCost*(1+TOL_PCT) + TOL_KM){
         const startPt=B.pts[ord[0]];
         const conn=haversine(lastA,startPt);
-        if(conn<bestConnector){bestConnector=conn; bestStart=s; bestOrder=ord; bestCost=cost;}
+        if(conn<bestConnector){bestConnector=conn; bestOrder=ord; bestCost=cost;}
       }
     }
     if(bestOrder!==B.baseOrder){
@@ -1138,7 +1185,7 @@ async function optimizeByFramesTwoPass(){
     if((A.rows.length<2)||(B.rows.length<1)) continue;
 
     const firstB = B.pts[B.baseOrder[0]];
-    let bestEndIdx=A.baseOrder[A.baseOrder.length-1], bestOrder=A.baseOrder, bestCost=A.baseCost, bestConnector=haversine(A.pts[bestEndIdx], firstB);
+    let bestOrder=A.baseOrder, bestCost=A.baseCost, bestConnector=haversine(A.pts[A.baseOrder[A.baseOrder.length-1]], firstB);
 
     for(let e=0;e<A.rows.length;e++){
       const ord=solveTSPWithMatrix(A.D,{fixedEnd:e});
@@ -1146,7 +1193,7 @@ async function optimizeByFramesTwoPass(){
       if(cost <= A.baseCost*(1+TOL_PCT) + TOL_KM){
         const endPt=A.pts[ord[ord.length-1]];
         const conn=haversine(endPt, firstB);
-        if(conn<bestConnector){bestConnector=conn; bestEndIdx=e; bestOrder=ord; bestCost=cost;}
+        if(conn<bestConnector){bestConnector=conn; bestOrder=ord; bestCost=cost;}
       }
     }
     if(bestOrder!==A.baseOrder){
@@ -1195,7 +1242,7 @@ window.routePlannerInit=()=>{
   dayVisible=false; nightVisible=false; applyShiftVisibility();
 
   document.getElementById('route').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); rebuildRoute();};
-  document.getElementById('optAll').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); if(flatMode) removeAllEmptyRowsFlat(); globalOptimizeRoute();};
+  document.getElementById('optAll').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); if(flatMode) removeAllEmptyRowsFlat(); else pruneFramesOnOptimize(); globalOptimizeRoute();};
   document.getElementById('optFrames').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); optimizeByFramesTwoPass();};
   document.getElementById('delSel').onclick=deleteSelected;
   document.getElementById('flatRoute').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); rebuildRoute();};
@@ -1230,13 +1277,9 @@ window.routePlannerInit=()=>{
     clearTimeout(window.__rb);
     window.__rb=setTimeout(rebalanceFrameHeights,150);
   });
-
-  /* If the Google API loaded before this function was defined, init() set the flag.
-     In that case, we’re already inside routePlannerInit, so nothing special is needed. */
 };
 
-/* If the Google loader fired before routePlannerInit existed, init() set __mapsApiReady.
-   Call routePlannerInit now to finish bootstrapping. */
+/* Handle early Google callback case */
 if(window.__mapsApiReady){ window.routePlannerInit(); }
 </script>
 </body>
