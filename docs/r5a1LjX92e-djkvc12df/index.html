@@ -300,6 +300,18 @@ const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);};
 const pad=n=>n.toString().padStart(2,'0');
 
+  // ==== HOTFIX: timeline rebuild guard + debounced scheduler
+let __buildingTimeline = false;
+let __tl_req = 0, __tl_to = 0;
+
+function scheduleTimelineBuild(){
+  if(__tl_req) return;
+  __tl_req = requestAnimationFrame(() => {
+    __tl_req = 0;
+    buildTimelineFromDOM();
+  });
+}
+
 /* =================== UI BUILD =================== */
 function setFrameCollapsed(id, collapse, source='user'){
   const el=document.querySelector(`.frame[data-frame="${id}"]`);
@@ -370,15 +382,18 @@ function buildFrameBuckets(){
   renumber();
 
   // Rebuild per-frame timelines on resize or DOM mutations
-  const ro=new ResizeObserver(()=>buildTimelineFromDOM());
-  document.querySelectorAll('.frame').forEach(f=>ro.observe(f));
-  const mo=new MutationObserver(()=>buildTimelineFromDOM());
-  document.querySelectorAll('.frame-list').forEach(fl=>mo.observe(fl,{childList:true,subtree:true}));
+ const ro=new ResizeObserver(()=>scheduleTimelineBuild());
+document.querySelectorAll('.frame').forEach(f=>ro.observe(f));
+const mo=new MutationObserver(()=>{
+  clearTimeout(__tl_to);
+  __tl_to = setTimeout(scheduleTimelineBuild, 50);
+});
+document.querySelectorAll('.frame-list').forEach(fl=>mo.observe(fl,{childList:true,subtree:true}));
 }
 
 function rebalanceFrameHeights(){
   if(flatMode) return;
-  buildTimelineFromDOM();
+  scheduleTimelineBuild();
 }
 
 /* rows */
@@ -415,20 +430,24 @@ function ensurePlaceholdersForFrame(frameId){
 // ==== CHANGES: build a timeline INSIDE each visible, uncollapsed frame
 function buildTimelineFromDOM(){
   if(flatMode) return;
-
-  FRAMES.forEach(fr=>{
-    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
-    const visible=(fr.shift==='day'?dayVisible:nightVisible) && !sec.classList.contains('collapsed') && sec.style.display!=='none';
-    const tl=document.getElementById('timeline-frame-'+fr.id);
-    if(!tl) return;
-    tl.innerHTML='';
-    if(!visible) return;
-
-    buildTimelineForFrame(fr.id);
-  });
-
-  // renumber after any possible structure updates
-  renumber();
+  if(__buildingTimeline) return;       // guard against re-entrancy
+  __buildingTimeline = true;
+  try{
+    FRAMES.forEach(fr=>{
+      const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
+      const visible=(fr.shift==='day'?dayVisible:nightVisible) &&
+                     !sec.classList.contains('collapsed') &&
+                     sec.style.display!=='none';
+      const tl=document.getElementById('timeline-frame-'+fr.id);
+      if(!tl) return;
+      tl.innerHTML='';
+      if(!visible) return;
+      buildTimelineForFrame(fr.id);
+    });
+    renumber();
+  } finally {
+    __buildingTimeline = false;
+  }
 }
 
 function buildTimelineForFrame(frameId){
@@ -443,7 +462,7 @@ function buildTimelineForFrame(frameId){
   seg.className='tl-seg';
   seg.style.top='0px';
   seg.style.height=h+'px';
-  seg.style.background=getComputedStyle(document.documentElement).getPropertyValue(meta.color.replace('var(','').replace(')','')).trim()||'rgba(0,0,0,.08)';
+  seg.style.background = getComputedStyle(sec).borderLeftColor;
   tl.appendChild(seg);
 
   // axis
@@ -731,7 +750,7 @@ function applyShiftVisibility(){
 
   updateToggleChips();
   rebalanceFrameHeights();
-  buildTimelineFromDOM();
+  scheduleTimelineBuild();
   renumber();
   scheduleAutoCompute(120,false);
 }
