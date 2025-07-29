@@ -560,17 +560,27 @@ function attachInputEvents(inp){
 
   inp.addEventListener('input',()=>{ inp.dataset.dirty='1'; inp.dataset.lat=''; inp.dataset.lng=''; scheduleAutoCompute(200,false); });
 
-  inp.addEventListener('keydown', e=>{
-  if(e.key==='Tab' && !e.shiftKey){
-    e.preventDefault();
-    // Tell the system that when a place is accepted, we should advance focus.
-    inp.dataset.advanceOnPlace = '1';
-    acceptTopPrediction(inp);
-  } else if(e.key==='Enter'){
-    e.preventDefault();
-    inp.dataset.advanceOnPlace = '1';
-    acceptTopPrediction(inp);
-  }
+  inp.addEventListener('keydown', e => {
+  const isAdvanceKey = (e.key === 'Enter') || (e.key === 'Tab' && !e.shiftKey);
+  if (!isAdvanceKey) return;
+
+  e.preventDefault();
+
+  // (a) close suggestions NOW so they can't steal focus back
+  forceCloseAutocomplete(inp);
+
+  // (b) prevent the one-tick "top-up" row from being added in this frame
+  suppressTopUpOnce = true;
+
+  // (c) accept/resolve in the background (DO NOT move focus inside)
+  acceptTopPrediction(inp, { advance: false });
+
+  // (d) move focus immediately to the next empty (or create one if needed)
+  if (flatMode) { focusNextInFlatOrCreate(inp); }
+  else          { focusNextInFrameOrCreate(inp); }
+
+  // (e) re-compute when ready
+  scheduleAutoCompute(0, true);
 });
 
   inp.addEventListener('paste',multiPaste);
@@ -579,11 +589,10 @@ function attachInputEvents(inp){
     fields:['formatted_address','geometry','place_id'],
     types:['address'], componentRestrictions:{country:'ca'}, bounds:OK_BOUNDS, strictBounds:true
   });
- ac.addListener('place_changed', ()=>{
+ac.addListener('place_changed', () => {
   const p = ac.getPlace();
-
-  if(p?.geometry){
-    inp.value = p.formatted_address || inp.value;
+  if (p?.geometry) {
+    inp.value       = p.formatted_address || inp.value;
     inp.dataset.lat = p.geometry.location.lat();
     inp.dataset.lng = p.geometry.location.lng();
     delete inp.dataset.dirty;
@@ -742,14 +751,14 @@ async function multiPaste(e){
 }
 
 /* Accept top prediction on Tab/Enter */
-function acceptTopPrediction(input){
-  // If we already have coords, just advance
+function acceptTopPrediction(input, { advance = true } = {}){
+  // If already resolved (coords present), just finalize
   if (input.dataset.lat && input.dataset.lng){
     delete input.dataset.dirty;
-    // consume one‑shot advance flag (so place_changed won’t also advance)
-    delete input.dataset.advanceOnPlace;
-    if(flatMode){ focusNextInFlatOrCreate(input); }
-    else        { focusNextInFrameOrCreate(input); }
+    if (advance){
+      if (flatMode) { focusNextInFlatOrCreate(input); }
+      else          { focusNextInFrameOrCreate(input); }
+    }
     scheduleAutoCompute(0, true);
     return;
   }
@@ -758,24 +767,25 @@ function acceptTopPrediction(input){
     { input: input.value, componentRestrictions:{country:'ca'}, types:['address'], locationBias: OK_BOUNDS },
     (preds, status) => {
       if (status !== google.maps.places.PlacesServiceStatus.OK || !preds?.length){
-        delete input.dataset.advanceOnPlace;
-        if(flatMode){ focusNextInFlatOrCreate(input); }
-        else        { focusNextInFrameOrCreate(input); }
+        if (advance){
+          if (flatMode) { focusNextInFlatOrCreate(input); }
+          else          { focusNextInFrameOrCreate(input); }
+        }
         scheduleAutoCompute(0, false);
         return;
       }
       placeSvc.getDetails({ placeId: preds[0].place_id, fields: ['formatted_address','geometry'] },
         (place, st) => {
           if (st === google.maps.places.PlacesServiceStatus.OK && place?.geometry){
-            input.value      = place.formatted_address || input.value;
+            input.value       = place.formatted_address || input.value;
             input.dataset.lat = place.geometry.location.lat();
             input.dataset.lng = place.geometry.location.lng();
             delete input.dataset.dirty;
           }
-          // consume the flag and advance
-          delete input.dataset.advanceOnPlace;
-          if(flatMode){ focusNextInFlatOrCreate(input); }
-          else        { focusNextInFrameOrCreate(input); }
+          if (advance){
+            if (flatMode) { focusNextInFlatOrCreate(input); }
+            else          { focusNextInFrameOrCreate(input); }
+          }
           scheduleAutoCompute(0, true);
         }
       );
