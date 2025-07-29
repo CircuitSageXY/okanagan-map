@@ -71,7 +71,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 
 .frame-body{
   display:grid;grid-template-columns: var(--tlW) 1fr;column-gap:12px;
-  align-items:stretch; padding:12px 10px 8px 6px; /* ↑ extra top space below header */
+  align-items:stretch; padding:12px 10px 8px 6px; /* extra top space below header */
 }
 
 /* Per-frame timeline visuals */
@@ -198,6 +198,11 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 #flatRoute{background:var(--clrA);color:#fff;}
 #flatOpt{background:var(--clrB);color:#fff;}
 #flatDelSel{background:#db4437;color:#fff;display:none;}
+
+/* ---------- KML Info label (FIX 2) ---------- */
+.kml-label{min-width:160px;max-width:260px;font-family:var(--fontMain);}
+.kml-title{font-size:14px;font-weight:700;margin-bottom:2px;color:#0d47a1;}
+.kml-desc{font-size:12px;color:#333;}
 </style>
 
 <script>
@@ -373,7 +378,7 @@ function makeRow(frameId){
   d.querySelector('.remove').onclick=()=>{
     const fid=+d.dataset.frame; const sh=FRAMES.find(f=>f.id===fid).shift;
     d.remove(); renumber();
-    suppressTopUpOnce = true;                 /* prevent 4 new rows on this tick */
+    suppressTopUpOnce = true;                 /* prevent any top‑up on this tick (FIX 1) */
     normalizeShiftLayout(sh);
     scheduleAutoCompute(120,false); scheduleTimelineBuild(); showDeleteBtns();
   };
@@ -470,7 +475,7 @@ function showDeleteBtns(){
 function deleteSelected(){
   document.querySelectorAll('.row.selected').forEach(r=>r.remove());
   showDeleteBtns();renumber();
-  suppressTopUpOnce = true;                 /* prevent top-up after multi-delete */
+  suppressTopUpOnce = true;                 /* prevent top-up after multi-delete (FIX 1) */
   normalizeShiftLayoutVisible();
   scheduleAutoCompute(120,false);scheduleTimelineBuild();
 }
@@ -574,19 +579,14 @@ function pruneListGaps(list, placeholdersAtEnd, addPlaceholders=true){
   }
 }
 
-/* Normalize shift so there are NO empties between filled frames */
+/* Normalize shift to avoid gaps between frames.
+   FIX 1: If a frame contains any filled rows -> keep **zero** placeholders.
+          Only empty frames get BASE_EMPTY_PER_FRAME placeholders. */
 function normalizeShiftLayout(shift){
   if(flatMode) return;
   const framesInShift=FRAMES.filter(f=>f.shift===shift);
-  // find last used frame (with any filled rows)
-  let lastUsed=-1;
-  framesInShift.forEach((f,idx)=>{
-    const list=document.getElementById('frame-'+f.id);
-    const hasFilled=[...list.querySelectorAll('.row')].some(r=>r.querySelector('.stop').value.trim());
-    if(hasFilled) lastUsed=idx;
-  });
 
-  framesInShift.forEach((f,idx)=>{
+  framesInShift.forEach((f)=>{
     const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
     const vis=(f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible);
     if(!vis || sec.classList.contains('collapsed') || sec.style.display==='none') return;
@@ -594,12 +594,11 @@ function normalizeShiftLayout(shift){
     const list=document.getElementById('frame-'+f.id);
     const hasFilled=[...list.querySelectorAll('.row')].some(r=>r.querySelector('.stop').value.trim());
 
-    const isLastUsed = (idx===lastUsed);
-    const allowAdd = isLastUsed ? !suppressTopUpOnce : false;
-    const targetPlaceholders = hasFilled ? (isLastUsed?BASE_EMPTY_PER_FRAME:0) : BASE_EMPTY_PER_FRAME;
+    const targetPlaceholders = hasFilled ? 0 : BASE_EMPTY_PER_FRAME;
+    const allowAdd = !hasFilled && !suppressTopUpOnce;
 
     compactFrameList(list);
-    pruneListGaps(list, targetPlaceholders, allowAdd || (!hasFilled && !suppressTopUpOnce));
+    pruneListGaps(list, targetPlaceholders, allowAdd);
   });
 
   suppressTopUpOnce = false;
@@ -673,14 +672,12 @@ async function multiPaste(e){
   renumber();
   await ensureCoords(getOrderedRows(true),{parallel:true});
 
-  // keep frames tight across boundary on this tick
   suppressTopUpOnce = true;
   normalizeShiftLayout(shift);
 
   autoResolveNext=true;
   await rebuildRoute();
 
-  // Hide frames that ended up with no addresses in this shift
   collapseEmptyFramesInShift(shift);
 }
 
@@ -1179,10 +1176,22 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)
   );
 
-  new google.maps.KmlLayer({
+  /* KML layer + custom info window (FIX 2) */
+  const kmlLayer = new google.maps.KmlLayer({
     url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',
-    map, preserveViewport:true, suppressInfoWindows:true, screenOverlays:false, clickable:false, zIndex:0
+    map, preserveViewport:true, suppressInfoWindows:true, screenOverlays:false, clickable:true, zIndex:0
   });
+  const kmlInfo = new google.maps.InfoWindow();
+  kmlLayer.addListener('click', (ev)=>{
+    const name = (ev.featureData && ev.featureData.name) ? ev.featureData.name : 'Area';
+    const desc = (ev.featureData && ev.featureData.description) ? ev.featureData.description : '';
+    const html = `<div class="kml-label"><div class="kml-title">${name}</div>${desc?`<div class="kml-desc">${desc}</div>`:''}</div>`;
+    kmlInfo.setContent(html);
+    kmlInfo.setPosition(ev.latLng);
+    kmlInfo.open({map});
+  });
+  map.addListener('click', ()=>kmlInfo.close());
+  map.addListener('dblclick', ()=>{ /* show also on double click if KML sent click first */ });
 
   dirSvc=new google.maps.DirectionsService();
   dirRend=new google.maps.DirectionsRenderer({map,suppressMarkers:true});
