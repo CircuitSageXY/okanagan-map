@@ -38,7 +38,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 #map{backface-visibility:hidden;transform:translateZ(0);}
 .hidden{display:none!important;}
 
-/* Kill the Google popup UI (we render our own) */
+/* Hide Google’s default autocomplete popup – we render our own */
 .pac-container{ display:none !important; }
 
 /* ---------- SIDE PANEL ---------- */
@@ -182,7 +182,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 #flatMsg{font-size:16px;font-weight:700;color:#0066cc;flex:1 1 100%;}
 #flatButtons{display:flex;gap:8px;}
 #flatButtons button{padding:6px 12px;font-size:13px;border-radius:6px;cursor:pointer;border:none;}
-#flatRoute{display:none;}  /* removed */
+#flatRoute{display:none;}
 #flatOpt{background:var(--clrB);color:#fff;}
 #flatDelSel{background:#db4437;color:#fff;display:none;}
 
@@ -247,7 +247,7 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 /* =================== CONFIG / CONSTANTS =================== */
 const PX_PER_MIN = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxPerMin'));
 const BASE_EMPTY_PER_FRAME = 4;
-const INITIAL_FLAT_ROWS     = 2;
+const INITIAL_FLAT_ROWS   = 2;
 
 const TOL_PCT = 0.03;  // 3%
 const TOL_KM  = 0.30;  // 0.3 km
@@ -261,7 +261,7 @@ let OK_BOUNDS;
 let suppressTopUpOnce = false;
 let __noTopUpUntil = 0;
 
-/* Show/hide paranoia for any native Google UIs (we don't use them) */
+/* Hide any native Google popups (we don't use them) */
 function hideAllAutocompleteUIs(){
   document.querySelectorAll('.pac-container').forEach(el=>{
     el.style.display='none';
@@ -275,14 +275,12 @@ const SG = (function(){
   const list = root.querySelector('ul');
   let boundInput = null;
   let items = [];   // {pred, text}
-  let hot = -1;     // highlighted index
-  let lastLayoutTick = 0;
+  let hot = -1;
 
   function openFor(input, predictions){
     boundInput = input;
     items = predictions.slice(0,5).map(p=>({pred:p, text:p.description}));
-    render();
-    position();
+    render(); position();
     root.style.display = items.length ? 'block' : 'none';
   }
   function render(){
@@ -292,35 +290,23 @@ const SG = (function(){
       li.textContent = it.text;
       li.dataset.idx = i;
       if(i===hot) li.classList.add('active');
-      li.addEventListener('mousedown', ev=>{
-        // prevent blur first; we'll handle selection manually
-        ev.preventDefault(); ev.stopPropagation();
-      }, {capture:true});
-      li.addEventListener('click', ev=>{
-        ev.preventDefault(); choose(i);
-      });
+      li.addEventListener('mousedown', ev=>{ ev.preventDefault(); ev.stopPropagation(); }, {capture:true});
+      li.addEventListener('click', ev=>{ ev.preventDefault(); choose(i); });
       list.appendChild(li);
     });
   }
   function position(){
     if(!boundInput) return;
     const r = boundInput.getBoundingClientRect();
-    const top = r.bottom + window.scrollY + 4;
-    const left = r.left + window.scrollX;
-    root.style.top = top+'px';
-    root.style.left = left+'px';
+    root.style.top = (r.bottom + window.scrollY + 4)+'px';
+    root.style.left = (r.left + window.scrollX)+'px';
     root.style.minWidth = Math.max(260, r.width)+'px';
-    lastLayoutTick = performance.now();
   }
-  function hide(){
-    root.style.display='none';
-    boundInput=null; items=[]; hot=-1; list.innerHTML='';
-  }
+  function hide(){ root.style.display='none'; boundInput=null; items=[]; hot=-1; list.innerHTML=''; }
   function isOpen(){ return root.style.display==='block'; }
   function choose(idx){
     if(!boundInput || !items[idx]){ hide(); return; }
     const p = items[idx].pred;
-    // Get details and fill the input (then recompute)
     placeSvc.getDetails({placeId:p.place_id, fields:['formatted_address','geometry']},
       (place, st)=>{
         if(st===google.maps.places.PlacesServiceStatus.OK && place?.geometry){
@@ -330,53 +316,54 @@ const SG = (function(){
           delete boundInput.dataset.dirty;
           scheduleAutoCompute(0, true);
         }
-        hide();
-        // Keep focus where user clicked (same field) so they can keep typing if desired
-        safeFocus(boundInput);
+        hide(); safeFocus(boundInput);
       });
   }
   function move(delta){
     if(!isOpen() || !items.length) return;
-    hot = ( (hot + delta + items.length) % items.length );
+    hot = (hot + delta + items.length) % items.length;
     render();
   }
-  function chooseHot(){
-    if(hot<0) hot = 0;
-    choose(hot);
-  }
+  function chooseHot(){ if(hot<0) hot = 0; choose(hot); }
+
   window.addEventListener('scroll', ()=>{ if(isOpen()) position(); }, true);
   window.addEventListener('resize', ()=>{ if(isOpen()) position(); });
   return {openFor, hide, isOpen, move, chooseHot};
 })();
 
-/* Small debounce for predictions */
-function debounce(fn, ms){
-  let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); };
-}
-
-/* Central Okanagan quick filter (description‑based + bounds bias) */
+/* Debounced predictions */
+function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
 const OK_DESC = /(Kelowna|West Kelowna|Lake Country|Peachland)/i;
-
-/* Ask Google for predictions given an input value; return top 5 filtered */
 const fetchPredictions = debounce((text, cb)=>{
   if(!text || text.trim().length<3){ cb([]); return; }
   acService.getPlacePredictions(
     { input:text, types:['address'], componentRestrictions:{country:'ca'}, locationBias: OK_BOUNDS },
     (preds, status)=>{
       if(status !== google.maps.places.PlacesServiceStatus.OK || !preds){ cb([]); return; }
-      const filtered = preds.filter(p=>OK_DESC.test(p.description)).slice(0,5);
-      cb(filtered);
+      cb(preds.filter(p=>OK_DESC.test(p.description)).slice(0,5));
     }
   );
 }, 120);
 
-/* ---------- Focus helpers ---------- */
+/* ---------- Focus helpers + queued focus ---------- */
 function safeFocus(el){
   if(!el) return;
   try{ el.focus({preventScroll:true}); }catch{}
   setTimeout(()=>{ try{ el.focus({preventScroll:true}); }catch{} },0);
   requestAnimationFrame(()=>{ try{ el.focus({preventScroll:true}); }catch{} });
 }
+let pendingFocusEl = null;
+let suppressAutoSelectUntil = 0;
+function queueFocus(el){
+  if(!el) return;
+  pendingFocusEl = el;
+  suppressAutoSelectUntil = Date.now() + 400;
+  [0,10,30,80,160].forEach(d => setTimeout(() => {
+    if(pendingFocusEl === el) safeFocus(el);
+  }, d));
+}
+function clearPendingFocus(el){ if(pendingFocusEl === el) pendingFocusEl = null; }
+document.addEventListener('mousedown', ()=>{ pendingFocusEl = null; }, true);
 
 /* ---------- FRAMES ---------- */
 const FRAMES=[
@@ -390,7 +377,7 @@ const FRAMES=[
   {id:7,key:'lateev',    name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--f-lateev)',    shift:'night'}
 ];
 
-/* ---------- TIME HELPERS / Timeline guards ---------- */
+/* ---------- TIME / timeline guards ---------- */
 const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);};
 const pad=n=>n.toString().padStart(2,'0');
@@ -405,9 +392,7 @@ function scheduleTimelineBuild(){
 /* Close & blur any input + kill popups */
 function forceCloseAutocomplete(inp){
   try{ inp.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); }catch(e){}
-  inp.blur();
-  hideAllAutocompleteUIs();
-  SG.hide();
+  inp.blur(); hideAllAutocompleteUIs(); SG.hide();
 }
 
 /* block adding placeholders during quick key nav */
@@ -437,20 +422,6 @@ function setFrameCollapsed(id, collapse, source='user'){
   if(source==='auto'){ el.dataset.autoCollapsed='1'; }
   if(!collapse){ ensurePlaceholdersForFrame(id); buildTimelineForFrame(id); }
   renumber(); scheduleTimelineBuild();
-}
-  
-  let pendingFocusEl = null;               // who should be focused next (if any)
-let suppressAutoSelectUntil = 0;         // guard for select-on-focus
-function queueFocus(el){
-  if(!el) return;
-  pendingFocusEl = el;
-  suppressAutoSelectUntil = Date.now() + 400; // don't select text unless it's the queued one
-  [0,10,30,80,160].forEach(d => setTimeout(() => {
-    if(pendingFocusEl === el) safeFocus(el);
-  }, d));
-}
-function clearPendingFocus(el){
-  if(pendingFocusEl === el) pendingFocusEl = null;
 }
 
 function buildFrameBuckets(){
@@ -685,72 +656,74 @@ function attachInputEvents(inp){
   inp.addEventListener('mousedown',ev=>{
     if(document.activeElement!==inp){ ev.preventDefault(); safeFocus(inp); setTimeout(()=>inp.select(),0); }
   });
- inp.addEventListener('focus', e=>{
-  inp.closest('.row').classList.add('focused');
 
-  // Only select text when this input is the queued target OR enough time has passed.
-  const okToSelect = (pendingFocusEl === inp) || (Date.now() >= suppressAutoSelectUntil);
-  if(okToSelect){
-    setTimeout(()=>e.target.select(),0);
-  }
+  inp.addEventListener('focus', e=>{
+    inp.closest('.row').classList.add('focused');
+    // Only select text when this input is the queued target OR enough time has passed.
+    const okToSelect = (pendingFocusEl === inp) || (Date.now() >= suppressAutoSelectUntil);
+    if(okToSelect){ setTimeout(()=>e.target.select(),0); }
+    if(!inp.dataset.lat && (inp.value||'').trim().length>=3){
+      fetchPredictions(inp.value, preds => SG.openFor(inp, preds));
+    }
+  });
 
-  // Show suggestions if partial text
-  if(!inp.dataset.lat && (inp.value||'').trim().length>=3){
-    fetchPredictions(inp.value, preds => SG.openFor(inp, preds));
-  }
-});
-  
   inp.addEventListener('blur',()=>{
     inp.closest('.row').classList.remove('focused');
-    // Delay hide slightly so click on dropdown registers
     setTimeout(()=>{ if(document.activeElement!==inp) SG.hide(); }, 150);
   });
 
   inp.addEventListener('input',()=>{
     inp.dataset.dirty='1'; inp.dataset.lat=''; inp.dataset.lng='';
     scheduleAutoCompute(200,false);
-    if((inp.value||'').trim().length>=3){
-      fetchPredictions(inp.value, preds => SG.openFor(inp, preds));
-    }else{
-      SG.hide();
+    if((inp.value||'').trim().length>=3){ fetchPredictions(inp.value, preds => SG.openFor(inp, preds)); }
+    else{ SG.hide(); }
+  });
+
+  // Keyboard navigation within our dropdown
+  inp.addEventListener('keydown', e=>{
+    if(SG.isOpen()){
+      if(e.key==='ArrowDown'){ e.preventDefault(); SG.move(+1); }
+      if(e.key==='ArrowUp'){   e.preventDefault(); SG.move(-1); }
     }
   });
 
-  // Arrow navigation within our dropdown
+  // Shift+Tab = go to previous
   inp.addEventListener('keydown', e=>{
-    if(!SG.isOpen()) return;
-    if(e.key==='ArrowDown'){ e.preventDefault(); SG.move(+1); }
-    if(e.key==='ArrowUp'){   e.preventDefault(); SG.move(-1); }
+    if(e.key==='Tab' && e.shiftKey){
+      e.preventDefault(); forceCloseAutocomplete(inp);
+      suppressTopUpOnce = true; __noTopUpUntil = Date.now()+350;
+      SG.hide();
+      if(flatMode) focusPrevInFlat(inp); else focusPrevInFrame(inp);
+    }
   });
 
-  // Shift+Tab: previous input
+  // Tab/Enter = accept top + go next
   inp.addEventListener('keydown', e => {
-  const isAdvanceKey = (e.key === 'Enter') || (e.key === 'Tab' && !e.shiftKey);
-  if (!isAdvanceKey) return;
+    const isAdvanceKey = (e.key === 'Enter') || (e.key === 'Tab' && !e.shiftKey);
+    if (!isAdvanceKey) return;
 
-  e.preventDefault();
-  e.stopPropagation();
-  e.stopImmediatePropagation();
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
 
-  forceCloseAutocomplete(inp);
+    forceCloseAutocomplete(inp);
 
-  suppressTopUpOnce = true;
-  __noTopUpUntil = Date.now() + 350; // give the reflow a bit more time
+    suppressTopUpOnce = true;
+    __noTopUpUntil = Date.now() + 350;
 
-  // If our dropdown is open and Enter was pressed, choose highlighted/first.
-  if(SG.isOpen() && e.key==='Enter'){ SG.chooseHot(); return; }
+    // If our dropdown is open and Enter was pressed, choose highlighted/first.
+    if(SG.isOpen() && e.key==='Enter'){ SG.chooseHot(); return; }
 
-  // Pre-calc where we're going, then move immediately (queued focus withstands DOM churn)
-  if (flatMode) { focusNextInFlatOrCreate(inp, /*queueOnly*/ true); }
-  else          { focusNextInFrameOrCreate(inp, /*queueOnly*/ true); }
+    // Pre-calc target and queue focus (survives DOM churn)
+    if (flatMode) { focusNextInFlatOrCreate(inp, /*queueOnly*/ true); }
+    else          { focusNextInFrameOrCreate(inp, /*queueOnly*/ true); }
 
-  // Fire a headless accept of the top prediction, but don't wait.
-  acceptTopPrediction(inp, { advance:false });
+    // Headless accept of the top prediction
+    acceptTopPrediction(inp, { advance:false });
 
-  SG.hide();
-  // Delay autoCompute a hair so we don't fight for focus in the same frame
-  scheduleAutoCompute(150, true);
-});
+    SG.hide();
+    scheduleAutoCompute(150, true);
+  });
 
   inp.addEventListener('paste',multiPaste);
 }
@@ -826,13 +799,16 @@ function normalizeShiftLayout(shift){
 
   suppressTopUpOnce = false;
   renumber();
+
+  // Re-apply queued focus after DOM tweaks
+  if(pendingFocusEl){ safeFocus(pendingFocusEl); }
 }
 function normalizeShiftLayoutVisible(){
   if(dayVisible) normalizeShiftLayout('day');
   if(nightVisible) normalizeShiftLayout('night');
 }
 
-/* ====== Multi‑paste (unchanged; now also hides dropdown) ====== */
+/* ====== Multi‑paste ====== */
 async function multiPaste(e){
   const clip=(e.clipboardData||window.clipboardData).getData('text');
   const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -930,7 +906,6 @@ function acceptTopPrediction(input, { advance = true } = {}){
         scheduleAutoCompute(0, false);
         return;
       }
-      // Take first (same as our dropdown default)
       placeSvc.getDetails({ placeId: preds[0].place_id, fields: ['formatted_address','geometry'] },
         (place, st) => {
           if (st === google.maps.places.PlacesServiceStatus.OK && place?.geometry){
@@ -950,7 +925,7 @@ function acceptTopPrediction(input, { advance = true } = {}){
   );
 }
 
-/* Robust next-focus */
+/* Robust next-focus (queues target) */
 function focusNextInFrameOrCreate(currentInput, queueOnly=false){
   const currentRow = currentInput.closest('.row');
   const frameId    = +currentRow.dataset.frame;
@@ -972,7 +947,6 @@ function focusNextInFrameOrCreate(currentInput, queueOnly=false){
   }
   if(queueOnly) queueFocus(target); else safeFocus(target);
 }
-
 function focusNextInFlatOrCreate(currentInput, queueOnly=false){
   const currentRow = currentInput.closest('.row');
   const list       = document.getElementById('addrList');
@@ -993,9 +967,6 @@ function focusNextInFlatOrCreate(currentInput, queueOnly=false){
     target = newRow.querySelector('.stop');
   }
   if(queueOnly) queueFocus(target); else safeFocus(target);
-}
-  const newRow = addRowToAddrBar(true,false);
-  safeFocus(newRow.querySelector('.stop'));
 }
 
 /* =================== SHIFT / FLAT =================== */
@@ -1117,7 +1088,7 @@ function drawRouteMarkers(points,rows){
 }
 function clearRouteMarkers(){routeMarkers.forEach(m=>m.setMap(null));routeMarkers=[];}
 
-/* Resolve stack (unchanged) */
+/* Resolve stack */
 async function resolveAddress(text){
   const prediction = await new Promise(res=>{
     acService.getPlacePredictions(
@@ -1186,7 +1157,7 @@ function getOrderedRows(includeHidden=false){
   return rows.filter(r=>r.querySelector('.stop').value.trim());
 }
 
-/* Main autoCompute (unchanged core) */
+/* Main autoCompute */
 async function autoCompute(){
   const rows=getOrderedRows();
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
@@ -1258,17 +1229,16 @@ function displayLegs(res,stat){
 }
 function clearLegDisplays(){document.querySelectorAll('.leg-display').forEach(d=>d.remove());}
 
-/* =================== TSP / Optimizers (unchanged) =================== */
+/* =================== TSP / Optimizers (kept simple here) =================== */
 function buildDistanceMatrix(points){const n=points.length;const D=Array.from({length:n},()=>Array(n).fill(0));for(let i=0;i<n;i++){for(let j=i+1;j<n;j++){const d=haversine(points[i],points[j]);D[i][j]=D[j][i]=d;}}return D;}
 function haversine(a,b){const R=6371;const toRad=x=>x*Math.PI/180;const dLat=toRad(b.lat-a.lat);const dLng=toRad(b.lng-a.lng);const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(s));}
 function orderCost(order,D){let c=0; for(let i=0;i<order.length-1;i++) c+=D[order[i]][order[i+1]]; return c;}
 function nearestNeighbour(D,start=0){const n=D.length; const visited=Array(n).fill(false); const ord=[start]; visited[start]=true; for(let k=1;k<n;k++){const last=ord[ord.length-1]; let best=Infinity,idx=-1; for(let j=0;j<n;j++){ if(!visited[j] && D[last][j]<best){best=D[last][j]; idx=j;} } ord.push(idx); visited[idx]=true;} return ord;}
 function twoOpt(order,D){const n=order.length; let improved=true; while(improved){improved=false; for(let i=1;i<n-2;i++){for(let j=i+1;j<n-1;j++){const a=order[i-1],b=order[i],c=order[j],d=order[j+1]; if(D[a][b]+D[c][d] > D[a][c]+D[b][d]){ order.splice(i,j-i+1,...order.slice(i,j+1).reverse()); improved=true; }}}} return order;}
 function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){const n=D.length; let start=fixedStart!=null?fixedStart:0; let ord=nearestNeighbour(D,start); ord=twoOpt(ord,D); if(fixedEnd!=null && ord[ord.length-1]!==fixedEnd){let best=ord,bestCost=orderCost(ord,D); for(let s=0;s<n;s++){const r=[...ord.slice(s),...ord.slice(0,s)]; if(r[r.length-1]!==fixedEnd) continue; const c=orderCost(r,D); if(c<bestCost){best=r; bestCost=c;}} ord=best;} if(fixedStart!=null && ord[0]!==fixedStart){const idx=ord.indexOf(fixedStart); if(idx>-1) ord=[...ord.slice(idx),...ord.slice(0,idx)];} return ord;}
+async function optimizeByFramesTwoPass(){ /* no-op fallback (kept to avoid reference errors) */ }
 
-async function optimizeByFramesTwoPass(){ /* unchanged implementation from previous file */ }
-
-/* collapse empty frames (unchanged) */
+/* collapse empty frames */
 function collapseEmptyFramesInShift(shift){
   FRAMES.filter(f=>f.shift===shift).forEach(f=>{
     const list=document.getElementById('frame-'+f.id);
@@ -1289,7 +1259,7 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)
   );
 
-  // Region overlay + KML (unchanged)
+  // Region overlay + KML
   function nameToAccent(name){ let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i)) % 360; } return `hsl(${h} 70% 70%)`; }
   class RegionLabelOverlay extends google.maps.OverlayView{ constructor(pos,text,accent){super();this.position=pos;this.text=text||'';this.accent=accent||'#9ecfff';this.container=null;} onAdd(){const div=document.createElement('div');div.className='region-label';div.innerHTML=`<div class="region-card"><div class="region-accent" style="border-color:${this.accent}"></div><div class="region-title">${this.text}</div><span class="region-close material-icons" title="Close">close</span></div>`;div.querySelector('.region-close').onclick=()=>this.setMap(null);this.container=div;this.getPanes().floatPane.appendChild(div);requestAnimationFrame(()=>div.classList.add('show'));} draw(){const proj=this.getProjection(); if(!proj||!this.container) return; const pt=proj.fromLatLngToDivPixel(this.position); this.container.style.left=pt.x+'px'; this.container.style.top=pt.y+'px';} onRemove(){if(!this.container) return; const el=this.container; el.classList.remove('show'); setTimeout(()=>{ if(el&&el.parentNode) el.parentNode.removeChild(el); }, 120); this.container=null; } }
   let currentRegionOverlay=null;
@@ -1346,7 +1316,7 @@ window.routePlannerInit=()=>{
   if(window.__mapsApiReady){ /* no-op */ }
 };
 
-/* --------- Flat‑view optimizer (unchanged) --------- */
+/* --------- Flat‑view optimizer --------- */
 async function globalOptimizeRoute(){
   if(!flatMode){ return; }
   const list=document.getElementById('addrList');
