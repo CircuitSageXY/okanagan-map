@@ -58,7 +58,8 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   box-shadow:0 1px 2px rgba(0,0,0,.08);position:relative;display:flex;flex-direction:column;
 }
 .frame-header{
-  position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:8px;padding:6px 10px;
+  /* was sticky; removed so it scrolls with content */
+  display:flex;align-items:center;gap:8px;padding:6px 10px;
   font-size:15px;font-weight:500;color:#000;border-bottom:1px solid #e0e0e0;background:#fafafa;
 }
 .frame-header .swatch{width:16px;height:16px;border-radius:3px;flex:none;}
@@ -70,7 +71,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 
 .frame-body{
   display:grid;grid-template-columns: var(--tlW) 1fr;column-gap:12px;
-  align-items:stretch; padding:6px 10px 8px 6px;
+  align-items:stretch; padding:12px 10px 8px 6px; /* ↑ extra top space below header */
 }
 
 /* Per-frame timeline visuals */
@@ -259,7 +260,7 @@ let autoTimer=null, autoResolveNext=false;
 let dayVisible=false, nightVisible=false, flatMode=false;
 let OK_BOUNDS;
 
-/* prevent auto top-up immediately after paste */
+/* one-shot guard for placeholder top-up */
 let suppressTopUpOnce = false;
 
 /* ---------- FRAMES ---------- */
@@ -307,7 +308,7 @@ function buildFrameBuckets(){
 
     const head=document.createElement('div');
     head.className='frame-header';
-    head.innerHTML=`<span class="swatch" style="background:${fr.color}"></span>${fr.name} <span style="margin-left:6px;font-size:12px;color:#666">(${fr.start}–${fr.end})</span>`;
+    head.innerHTML=`<span class="swatch" style="background:${fr.color}"></span>${fr.name} <span style="margin-left:10px;font-size:12px;color:#666">(${fr.start}–${fr.end})</span>`;
     const hideBtn=document.createElement('span');
     hideBtn.className='material-icons frame-hide';
     hideBtn.textContent='visibility_off';
@@ -371,7 +372,9 @@ function makeRow(frameId){
     <span class="remove" title="Remove stop">×</span>`;
   d.querySelector('.remove').onclick=()=>{
     const fid=+d.dataset.frame; const sh=FRAMES.find(f=>f.id===fid).shift;
-    d.remove(); renumber(); normalizeShiftLayout(sh);
+    d.remove(); renumber();
+    suppressTopUpOnce = true;                 /* prevent 4 new rows on this tick */
+    normalizeShiftLayout(sh);
     scheduleAutoCompute(120,false); scheduleTimelineBuild(); showDeleteBtns();
   };
   d.addEventListener('click',rowSelectToggle);
@@ -466,7 +469,10 @@ function showDeleteBtns(){
 }
 function deleteSelected(){
   document.querySelectorAll('.row.selected').forEach(r=>r.remove());
-  showDeleteBtns();renumber();normalizeShiftLayoutVisible();scheduleAutoCompute(120,false);scheduleTimelineBuild();
+  showDeleteBtns();renumber();
+  suppressTopUpOnce = true;                 /* prevent top-up after multi-delete */
+  normalizeShiftLayoutVisible();
+  scheduleAutoCompute(120,false);scheduleTimelineBuild();
 }
 document.addEventListener('keydown',e=>{
   if((e.key==='Delete'||e.key==='Backspace')&&document.querySelector('.row.selected')){
@@ -588,9 +594,6 @@ function normalizeShiftLayout(shift){
     const list=document.getElementById('frame-'+f.id);
     const hasFilled=[...list.querySelectorAll('.row')].some(r=>r.querySelector('.stop').value.trim());
 
-    // If this frame has filled rows and is NOT the last used frame, keep 0 placeholders at end.
-    // If it's the last used frame, allow base placeholders (unless we just pasted).
-    // If it has no filled rows, keep base placeholders (unless auto-collapsed later).
     const isLastUsed = (idx===lastUsed);
     const allowAdd = isLastUsed ? !suppressTopUpOnce : false;
     const targetPlaceholders = hasFilled ? (isLastUsed?BASE_EMPTY_PER_FRAME:0) : BASE_EMPTY_PER_FRAME;
@@ -1035,10 +1038,38 @@ function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){
   return ord;
 }
 
+/* =================== GLOBAL OPTIMIZER (used by Flat View "Optimize") =================== */
+async function globalOptimizeRoute(){
+  const rows=getOrderedRows();
+  const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
+  clearLegDisplays();
+
+  if(rows.length<3){await rebuildRoute();return;}
+
+  const ok=await ensureCoords(rows,{parallel:true});
+  if(!ok){msg.textContent='One or more stops can’t be located – please edit.';flatMsg.textContent=msg.textContent;return;}
+
+  const pts=rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
+  const D=buildDistanceMatrix(pts);
+  const ord=solveTSPWithMatrix(D);
+
+  const grouped=new Map();
+  rows.forEach((r,i)=>{ const p=r.parentElement; if(!grouped.has(p)) grouped.set(p,[]); grouped.get(p).push({r,i}); });
+  grouped.forEach((arr,p)=>{
+    arr.sort((a,b)=>ord.indexOf(a.i)-ord.indexOf(b.i));
+    arr.forEach(({r})=>p.appendChild(r));
+    compactFrameList(p);
+  });
+
+  renumber();
+  await rebuildRoute();
+  msg.textContent='Optimized.'; if(flatMsg) flatMsg.textContent='Optimized.';
+}
+
 /* =================== BY‑FRAMES OPTIMIZER (DP across frames) =================== */
 async function optimizeByFramesTwoPass(){
   const msg=document.getElementById('msg'); const flatMsg=document.getElementById('flatMsg');
-  msg.textContent=''; flatMsg.textContent='';
+  msg.textContent=''; if(flatMsg) flatMsg.textContent='';
 
   const visFrames=FRAMES.filter(f=>{
     const sec=document.querySelector(`.frame[data-frame="${f.id}"]`);
@@ -1046,7 +1077,6 @@ async function optimizeByFramesTwoPass(){
            !sec.classList.contains('collapsed') && sec.style.display!=='none';
   });
 
-  // Gather rows and candidate internal orders per frame
   const framesData=[];
   for(const fr of visFrames){
     const list=document.getElementById('frame-'+fr.id);
@@ -1066,13 +1096,11 @@ async function optimizeByFramesTwoPass(){
     const cands=[];
     const K=rows.length;
     for(let s=0;s<K;s++){
-      // forward rotation
       let ordF=[...base.slice(s),...base.slice(0,s)];
       let costF=orderCost(ordF,D);
       if(costF <= baseCost*(1+TOL_PCT)+TOL_KM){
         cands.push({ord:ordF,cost:costF,start:ordF[0],end:ordF[ordF.length-1]});
       }
-      // reversed rotation
       let rev=[...base].reverse();
       let ordR=[...rev.slice(s),...rev.slice(0,s)];
       let costR=orderCost(ordR,D);
@@ -1080,13 +1108,11 @@ async function optimizeByFramesTwoPass(){
         cands.push({ord:ordR,cost:costR,start:ordR[0],end:ordR[ordR.length-1]});
       }
     }
-    // always include base as a candidate
     cands.push({ord:base,cost:baseCost,start:base[0],end:base[base.length-1]});
 
     framesData.push({fr,list,rows,pts,cands,D});
   }
 
-  // DP over frames to minimize connectors + internal costs
   function connCost(a,b){ if(!a||!b) return 0; return haversine(a,b); }
   const nF=framesData.length;
   const dp=Array.from({length:nF},()=>[]);
@@ -1110,7 +1136,6 @@ async function optimizeByFramesTwoPass(){
       dp[i][bi]=best; prevIdx[i][bi]=bestPrev;
     }
   }
-  // backtrack
   let lastFrame=nF-1;
   let bestFinal=0; let bestIdx=0;
   dp[lastFrame].forEach((v,i)=>{ if(i===0||v<bestFinal){bestFinal=v; bestIdx=i;} });
@@ -1119,7 +1144,6 @@ async function optimizeByFramesTwoPass(){
   choice[lastFrame]=bestIdx;
   for(let i=lastFrame;i>0;i--) choice[i-1]=prevIdx[i][choice[i]];
 
-  // apply the chosen orders frame by frame
   framesData.forEach((fd,i)=>{
     const c=fd.cands[choice[i]];
     if(!c || !fd.rows.length) return;
