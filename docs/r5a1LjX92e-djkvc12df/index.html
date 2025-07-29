@@ -58,7 +58,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   box-shadow:0 1px 2px rgba(0,0,0,.08);position:relative;display:flex;flex-direction:column;
 }
 .frame-header{
-  /* not sticky; scrolls with content */
+  /* scrolls with content (not sticky) so it never overlays rows */
   display:flex;align-items:center;gap:8px;padding:6px 10px;
   font-size:15px;font-weight:500;color:#000;border-bottom:1px solid #e0e0e0;background:#fafafa;
 }
@@ -71,7 +71,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 
 .frame-body{
   display:grid;grid-template-columns: var(--tlW) 1fr;column-gap:12px;
-  align-items:stretch; padding:12px 10px 8px 6px; /* give space between name and first tick */
+  align-items:stretch; padding:12px 10px 8px 6px; /* space between name and first tick */
 }
 
 /* Per-frame timeline visuals */
@@ -92,9 +92,8 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 
 .frame-list{overflow:visible;flex:1 1 auto;}
 
-/* "+ Add stop" button removed intentionally (auto-add on Tab) */
-
-.addRowBtn{display:none;} /* guard if any leftover */
+/* “+ Add stop” buttons removed — auto add on Tab */
+.addRowBtn{display:none;}
 
 /* colored borders per frame */
 .frame[data-frame="0"]{border-left:4px solid var(--f-early);}
@@ -185,25 +184,41 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .toggleChip.active.day  {background:var(--f-afternoon);color:#fff;}
 .toggleChip.active.night{background:var(--f-evening);color:#fff;}
 
-/* “+” removed; we keep no icon there */
-
+/* No "+" and no Route button in flat view */
 #addrList .row{margin:6px 0;}
 
 #addrFooter{margin-top:10px;border-top:1px solid #dadada;padding-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 #flatMsg{font-size:16px;font-weight:700;color:#0066cc;flex:1 1 100%;}
 #flatButtons{display:flex;gap:8px;}
 #flatButtons button{padding:6px 12px;font-size:13px;border-radius:6px;cursor:pointer;border:none;}
-/* Route button removed */
 #flatOpt{background:var(--clrB);color:#fff;}
 #flatDelSel{background:#db4437;color:#fff;display:none;}
 
-/* ---------- KML Info label (KML FIX) ---------- */
-.kml-label{min-width:170px;max-width:280px;font-family:var(--fontMain);}
-.kml-title{font-size:16px;font-weight:700;margin-bottom:2px;color:#0d47a1;letter-spacing:.2px;}
-.kml-desc{font-size:12px;color:#333;}
-
-/* subtle emphasis inside InfoWindow content */
-.kml-label{filter:drop-shadow(0 1px 1px rgba(0,0,0,.1));}
+/* ---------- KML CARD (custom overlay) ---------- */
+.kml-card{
+  position:absolute; transform:translate(-50%,-100%); /* anchor bottom-center */
+  min-width:200px; max-width:320px; color:#263238;
+  background:#fff; border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,.25);
+  overflow:hidden; z-index:2000; pointer-events:auto;
+}
+.kml-card .hdr{
+  background:linear-gradient(135deg, #263238, #37474f);
+  color:#fff; font-weight:700; padding:10px 14px; letter-spacing:.2px;
+  display:flex; align-items:center;
+}
+.kml-card .hdr .title{flex:1; font-size:15px;}
+.kml-card .hdr .x{
+  margin-left:10px; cursor:pointer; font-size:18px; line-height:18px;
+  width:24px; height:24px; border-radius:4px; display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.12); color:#fff;
+}
+.kml-card .hdr .x:hover{background:rgba(255,255,255,.22);}
+.kml-card .body{padding:10px 14px; font-size:12px; color:#333; background:#fafafa;}
+.kml-card::after{
+  content:""; position:absolute; left:50%; bottom:-8px; transform:translateX(-50%);
+  width:0; height:0; border-left:8px solid transparent; border-right:8px solid transparent; border-top:8px solid #fff;
+  filter:drop-shadow(0 -1px 0 rgba(0,0,0,.1));
+}
 </style>
 
 <script>
@@ -235,14 +250,12 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
       <span id="toggleDay"   class="toggleChip day">Day</span>
       <span id="toggleNight" class="toggleChip night">Night</span>
     </div>
-    <!-- "+" removed -->
   </div>
   <div id="addrList"></div>
 
   <div id="addrFooter">
     <div id="flatMsg"></div>
     <div id="flatButtons">
-      <!-- Route removed -->
       <button id="flatOpt">Optimize</button>
       <button id="flatDelSel">Delete Selected</button>
     </div>
@@ -254,8 +267,8 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 <script>
 /* =================== CONFIG / CONSTANTS =================== */
 const PX_PER_MIN = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxPerMin'));
-const BASE_EMPTY_PER_FRAME = 1;            /* only one starter slot in empty frames */
-const INITIAL_FLAT_ROWS     = 1;            /* one starter slot in flat view */
+const BASE_EMPTY_PER_FRAME = 4;   /* (1) start with FOUR empties per time frame */
+const INITIAL_FLAT_ROWS     = 1;
 
 const TOL_PCT = 0.03;  // 3%
 const TOL_KM  = 0.30;  // 0.3 km
@@ -266,8 +279,7 @@ let autoTimer=null, autoResolveNext=false;
 let dayVisible=false, nightVisible=false, flatMode=false;
 let OK_BOUNDS;
 
-/* prevent auto top-up immediately after certain actions */
-let suppressTopUpOnce = false;
+let suppressTopUpOnce = false;    // one-tick guard after deletes / inserts
 
 /* ---------- FRAMES ---------- */
 const FRAMES=[
@@ -336,7 +348,7 @@ function buildFrameBuckets(){
 
     sec.appendChild(body);
 
-    /* "+ Add stop" button intentionally not created */
+    /* no "+ Add stop" button — auto-add on Tab */
 
     container.appendChild(sec);
 
@@ -392,7 +404,6 @@ function addRowToFrame(frameId,focus=true,select=false){
   if(select) setSelected(row,true);
   return row;
 }
-/* insert a row immediately after a given row */
 function addRowAfter(row){
   const list=row.parentElement;
   const frameId = flatMode ? 0 : +row.dataset.frame;
@@ -588,7 +599,9 @@ function pruneListGaps(list, placeholdersAtEnd, addPlaceholders=true){
   }
 }
 
-/* PLACEHOLDER POLICY (no gaps; allow 1 trailing empty only if last row is empty) */
+/* =================== PLACEHOLDER POLICY =================== */
+/* – Completely empty frames keep FOUR slots.
+   – Frames with addresses keep NO trailing empties (except the one you just auto-added on Tab). */
 function normalizeShiftLayout(shift){
   if(flatMode) return;
   const framesInShift=FRAMES.filter(f=>f.shift===shift);
@@ -600,16 +613,15 @@ function normalizeShiftLayout(shift){
 
     const list=document.getElementById('frame-'+f.id);
     const rows=[...list.querySelectorAll('.row')];
-    const filledIdx=rows.findIndex(r=>r.querySelector('.stop').value.trim());
-    const hasFilled = filledIdx>-1;
+    const hasFilled = rows.some(r=>r.querySelector('.stop').value.trim());
 
-    let targetPlaceholders = BASE_EMPTY_PER_FRAME;  // default for completely empty frames
+    let targetPlaceholders = BASE_EMPTY_PER_FRAME;     // default for empty frames
     let allowAdd = !hasFilled && !suppressTopUpOnce;
 
     if(hasFilled){
       const lastRow = rows[rows.length-1];
       const lastIsEmpty = lastRow && !lastRow.querySelector('.stop').value.trim();
-      targetPlaceholders = lastIsEmpty ? 1 : 0;    /* keep one trailing only if last is empty */
+      targetPlaceholders = lastIsEmpty ? 1 : 0;       // keep exactly one if the last is empty
       allowAdd = false;
     }
 
@@ -1100,7 +1112,7 @@ async function globalOptimizeRoute(){
     compactFrameList(p);
   });
 
-  /* remove all unused rows in Flat view after optimize */
+  /* FLAT: TRIM EMPTIES after optimize */
   if(flatMode){
     const list=document.getElementById('addrList');
     [...list.querySelectorAll('.row')].forEach(r=>{ if(!r.querySelector('.stop').value.trim()) r.remove(); });
@@ -1108,7 +1120,7 @@ async function globalOptimizeRoute(){
 
   renumber();
   await rebuildRoute();
-  msg.textContent='Optimized.'; if(flatMsg) flatMsg.textContent='Optimized.';
+  if(flatMsg) flatMsg.textContent='Optimized.';
 }
 
 /* =================== BY‑FRAMES OPTIMIZER (DP across frames) =================== */
@@ -1122,6 +1134,7 @@ async function optimizeByFramesTwoPass(){
            !sec.classList.contains('collapsed') && sec.style.display!=='none';
   });
 
+  // Gather rows and candidate internal orders per frame
   const framesData=[];
   for(const fr of visFrames){
     const list=document.getElementById('frame-'+fr.id);
@@ -1195,12 +1208,23 @@ async function optimizeByFramesTwoPass(){
     const newRows=c.ord.map(idx=>fd.rows[idx]);
     newRows.forEach(r=>fd.list.appendChild(r));
     compactFrameList(fd.list);
+    /* remove empties in used frames */
+    pruneListGaps(fd.list, 0, false);
   });
 
   renumber();
   await rebuildRoute();
   rebalanceFrameHeights();
   scheduleTimelineBuild();
+
+  /* hide completely empty frames in visible shifts */
+  FRAMES.filter(f=>((f.shift==='day'&&dayVisible)||(f.shift==='night'&&nightVisible)))
+        .forEach(f=>{
+          const list=document.getElementById('frame-'+f.id);
+          if(![...list.querySelectorAll('.row')].some(r=>r.querySelector('.stop').value.trim())){
+            setFrameCollapsed(f.id, true, 'auto');
+          }
+        });
 }
 
 /* Hide empty frames in the given shift (used after paste) */
@@ -1224,27 +1248,58 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)
   );
 
-  /* KML layer + custom info window (KML FIX) */
+  /* ---------- KML layer with custom overlay card (KML CARD) ---------- */
   const kmlLayer = new google.maps.KmlLayer({
     url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',
     map, preserveViewport:true, suppressInfoWindows:true, screenOverlays:false, clickable:true, zIndex:0
   });
-  const kmlInfo = new google.maps.InfoWindow();
-  let lastKmlClickAt = 0;
 
-  kmlLayer.addListener('click', (ev)=>{
-    lastKmlClickAt = Date.now();
-    const name = (ev.featureData && ev.featureData.name) ? ev.featureData.name : 'Area';
-    const desc = (ev.featureData && ev.featureData.description) ? ev.featureData.description : '';
-    const html = `<div class="kml-label"><div class="kml-title">${name}</div>${desc?`<div class="kml-desc">${desc}</div>`:''}</div>`;
-    kmlInfo.setContent(html);
-    kmlInfo.setPosition(ev.latLng);
-    kmlInfo.open({map});
+  class CardOverlay extends google.maps.OverlayView{
+    constructor(position, title, desc){
+      super(); this.position=position; this.title=title||'Area'; this.desc=desc||'';
+      this.div=null;
+    }
+    onAdd(){
+      this.div=document.createElement('div');
+      this.div.className='kml-card';
+      this.div.innerHTML=`<div class="hdr"><div class="title">${this.title}</div><div class="x" title="Close">✕</div></div>
+                          <div class="body">${this.desc||''}</div>`;
+      this.getPanes().floatPane.appendChild(this.div);
+      this.div.querySelector('.x').addEventListener('click',()=>{ this.setMap(null); });
+      this.div.addEventListener('click',e=>e.stopPropagation());
+    }
+    draw(){
+      const proj=this.getProjection(); if(!proj||!this.div) return;
+      const pt=proj.fromLatLngToDivPixel(this.position);
+      this.div.style.left=pt.x+'px';
+      this.div.style.top =pt.y+'px';
+    }
+    onRemove(){ if(this.div && this.div.parentNode) this.div.parentNode.removeChild(this.div); this.div=null; }
+  }
+
+  let currentCard=null;
+  let currentCardName='';
+
+  function closeCard(){ if(currentCard){ currentCard.setMap(null); currentCard=null; currentCardName=''; } }
+  function openCard(latLng, name, desc){
+    closeCard();
+    currentCard = new CardOverlay(latLng, name, desc);
+    currentCard.setMap(map);
+    currentCardName = name||'';
+  }
+
+  kmlLayer.addListener('click',(ev)=>{
+    const name=(ev.featureData&&ev.featureData.name)||'Area';
+    const desc=(ev.featureData&&ev.featureData.description)||'';
+    const same = currentCard && name===currentCardName;
+    if(same){ closeCard(); return; }      // toggle off if you click same region again
+    openCard(ev.latLng, name, desc);
   });
-  /* close only when clicking elsewhere (not the same double-click that opened) */
-  map.addListener('click', ()=>{ if(Date.now()-lastKmlClickAt>400) kmlInfo.close(); });
-  map.addListener('dblclick', ()=>{ /* allow zoom without closing immediately */ });
 
+  map.addListener('click', closeCard);
+  map.addListener('dblclick', closeCard);
+
+  /* ---------- directions / services ---------- */
   dirSvc=new google.maps.DirectionsService();
   dirRend=new google.maps.DirectionsRenderer({map,suppressMarkers:true});
   geocoder=new google.maps.Geocoder();
@@ -1255,7 +1310,7 @@ window.routePlannerInit=()=>{
 
   dayVisible=false; nightVisible=false; applyShiftVisibility();
 
-  // Flat view buttons (Route removed)
+  // Flat view actions
   document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; normalizeShiftLayoutVisible(); globalOptimizeRoute();};
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
