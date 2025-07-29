@@ -281,8 +281,9 @@ let autoTimer=null, autoResolveNext=false;
 let dayVisible=false, nightVisible=false, flatMode=false;
 let OK_BOUNDS;
 
-/* prevent auto top-up immediately after paste */
+/* prevent auto top-up (single tick + short window) */
 let suppressTopUpOnce = false;
+let __noTopUpUntil = 0;   // timestamp; during this window, NO placeholders are added
 
 /* ---------- FRAMES ---------- */
 const FRAMES=[
@@ -308,14 +309,35 @@ function scheduleTimelineBuild(){
   if(__tl_req) return;
   __tl_req = requestAnimationFrame(() => { __tl_req = 0; buildTimelineFromDOM(); });
 }
-  
-/* Close the Google Autocomplete dropdown bound to an input, then blur it */
-/* Close the Google Autocomplete dropdown bound to an input, then blur it */
+
+/* Helpers to manage Google Autocomplete dropdown */
 function forceCloseAutocomplete(inp){
-  try{
-    inp.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
-  }catch(e){}
+  try{ inp.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); }catch(e){}
   inp.blur();
+}
+
+/* During this frame, should we consider adding placeholders? */
+function canAddPlaceholders(list, frameId, hasFilled, isLastUsed){
+  // Global timed ban (avoid second-tick top-up from earlier scheduled work)
+  if (Date.now() < __noTopUpUntil) return false;
+
+  // If the active input is inside this frame and there is any empty AFTER it, do not add.
+  const active = document.activeElement;
+  if (active && active.classList && active.classList.contains('stop')){
+    const row = active.closest('.row');
+    if (row && +row.dataset.frame === frameId){
+      const rows=[...list.querySelectorAll('.row')];
+      const idx=rows.indexOf(row);
+      const hasEmptyAfter = rows.slice(idx+1).some(r => !r.querySelector('.stop').value.trim());
+      if (hasEmptyAfter) return false;
+    }
+  }
+
+  // Original single-tick suppression + your intent
+  const allowAdd = isLastUsed ? !suppressTopUpOnce : false;
+  if (hasFilled) return allowAdd; // only last used frame may add
+  // If the frame has no filled rows, we still respect the timed ban.
+  return (Date.now() >= __noTopUpUntil) && !suppressTopUpOnce;
 }
 
 /* =================== UI BUILD =================== */
@@ -431,6 +453,22 @@ function ensurePlaceholdersForFrame(frameId){
   const sec=list.closest('.frame');
   const visible = sec.style.display!=='none' && !flatMode && !sec.classList.contains('collapsed');
   if(!visible) return;
+
+  // Respect the global top-up suppression window and focus-aware guard
+  if (Date.now() < __noTopUpUntil){
+    return;
+  }
+  const active = document.activeElement;
+  if (active && active.classList.contains('stop')){
+    const row = active.closest('.row');
+    if (row && +row.dataset.frame === frameId){
+      const rows=[...list.querySelectorAll('.row')];
+      const idx=rows.indexOf(row);
+      const hasEmptyAfter = rows.slice(idx+1).some(r => !r.querySelector('.stop').value.trim());
+      if (hasEmptyAfter) return;
+    }
+  }
+
   const empties=[...list.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());
   for(let i=empties.length;i<BASE_EMPTY_PER_FRAME;i++) addRowToFrame(frameId,false,false);
 }
@@ -560,58 +598,48 @@ function attachInputEvents(inp){
 
   inp.addEventListener('input',()=>{ inp.dataset.dirty='1'; inp.dataset.lat=''; inp.dataset.lng=''; scheduleAutoCompute(200,false); });
 
+  // TAB / ENTER: close dropdown, accept in background, move focus NOW, and block Google's handlers
   inp.addEventListener('keydown', e => {
-  const isAdvanceKey = (e.key === 'Enter') || (e.key === 'Tab' && !e.shiftKey);
-  if (!isAdvanceKey) return;
+    const isAdvanceKey = (e.key === 'Enter') || (e.key === 'Tab' && !e.shiftKey);
+    if (!isAdvanceKey) return;
 
-  e.preventDefault();
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
 
-  // (a) close suggestions NOW so they can't steal focus back
-  forceCloseAutocomplete(inp);
+    forceCloseAutocomplete(inp);
 
-  // (b) prevent the one-tick "top-up" row from being added in this frame
-  suppressTopUpOnce = true;
+    // suppress both the single tick and any second-tick work for a short window
+    suppressTopUpOnce = true;
+    __noTopUpUntil = Date.now() + 250; // 1/4 second is enough to cover async callbacks
 
-  // (c) accept/resolve in the background (DO NOT move focus inside)
-  acceptTopPrediction(inp, { advance: false });
+    // Accept in background without changing focus there
+    acceptTopPrediction(inp, { advance: false });
 
-  // (d) move focus immediately to the next empty (or create one if needed)
-  if (flatMode) { focusNextInFlatOrCreate(inp); }
-  else          { focusNextInFrameOrCreate(inp); }
+    // Move focus immediately
+    if (flatMode) { focusNextInFlatOrCreate(inp); }
+    else          { focusNextInFrameOrCreate(inp); }
 
-  // (e) re-compute when ready
-  scheduleAutoCompute(0, true);
-});
+    scheduleAutoCompute(0, true);
+  });
 
   inp.addEventListener('paste',multiPaste);
 
+  // Keep Google's widget for mouse users, but never move focus here.
   const ac=new google.maps.places.Autocomplete(inp,{
     fields:['formatted_address','geometry','place_id'],
     types:['address'], componentRestrictions:{country:'ca'}, bounds:OK_BOUNDS, strictBounds:true
   });
-ac.addListener('place_changed', () => {
-  const p = ac.getPlace();
-  if (p?.geometry) {
-    inp.value       = p.formatted_address || inp.value;
-    inp.dataset.lat = p.geometry.location.lat();
-    inp.dataset.lng = p.geometry.location.lng();
-    delete inp.dataset.dirty;
-  }
-
-  // Read & clear the one‑shot flag
-  const advance = inp.dataset.advanceOnPlace === '1';
-  delete inp.dataset.advanceOnPlace;
-
-  if(advance){
-    // Close dropdown and move on
-    if (flatMode){ focusNextInFlatOrCreate(inp); }
-    else         { focusNextInFrameOrCreate(inp); }
-    scheduleAutoCompute(0, true);
-  }else{
-    // Mouse pick or other flow: just recompute
-    scheduleAutoCompute(80, true);
-  }
-});
+  ac.addListener('place_changed', ()=>{
+    const p=ac.getPlace();
+    if(p?.geometry){
+      inp.value       = p.formatted_address || inp.value;
+      inp.dataset.lat = p.geometry.location.lat();
+      inp.dataset.lng = p.geometry.location.lng();
+      delete inp.dataset.dirty;
+    }
+    scheduleAutoCompute(80,true);
+  });
 }
 
 /* ---------- Compaction / pruning ---------- */
@@ -659,13 +687,13 @@ function normalizeShiftLayout(shift){
 
     const list=document.getElementById('frame-'+f.id);
     const hasFilled=[...list.querySelectorAll('.row')].some(r=>r.querySelector('.stop').value.trim());
-
     const isLastUsed = (idx===lastUsed);
-    const allowAdd = isLastUsed ? !suppressTopUpOnce : false;
     const targetPlaceholders = hasFilled ? (isLastUsed?BASE_EMPTY_PER_FRAME:0) : BASE_EMPTY_PER_FRAME;
 
     compactFrameList(list);
-    pruneListGaps(list, targetPlaceholders, allowAdd || (!hasFilled && !suppressTopUpOnce));
+
+    const addPH = canAddPlaceholders(list, f.id, hasFilled, isLastUsed);
+    pruneListGaps(list, targetPlaceholders, addPH);
   });
 
   suppressTopUpOnce = false;
@@ -741,6 +769,8 @@ async function multiPaste(e){
 
   // keep frames tight across boundary on this tick
   suppressTopUpOnce = true;
+  __noTopUpUntil = Date.now() + 250;
+
   normalizeShiftLayout(shift);
 
   autoResolveNext=true;
@@ -750,7 +780,7 @@ async function multiPaste(e){
   collapseEmptyFramesInShift(shift);
 }
 
-/* Accept top prediction on Tab/Enter */
+/* Accept top prediction on Tab/Enter (optionally without advancing focus) */
 function acceptTopPrediction(input, { advance = true } = {}){
   // If already resolved (coords present), just finalize
   if (input.dataset.lat && input.dataset.lng){
@@ -804,8 +834,9 @@ function focusNextInFrameOrCreate(currentInput){
   // 1) Reuse the first empty after the current row
   const firstEmptyAfter = rows.slice(idx+1).find(r => !r.querySelector('.stop').value.trim());
   if(firstEmptyAfter){
-    suppressTopUpOnce = true;               // <-- prevents an extra blank being added
-    forceCloseAutocomplete(currentInput);   // <-- shuts the Google dropdown on the old field
+    suppressTopUpOnce = true;
+    __noTopUpUntil = Date.now() + 250;
+    forceCloseAutocomplete(currentInput);
     firstEmptyAfter.querySelector('.stop').focus({preventScroll:true});
     return;
   }
