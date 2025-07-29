@@ -38,6 +38,10 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 #map{backface-visibility:hidden;transform:translateZ(0);}
 .hidden{display:none!important;}
 
+/* ---------- KILL Google popup UI (safety belt) ---------- */
+/* We do headless autocomplete; keep Google’s UI from ever showing or sticking. */
+.pac-container{ display:none !important; }
+
 /* ---------- SIDE PANEL ---------- */
 #panel{
   position:absolute;top:0;left:0;z-index:5;width:var(--panelW);height:100%;
@@ -285,6 +289,14 @@ let OK_BOUNDS;
 let suppressTopUpOnce = false;
 let __noTopUpUntil = 0;   // timestamp; during this window, NO placeholders are added
 
+/* ---------- utility: hide any Google suggestion containers (paranoia) ---------- */
+function hideAllAutocompleteUIs(){
+  document.querySelectorAll('.pac-container').forEach(el=>{
+    el.style.display='none';
+    el.setAttribute('aria-hidden','true');
+  });
+}
+
 /* ---------- FRAMES ---------- */
 const FRAMES=[
   {id:0,key:'early',     name:'AM Early',     start:'07:00', end:'09:00',  color:'var(--f-early)',     shift:'day'},
@@ -310,18 +322,16 @@ function scheduleTimelineBuild(){
   __tl_req = requestAnimationFrame(() => { __tl_req = 0; buildTimelineFromDOM(); });
 }
 
-/* Helpers to manage Google Autocomplete dropdown */
+/* Helpers to manage focus and autocomplete popup */
 function forceCloseAutocomplete(inp){
   try{ inp.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); }catch(e){}
   inp.blur();
+  hideAllAutocompleteUIs();
 }
 
 /* During this frame, should we consider adding placeholders? */
 function canAddPlaceholders(list, frameId, hasFilled, isLastUsed){
-  // Global timed ban (avoid second-tick top-up from earlier scheduled work)
   if (Date.now() < __noTopUpUntil) return false;
-
-  // If the active input is inside this frame and there is any empty AFTER it, do not add.
   const active = document.activeElement;
   if (active && active.classList && active.classList.contains('stop')){
     const row = active.closest('.row');
@@ -332,11 +342,8 @@ function canAddPlaceholders(list, frameId, hasFilled, isLastUsed){
       if (hasEmptyAfter) return false;
     }
   }
-
-  // Original single-tick suppression + your intent
   const allowAdd = isLastUsed ? !suppressTopUpOnce : false;
-  if (hasFilled) return allowAdd; // only last used frame may add
-  // If the frame has no filled rows, we still respect the timed ban.
+  if (hasFilled) return allowAdd;
   return (Date.now() >= __noTopUpUntil) && !suppressTopUpOnce;
 }
 
@@ -382,7 +389,6 @@ function buildFrameBuckets(){
 
     sec.appendChild(body);
 
-    /* Add button hidden; rows are grown via Tab logic */
     const addBtn=document.createElement('button');
     addBtn.className='addRowBtn';addBtn.textContent='+ Add stop';
     addBtn.style.display='none';
@@ -454,10 +460,8 @@ function ensurePlaceholdersForFrame(frameId){
   const visible = sec.style.display!=='none' && !flatMode && !sec.classList.contains('collapsed');
   if(!visible) return;
 
-  // Respect the global top-up suppression window and focus-aware guard
-  if (Date.now() < __noTopUpUntil){
-    return;
-  }
+  if (Date.now() < __noTopUpUntil) return;
+
   const active = document.activeElement;
   if (active && active.classList.contains('stop')){
     const row = active.closest('.row');
@@ -598,7 +602,18 @@ function attachInputEvents(inp){
 
   inp.addEventListener('input',()=>{ inp.dataset.dirty='1'; inp.dataset.lat=''; inp.dataset.lng=''; scheduleAutoCompute(200,false); });
 
-  // TAB / ENTER: close dropdown, accept in background, move focus NOW, and block Google's handlers
+  // Shift+Tab: move backward (prefer previous empty)
+  inp.addEventListener('keydown', e=>{
+    if(e.key==='Tab' && e.shiftKey){
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      forceCloseAutocomplete(inp);
+      if (flatMode) { focusPrevInFlat(inp); }
+      else          { focusPrevInFrame(inp); }
+      return;
+    }
+  });
+
+  // TAB / ENTER: accept top suggestion in background, move focus now, and hide any popup
   inp.addEventListener('keydown', e => {
     const isAdvanceKey = (e.key === 'Enter') || (e.key === 'Tab' && !e.shiftKey);
     if (!isAdvanceKey) return;
@@ -611,7 +626,7 @@ function attachInputEvents(inp){
 
     // suppress both the single tick and any second-tick work for a short window
     suppressTopUpOnce = true;
-    __noTopUpUntil = Date.now() + 250; // 1/4 second is enough to cover async callbacks
+    __noTopUpUntil = Date.now() + 250;
 
     // Accept in background without changing focus there
     acceptTopPrediction(inp, { advance: false });
@@ -620,26 +635,29 @@ function attachInputEvents(inp){
     if (flatMode) { focusNextInFlatOrCreate(inp); }
     else          { focusNextInFrameOrCreate(inp); }
 
+    hideAllAutocompleteUIs();
     scheduleAutoCompute(0, true);
   });
 
-  inp.addEventListener('paste',multiPaste);
+  // NO ui Autocomplete widget: we rely entirely on headless service via acceptTopPrediction()
+  // (kept intentionally empty here)
+}
 
-  // Keep Google's widget for mouse users, but never move focus here.
-  const ac=new google.maps.places.Autocomplete(inp,{
-    fields:['formatted_address','geometry','place_id'],
-    types:['address'], componentRestrictions:{country:'ca'}, bounds:OK_BOUNDS, strictBounds:true
-  });
-  ac.addListener('place_changed', ()=>{
-    const p=ac.getPlace();
-    if(p?.geometry){
-      inp.value       = p.formatted_address || inp.value;
-      inp.dataset.lat = p.geometry.location.lat();
-      inp.dataset.lng = p.geometry.location.lng();
-      delete inp.dataset.dirty;
-    }
-    scheduleAutoCompute(80,true);
-  });
+function focusPrevInFrame(currentInput){
+  const row=currentInput.closest('.row');
+  const list=row.parentElement;
+  const rows=[...list.querySelectorAll('.row')];
+  const idx=rows.indexOf(row);
+  const prevEmpty=rows.slice(0,idx).reverse().find(r=>!r.querySelector('.stop').value.trim());
+  (prevEmpty||rows[idx-1]||row).querySelector('.stop').focus({preventScroll:true});
+}
+function focusPrevInFlat(currentInput){
+  const row=currentInput.closest('.row');
+  const list=document.getElementById('addrList');
+  const rows=[...list.querySelectorAll('.row')];
+  const idx=rows.indexOf(row);
+  const prevEmpty=rows.slice(0,idx).reverse().find(r=>!r.querySelector('.stop').value.trim());
+  (prevEmpty||rows[idx-1]||row).querySelector('.stop').focus({preventScroll:true});
 }
 
 /* ---------- Compaction / pruning ---------- */
@@ -767,7 +785,6 @@ async function multiPaste(e){
   renumber();
   await ensureCoords(getOrderedRows(true),{parallel:true});
 
-  // keep frames tight across boundary on this tick
   suppressTopUpOnce = true;
   __noTopUpUntil = Date.now() + 250;
 
@@ -776,13 +793,11 @@ async function multiPaste(e){
   autoResolveNext=true;
   await rebuildRoute();
 
-  // Hide frames that ended up with no addresses in this shift
   collapseEmptyFramesInShift(shift);
 }
 
 /* Accept top prediction on Tab/Enter (optionally without advancing focus) */
 function acceptTopPrediction(input, { advance = true } = {}){
-  // If already resolved (coords present), just finalize
   if (input.dataset.lat && input.dataset.lng){
     delete input.dataset.dirty;
     if (advance){
@@ -831,7 +846,6 @@ function focusNextInFrameOrCreate(currentInput){
   const rows       = [...list.querySelectorAll('.row')];
   const idx        = rows.indexOf(currentRow);
 
-  // 1) Reuse the first empty after the current row
   const firstEmptyAfter = rows.slice(idx+1).find(r => !r.querySelector('.stop').value.trim());
   if(firstEmptyAfter){
     suppressTopUpOnce = true;
@@ -840,16 +854,12 @@ function focusNextInFrameOrCreate(currentInput){
     firstEmptyAfter.querySelector('.stop').focus({preventScroll:true});
     return;
   }
-
-  // 2) Insert fresh one after current if the next is filled
   if(rows[idx+1]){
     forceCloseAutocomplete(currentInput);
     const newRow = insertRowAfter(currentRow);
     newRow.querySelector('.stop').focus({preventScroll:true});
     return;
   }
-
-  // 3) No next row at all -> append
   forceCloseAutocomplete(currentInput);
   const added = addRowToFrame(frameId, true, false);
   added.querySelector('.stop').focus({preventScroll:true});
@@ -905,6 +915,7 @@ function applyShiftVisibility(){
   scheduleTimelineBuild();
   renumber();
   normalizeShiftLayoutVisible();
+  hideAllAutocompleteUIs();     // <-- kill any lingering popup on shift toggle
   scheduleAutoCompute(120,false);
 }
 function buildAddrBar(){
@@ -937,11 +948,13 @@ function enterFlatMode(){
     for(let i=1;i<INITIAL_FLAT_ROWS;i++) addRowToAddrBar(false,false);
   }else{ focusFirstFlatInputIfNone(); }
   clearDirections(); clearLegDisplays();
+  hideAllAutocompleteUIs();
 }
 function exitFlatMode(){
   if(!flatMode) return; flatMode=false;
   document.getElementById('panel').classList.remove('flat');
   document.getElementById('addrBar').classList.remove('active');
+  hideAllAutocompleteUIs();
 }
 
 /* =================== CLEAR =================== */
@@ -955,6 +968,7 @@ function clearAllStops(){
   document.getElementById('msg').textContent='';
   document.getElementById('flatMsg').textContent='';
   showDeleteBtns(); scheduleTimelineBuild(); renumber();
+  hideAllAutocompleteUIs();
 }
 
 /* =================== ROUTING / OPTIMIZATION =================== */
@@ -1234,13 +1248,11 @@ async function optimizeByFramesTwoPass(){
     const cands=[];
     const K=rows.length;
     for(let s=0;s<K;s++){
-      // forward rotation
       let ordF=[...base.slice(s),...base.slice(0,s)];
       let costF=orderCost(ordF,D);
       if(costF <= baseCost*(1+TOL_PCT)+TOL_KM){
         cands.push({ord:ordF,cost:costF,start:ordF[0],end:ordF[ordF.length-1]});
       }
-      // reversed rotation
       let rev=[...base].reverse();
       let ordR=[...rev.slice(s),...rev.slice(0,s)];
       let costR=orderCost(ordR,D);
@@ -1248,13 +1260,10 @@ async function optimizeByFramesTwoPass(){
         cands.push({ord:ordR,cost:costR,start:ordR[0],end:ordR[ordR.length-1]});
       }
     }
-    // always include base as a candidate
     cands.push({ord:base,cost:baseCost,start:base[0],end:base[base.length-1]});
-
     framesData.push({fr,list,rows,pts,cands,D});
   }
 
-  // DP over frames to minimize connectors + internal costs
   function connCost(a,b){ if(!a||!b) return 0; return haversine(a,b); }
   const nF=framesData.length;
   const dp=Array.from({length:nF},()=>[]);
@@ -1278,7 +1287,6 @@ async function optimizeByFramesTwoPass(){
       dp[i][bi]=best; prevIdx[i][bi]=bestPrev;
     }
   }
-  // backtrack
   let lastFrame=nF-1;
   let bestFinal=0; let bestIdx=0;
   dp[lastFrame].forEach((v,i)=>{ if(i===0||v<bestFinal){bestFinal=v; bestIdx=i;} });
@@ -1287,7 +1295,6 @@ async function optimizeByFramesTwoPass(){
   choice[lastFrame]=bestIdx;
   for(let i=lastFrame;i>0;i--) choice[i-1]=prevIdx[i][choice[i]];
 
-  // apply the chosen orders frame by frame
   framesData.forEach((fd,i)=>{
     const c=fd.cands[choice[i]];
     if(!c || !fd.rows.length) return;
