@@ -84,7 +84,6 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   padding:4px 10px;border-radius:4px;font-size:13px;cursor:pointer;flex:none;}
 .addRowBtn:hover{background:#e7e7e7;}
 
-/* colored rails for frames */
 .frame[data-frame="0"]{border-left:4px solid var(--f-early);}
 .frame[data-frame="1"]{border-left:4px solid var(--f-late);}
 .frame[data-frame="2"]{border-left:4px solid var(--f-lunch);}
@@ -253,7 +252,7 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 <script>
 /* =================== CONFIG / CONSTANTS =================== */
 const PX_PER_MIN = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxPerMin'));
-const BASE_EMPTY_PER_FRAME = 4;    // initial scaffolding only
+const BASE_EMPTY_PER_FRAME = 4;    // default bars per frame
 const INITIAL_FLAT_ROWS     = 2;
 
 /* by‑frames optimizer tolerance — stay within this of frame‑best */
@@ -283,7 +282,7 @@ const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);};
 const pad=n=>n.toString().padStart(2,'0');
 
-/* =================== UTILITIES =================== */
+/* ===== Helpers ===== */
 function visibleFrameIdsInOrder(){
   return FRAMES.filter(fr=>{
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
@@ -333,8 +332,8 @@ function buildFrameBuckets(){
     });
   });
 
-  // provide initial scaffolding in day frames only
-  FRAMES.filter(f=>f.shift==='day').forEach(fr=>ensurePlaceholdersForFrame(fr.id));
+  /* Ensure every frame starts with 4 rows (even while hidden) */
+  FRAMES.forEach(fr=>ensurePlaceholdersForFrame(fr.id, /*includeCollapsed*/ true, /*ignoreVisibility*/ true));
   renumber();
 
   const ro=new ResizeObserver(()=>buildTimelineFromDOM());
@@ -347,7 +346,6 @@ function buildFrameBuckets(){
 function rebalanceFrameHeights(){
   if(flatMode) return;
 
-  // visible, uncollapsed sections
   const vis = FRAMES.filter(fr=>{
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
     return sec.style.display!=='none' &&
@@ -357,26 +355,21 @@ function rebalanceFrameHeights(){
 
   if(!vis.length) return;
 
-  // total available height inside the scroller
   const scroller = document.getElementById('scroller');
-  const avail = scroller.clientHeight - 24; // small padding reserve
+  const avail = scroller.clientHeight - 24;
 
-  // how much fixed UI each frame uses (header + add button + margins)
   const fixedById = {};
   let fixedTotal = 0;
   vis.forEach(fr=>{
     const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
     const headH = sec.querySelector('.frame-header').offsetHeight || 0;
     const addH  = sec.querySelector('.addRowBtn').offsetHeight || 0;
-    const chrome = headH + addH + 26; // paddings/margins
+    const chrome = headH + addH + 26;
     fixedById[fr.id] = chrome;
     fixedTotal += chrome;
   });
 
-  // free space left for lists
   const free = Math.max(120, avail - fixedTotal);
-
-  // proportion by time span
   const totalSpan = vis.reduce((s,fr)=>s + (parseHM(fr.end)-parseHM(fr.start)), 0);
   vis.forEach(fr=>{
     const list = document.getElementById('frame-'+fr.id);
@@ -407,13 +400,15 @@ function addRowToFrame(frameId,focus=true,select=false){
   if(focus) row.querySelector('.stop').focus({preventScroll:true});
   if(select) setSelected(row,true);
 }
-function ensurePlaceholdersForFrame(frameId){
+function ensurePlaceholdersForFrame(frameId, includeCollapsed=false, ignoreVisibility=false){
   const list=document.getElementById('frame-'+frameId); if(!list) return;
   const frameEl=list.closest('.frame');
-  const visible = frameEl.style.display!=='none' && !frameEl.classList.contains('collapsed') && !flatMode;
-  if(!visible) return;
-  const empties=[...list.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());
-  for(let i=empties.length;i<BASE_EMPTY_PER_FRAME;i++) addRowToFrame(frameId,false,false);
+  const isVisible = frameEl.style.display!=='none' && !flatMode;
+  const isCollapsed = frameEl.classList.contains('collapsed');
+  if(!ignoreVisibility && (!isVisible || (!includeCollapsed && isCollapsed))) return;
+
+  const total=list.querySelectorAll('.row').length;
+  for(let i=total;i<BASE_EMPTY_PER_FRAME;i++) addRowToFrame(frameId,false,false);
 }
 
 /* =================== TIMELINE =================== */
@@ -539,7 +534,6 @@ function renumber(){
 
 /* =================== INPUT / AUTOCOMPLETE =================== */
 function attachInputEvents(inp){
-  /* select all on first click */
   inp.addEventListener('mousedown',ev=>{
     if(document.activeElement!==inp){
       ev.preventDefault();
@@ -553,7 +547,6 @@ function attachInputEvents(inp){
   });
   inp.addEventListener('blur',()=>inp.closest('.row').classList.remove('focused'));
 
-  /* mark as dirty while typing; DO NOT resolve here */
   inp.addEventListener('input',()=>{
     inp.dataset.dirty='1';
     inp.dataset.lat=''; inp.dataset.lng='';
@@ -585,7 +578,7 @@ function attachInputEvents(inp){
   });
 }
 
-/* =================== MULTI‑PASTE (cross‑frame, no auto‑add except final) =================== */
+/* =================== MULTI‑PASTE =================== */
 async function multiPaste(e){
   const clip=(e.clipboardData||window.clipboardData).getData('text');
   const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -610,11 +603,10 @@ async function multiPaste(e){
     const startFrameId=+startRow.dataset.frame;
     const orderedIds=visibleFrameIdsInOrder();
     const startFrameIdx=Math.max(0, orderedIds.indexOf(startFrameId));
-    const framesToUse=orderedIds.slice(startFrameIdx); // current -> last visible
+    const framesToUse=orderedIds.slice(startFrameIdx);
 
     let targets=[];
-    // 1) Current frame: from the paste row downward — only empties
-    {
+    { // current frame from paste row down – only empties
       const list=document.getElementById('frame-'+startFrameId);
       const rows=[...list.querySelectorAll('.row')];
       const startIdx=rows.indexOf(startRow);
@@ -623,7 +615,6 @@ async function multiPaste(e){
         if(!el.value.trim()) targets.push(el);
       });
     }
-    // 2) Subsequent frames: from top — only empties
     for(let i=1;i<framesToUse.length && targets.length<lines.length;i++){
       const fid=framesToUse[i];
       const list=document.getElementById('frame-'+fid);
@@ -633,7 +624,6 @@ async function multiPaste(e){
         if(!el.value.trim()) targets.push(el);
       });
     }
-    // 3) If still not enough capacity and no later frame, append to the final visible frame only
     if(targets.length<lines.length){
       const lastFid = framesToUse.length ? framesToUse[framesToUse.length-1] : startFrameId;
       const list=document.getElementById('frame-'+lastFid);
@@ -644,7 +634,6 @@ async function multiPaste(e){
         targets.push(newRow.querySelector('.stop'));
       }
     }
-    // Apply values
     lines.forEach((addr,i)=>{
       const el=targets[i]; if(!el) return;
       el.value=addr; el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1';
@@ -652,16 +641,11 @@ async function multiPaste(e){
   }
 
   renumber();
-
-  // Resolve and compute
   const allRows = flatMode
     ? [...document.getElementById('addrList').querySelectorAll('.row')]
     : [...document.querySelectorAll('.frame-list .row')];
   await ensureCoords(allRows,{parallel:true});
-
-  // STRICT prune after paste: remove any gaps; DO NOT add placeholders
-  pruneEmptyGapsVisible(true /*noAdd*/);
-
+  pruneEmptyGapsVisible(true);
   scheduleAutoCompute(0,true);
 }
 
@@ -708,8 +692,7 @@ function updateToggleChips(){
 }
 function toggleFrame(id){
   const el=document.querySelector(`.frame[data-frame="${id}"]`);
-  const collapsed = el.classList.toggle('collapsed');
-  // Removed auto‑adding placeholders on expand
+  el.classList.toggle('collapsed');
   rebalanceFrameHeights(); buildTimelineFromDOM(); renumber(); scheduleAutoCompute(120,false);
 }
 function toggleShift(which){
@@ -722,6 +705,10 @@ function applyShiftVisibility(){
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
     const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
     sec.style.display=vis?'block':'none';
+    if(vis){
+      // guarantee the 4‑row default whenever a frame becomes visible
+      ensurePlaceholdersForFrame(fr.id, /*includeCollapsed*/ true, /*ignoreVisibility*/ true);
+    }
   });
 
   if(!dayVisible && !nightVisible) enterFlatMode(); else exitFlatMode();
@@ -898,8 +885,8 @@ function getOrderedRows(includeHidden=false){
   return rows.filter(r=>r.querySelector('.stop').value.trim());
 }
 
-/* remove empties that appear before the last filled row; optionally add placeholders */
-function pruneListGaps(list, placeholdersAtEnd){
+/* remove empties before the last filled row; and (here) never auto‑add afterwards */
+function pruneListGaps(list){
   const rows=[...list.querySelectorAll('.row')];
   let lastFilled=-1;
   for(let i=rows.length-1;i>=0;i--){
@@ -910,30 +897,22 @@ function pruneListGaps(list, placeholdersAtEnd){
       const r=rows[i]; if(!r.querySelector('.stop').value.trim()) r.remove();
     }
   }
-  if(placeholdersAtEnd>0){
-    const now=[...list.querySelectorAll('.row')];
-    const blanks=now.filter(r=>!r.querySelector('.stop').value.trim()).length;
-    for(let i=blanks;i<placeholdersAtEnd;i++){
-      const row=makeRow(+list.id.replace('frame-','')||0);
-      list.appendChild(row);
-    }
-  }
 }
-function pruneEmptyGapsVisible(noAdd=false){
+function pruneEmptyGapsVisible(){
   if(flatMode){
-    pruneListGaps(document.getElementById('addrList'), 0);
+    pruneListGaps(document.getElementById('addrList'));
   }else{
     FRAMES.forEach(fr=>{
       const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
       const vis=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
       if(!vis || sec.classList.contains('collapsed') || sec.style.display==='none') return;
-      pruneListGaps(document.getElementById('frame-'+fr.id), noAdd ? 0 : 0); // never auto‑add after edits
+      pruneListGaps(document.getElementById('frame-'+fr.id));
     });
   }
   renumber();
 }
 
-/* Helpers for optimization cleanup */
+/* Optimization cleanup */
 function removeAllEmptyRowsFlat(){
   const list=document.getElementById('addrList');
   [...list.querySelectorAll('.row')].forEach(r=>{
@@ -943,7 +922,6 @@ function removeAllEmptyRowsFlat(){
   renumber();
 }
 function pruneFramesOnOptimize(){
-  // Remove empty rows in frames that have content; collapse frames that end up empty
   FRAMES.forEach(fr=>{
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
     const visible=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
@@ -953,6 +931,8 @@ function pruneFramesOnOptimize(){
     const filled=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim()).length;
     if(filled===0){
       sec.classList.add('collapsed'); // collapse instead of removing
+      // maintain the default four bars so when expanded later, they exist
+      ensurePlaceholdersForFrame(fr.id, /*includeCollapsed*/ true, /*ignoreVisibility*/ true);
     }
   });
   renumber();
@@ -978,7 +958,7 @@ async function autoCompute(){
     }
   }
 
-  pruneEmptyGapsVisible(true);
+  pruneEmptyGapsVisible();
 
   if(rows.length===1){
     clearDirections();clearLegDisplays();clearPreviewPins();
@@ -1137,9 +1117,7 @@ async function globalOptimizeRoute(){
 
 /* =================== BY‑FRAMES TWO‑PASS OPTIMIZER =================== */
 async function optimizeByFramesTwoPass(){
-  const msg=document.getElementById('msg'); const flatMsg=document.getElementById('flatMsg');
-  msg.textContent='Optimizing by frames…'; flatMsg.textContent=msg.textContent;
-
+  // Do not set status text here; keep the distance message after rebuildRoute().
   pruneFramesOnOptimize(); // clean empties & collapse empty frames (not removed)
 
   let visFrames=FRAMES.filter(f=>{
@@ -1153,7 +1131,7 @@ async function optimizeByFramesTwoPass(){
     const list=document.getElementById('frame-'+fr.id);
     const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
     if(rows.length<2){ framesData.push({fr, list, rows, pts:[], D:null, baseOrder:null, baseCost:0}); continue; }
-    const ok=await ensureCoords(rows,{parallel:true}); if(!ok){msg.textContent='One or more stops can’t be located – please edit.';return;}
+    const ok=await ensureCoords(rows,{parallel:true}); if(!ok){return;}
     const pts=rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
     const D=buildDistanceMatrix(pts);
     let ord=solveTSPWithMatrix(D);
@@ -1161,14 +1139,14 @@ async function optimizeByFramesTwoPass(){
     framesData.push({fr, list, rows, pts, D, baseOrder:ord, baseCost});
   }
 
-  // Pass 1: apply internal best to each frame
+  // Pass 1
   framesData.forEach(fd=>{
     if(fd.rows.length<2) return;
     const ord=fd.baseOrder;
     ord.forEach(i=>fd.list.appendChild(fd.rows[i]));
   });
 
-  // Pass 2: forward boundary optimization
+  // Pass 2 (forward)
   for(let i=0;i<framesData.length-1;i++){
     const A=framesData[i], B=framesData[i+1];
     if((A.rows.length<1)||(B.rows.length<2)) continue;
@@ -1198,7 +1176,7 @@ async function optimizeByFramesTwoPass(){
     }
   }
 
-  // Pass 3: backward boundary optimization
+  // Pass 3 (backward)
   for(let i=framesData.length-2;i>=0;i--){
     const A=framesData[i], B=framesData[i+1];
     if((A.rows.length<2)||(B.rows.length<1)) continue;
@@ -1227,10 +1205,9 @@ async function optimizeByFramesTwoPass(){
   }
 
   renumber();
-  await rebuildRoute();
+  await rebuildRoute();           // this sets "Total Distance | Time"
   rebalanceFrameHeights();
   buildTimelineFromDOM();
-  msg.textContent='Optimized by frames.'; flatMsg.textContent=msg.textContent;
 }
 
 /* =================== INIT =================== */
@@ -1260,11 +1237,11 @@ window.routePlannerInit=()=>{
 
   dayVisible=false; nightVisible=false; applyShiftVisibility();
 
-  document.getElementById('route').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(true); rebuildRoute();};
+  document.getElementById('route').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); rebuildRoute();};
   document.getElementById('optAll').onclick=()=>{autoResolveNext=true; if(flatMode) removeAllEmptyRowsFlat(); else pruneFramesOnOptimize(); rebuildRoute().then(()=>globalOptimizeRoute());};
   document.getElementById('optFrames').onclick=()=>{autoResolveNext=true; optimizeByFramesTwoPass();};
   document.getElementById('delSel').onclick=deleteSelected;
-  document.getElementById('flatRoute').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(true); rebuildRoute();};
+  document.getElementById('flatRoute').onclick=()=>{autoResolveNext=true; pruneEmptyGapsVisible(); rebuildRoute();};
   document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; removeAllEmptyRowsFlat(); globalOptimizeRoute();};
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
