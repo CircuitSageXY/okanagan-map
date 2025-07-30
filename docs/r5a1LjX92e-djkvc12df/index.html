@@ -246,58 +246,102 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .gm-style .app-viewcard-strip{ display:none !important; }
 
 /* ===========================================================
-   NEW: RIGHT DRAWER + SLIM TAB (doesn't block fullscreen)
+   RIGHT DRAWER + SLIM TAB (updated styling)
    =========================================================== */
-/* Slim tab on right edge */
+/* Slim tab on right edge so it won't collide with fullscreen */
 #areasBtn{
   position:absolute; right:0; top:50%; transform:translateY(-50%);
   z-index:8;
-  background:#fff;
-  border:1px solid #d7d7d7; border-right:none;
-  border-top-left-radius:10px; border-bottom-left-radius:10px;
-  padding:8px 10px;
-  width:38px; height:auto; cursor:pointer; font-weight:600; box-shadow:0 2px 6px rgba(0,0,0,.25);
+  background:#fff; border:1px solid #d7d7d7; border-right:none;
+  border-top-left-radius:12px; border-bottom-left-radius:12px;
+  padding:8px 10px; width:38px; cursor:pointer;
+  box-shadow:0 2px 6px rgba(0,0,0,.25);
   display:flex; align-items:center; justify-content:center;
 }
-#areasBtn .material-icons{font-size:22px; line-height:22px; transition:transform .18s ease;}
+#areasBtn .material-icons{font-size:22px; transition:transform .18s ease;}
 #areasBtn.open .material-icons{ transform:rotate(180deg); }
 
 #areasDrawer{
   position:absolute; right:12px; top:58px; z-index:8; width:340px;
   max-height:calc(100% - 70px); overflow:auto;
-  background:#fff; border:1px solid #d7d7d7; border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,.18);
+  background:#fff; border:1px solid #d7d7d7; border-radius:14px;
+  box-shadow:0 8px 24px rgba(0,0,0,.22);
   transform:translateX(calc(100% + 16px)); transition:transform .18s ease;
+  font-size:14.5px;
 }
 #areasDrawer.open{ transform:translateX(0); }
-#areasDrawer header{ position:sticky; top:0; background:#fafafa; border-bottom:1px solid #e2e2e2; padding:10px 12px; font-weight:700; }
-#areasDrawer .sec{ padding:10px 12px; border-bottom:1px dashed #eee; }
-#areasDrawer .sec:last-child{ border-bottom:none; }
-#areasDrawer h4{ margin:0 0 8px 0; font-size:14px; color:#333; }
-#areasDrawer .row{ display:flex; align-items:center; gap:8px; margin:6px 0; padding:0; }
-#areasDrawer input[type="color"]{ width:34px; height:22px; padding:0; border:1px solid #ccc; border-radius:6px; }
-#areasDrawer input[type="range"]{ width:100%; }
-#areasDrawer .hint{ font-size:12px; color:#666; }
-#areasDrawer .grid{ display:grid; grid-template-columns: 1fr auto; gap:6px 8px; }
-.badgeCode{ display:inline-block; min-width:60px; font-weight:700; font-size:12px; padding:2px 6px; border:1px solid #ddd; border-radius:6px; }
-.switch{ display:flex; align-items:center; gap:8px; }
-.switch input{ transform:scale(1.1); }
+#areasDrawer header{
+  position:sticky; top:0; background:linear-gradient(#f7f7f7,#efefef);
+  border-bottom:1px solid #e2e2e2; padding:12px 14px;
+  font-weight:800; color:#1f2937; letter-spacing:.2px;
+  border-top-left-radius:14px; border-top-right-radius:14px;
+}
 
-/* Polygons section layout */
-#polysGrid{
-  display:grid;
-  grid-template-columns: auto 1fr auto;
-  align-items:center;
-  gap:6px 8px;
+/* generic sections */
+#areasDrawer .sec{ padding:12px 14px; border-bottom:1px dashed #ececec; }
+#areasDrawer .sec:last-child{ border-bottom:none; }
+#areasDrawer h4{ margin:0 0 10px 0; font-size:13.5px; color:#374151; text-transform:uppercase; letter-spacing:.35px; }
+#areasDrawer .row{ display:flex; align-items:center; gap:8px; margin:6px 0; padding:0; }
+#areasDrawer .hint{ font-size:12.5px; color:#6b7280; }
+
+/* Filter on top */
+#secFilterTop .row{ gap:8px; }
+#secFilterTop input[type="text"]{
+  height:34px; border-radius:10px; border:1px solid #cfcfcf;
+  padding:6px 10px; font-size:14px; flex:1;
 }
-.polyRow{ display:contents; } /* let the three cells participate in the grid */
-.polyRow label{ display:flex; align-items:center; gap:8px; font-size:13px; }
-.polyRow input[type="text"]{
-  width:100%; border:1px solid #ccc; border-radius:6px; padding:6px 8px; font-size:13px;
+#secFilterTop button{
+  border:1px solid #cfcfcf; border-radius:10px; padding:7px 10px; background:#fafafa; cursor:pointer;
 }
-.polyRow .eye{
-  cursor:pointer; font-size:20px; line-height:20px; color:#666; user-select:none;
+#secFilterTop button:hover{ background:#f3f4f6; }
+
+/* Single Polygons list */
+#polysList{ display:flex; flex-direction:column; gap:8px; }
+.poly-row{
+  display:grid; grid-template-columns: 26px 1fr auto 30px; align-items:center;
+  gap:8px; padding:6px 8px; border:1px solid #e8e8e8; border-radius:10px;
+  background:#ffffff; transition:box-shadow .12s, border-color .12s;
 }
-.polyRow .eye.off{ color:#bbb; }
+.poly-row:hover{ box-shadow:0 2px 10px rgba(0,0,0,.06); border-color:#dfdfdf; }
+.poly-row:focus-within{ box-shadow:0 0 0 3px rgba(59,130,246,.16); border-color:#3B82F6; }
+
+.poly-row .ck{ width:18px; height:18px; }
+.poly-row .ck input[type="checkbox"]{
+  width:18px; height:18px; margin:0; accent-color: var(--accent-color, #3B82F6);
+}
+
+.badgeCode{
+  display:inline-block; min-width:64px; font-weight:800; font-size:12.5px;
+  padding:3px 8px; border:1px solid #e5e7eb; border-radius:999px;
+  background:#f9fafb; color:#374151; text-align:center;
+}
+
+.poly-row .name{ display:flex; align-items:center; gap:8px; }
+.poly-row .name input{
+  width:100%; height:32px; padding:6px 8px;
+  border:1px solid #cfcfcf; border-radius:8px; background:#fff;
+}
+.poly-row .name input:focus{
+  outline:none; border-color:#3B82F6; box-shadow:0 0 0 3px rgba(59,130,246,.18);
+}
+
+.poly-row .zoom{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:30px; height:30px; border-radius:8px; border:1px solid #e5e7eb; background:#fafafa; cursor:pointer;
+}
+.poly-row .zoom .material-icons{ font-size:18px; color:#4b5563; }
+.poly-row .zoom:hover{ background:#f3f4f6; }
+
+.poly-row .swatch{
+  width:26px; height:26px; border-radius:6px; border:1px solid rgba(0,0,0,.18);
+  cursor:pointer; box-shadow: inset 0 0 0 1px rgba(255,255,255,.45);
+}
+#areasDrawer input[type="color"]{ width:0; height:0; padding:0; border:none; visibility:hidden; }
+
+/* Style section spacing */
+#secStyle .row{ margin-top:10px; }
+#secStyle label{ min-width:90px; color:#374151; }
+#areasDrawer input[type="range"]{ width:100%; }
 </style>
 
 <script>
@@ -341,59 +385,43 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 <!-- ---------- OUR dropdown root ---------- -->
 <div id="sgRoot" class="sg"><ul></ul></div>
 
-<!-- ---------- RIGHT DRAWER TAB + PANEL ---------- -->
+<!-- ---------- RIGHT DRAWER TAB + PANEL (updated) ---------- -->
 <button id="areasBtn" type="button" aria-label="Open Areas drawer" title="Areas">
   <span class="material-icons">chevron_left</span>
 </button>
 
 <div id="areasDrawer" aria-hidden="true">
-  <header>Areas: Layers • Polygons • Colors • Filter</header>
+  <header>Geo Area Polygon Settings</header>
 
-  <div class="sec" id="secLayers">
-    <h4>Layers</h4>
-    <!-- checkboxes inserted by JS -->
-    <div id="layersGrid" class="grid"></div>
+  <!-- Filter moved to the top -->
+  <div class="sec" id="secFilterTop">
+    <div class="row">
+      <input id="filterText" type="text" placeholder="Type to filter by name or code…">
+      <button id="filterClear" type="button">Clear</button>
+    </div>
+    <div class="hint">Matches region <b>name</b> or <b>code</b> (e.g., <code>RUT-S</code>, <code>WEST2</code>).</div>
   </div>
 
+  <!-- Polygons: single list (✓, editable name, zoom, color) -->
   <div class="sec" id="secPolys">
     <h4>Polygons</h4>
-    <div class="hint">Show/hide individual polygons & rename their labels.</div>
-    <div id="polysGrid"></div>
+    <div class="hint" style="margin-bottom:8px;">Show/hide polygons, edit their labels, zoom to them, and change colors.</div>
+    <div id="polysList"></div>
   </div>
 
-  <div class="sec" id="secFilter">
-    <h4>Filter</h4>
+  <!-- Style -->
+  <div class="sec" id="secStyle">
+    <h4>Style</h4>
     <div class="row">
-      <input id="filterText" type="text" placeholder="Type to filter by name or code…" style="flex:1;border:1px solid #ccc;border-radius:6px;padding:6px 8px;">
-      <button id="filterClear" type="button" style="border:1px solid #ccc;border-radius:6px;padding:6px 8px;background:#fafafa;">Clear</button>
-    </div>
-    <div class="hint">Matches region <b>name</b> or code (e.g., <code>RUT-S</code>, <code>WEST2</code>).</div>
-  </div>
-
-  <div class="sec" id="secColors">
-    <h4>Colors</h4>
-    <div id="colorsGrid" class="grid">
-      <!-- rows inserted by JS -->
-    </div>
-    <div class="row">
-      <label style="min-width:90px">Opacity</label>
+      <label>Opacity</label>
       <input id="opacityRange" type="range" min="0" max="1" step="0.01" value="0.20">
       <span id="opacityVal" class="hint">0.20</span>
     </div>
     <div class="row">
-      <label style="min-width:90px">Stroke</label>
+      <label>Stroke</label>
       <input id="strokeRange" type="range" min="0" max="3" step="0.1" value="1.3">
       <span id="strokeVal" class="hint">1.3</span>
     </div>
-  </div>
-
-  <div class="sec" id="secPerf">
-    <h4>Performance</h4>
-    <label class="switch">
-      <input id="deferSwitch" type="checkbox">
-      <span>Smooth pan/zoom (defer redraw while moving)</span>
-    </label>
-    <div class="hint">When enabled, areas hide during the gesture and reappear cleanly on release — eliminates flicker/cutting on heavy datasets.</div>
   </div>
 </div>
 
@@ -418,16 +446,15 @@ let dayVisible=false, nightVisible=false, flatMode=false;
 let OK_BOUNDS;
 const frameInitialized = new Map();
 
-/* ---------- AREA LAYERS (files) ---------- */
+/* ---------- GEOJSON SOURCES (files to load; no UI toggles) ---------- */
 const LAYERS = [
   { id:'geo_areas',   name:'Geo Areas (all)',                 file:'Geo Areas.geojson' },
   { id:'kel_central', name:'Kelowna – Central',               file:'Kelowna - Central.geojson' },
   { id:'kel_south',   name:'Kelowna – South',                 file:'Kelowna - South.geojson' },
   { id:'rut_lc',      name:'Rutland & Lake Country',          file:'Rutland & Lake Country.geojson' }
 ];
-const layerState = Object.fromEntries(LAYERS.map(l => [l.id, true]));
 
-/* ---------- COLORS (from your RGB list) ---------- */
+/* ---------- DEFAULT COLORS ---------- */
 const AREA_COLORS = {
   'MISS1':'#FFEA00',
   'MISS2':'#000000',
@@ -442,10 +469,7 @@ const AREA_COLORS = {
 let AREA_FILL_OPACITY = 0.20;
 let AREA_STROKE_WEIGHT = 1.3;
 
-/* ---------- PER‑CODE VISIBILITY + RENAMES ---------- */
-const codeState  = {};   // code -> visible (default true)
-const codeNames  = {};   // code -> override display name (optional)
-
+/* =================== SUGGESTIONS / SEARCH =================== */
 function hideAllAutocompleteUIs(){
   document.querySelectorAll('.pac-container').forEach(el=>{
     el.style.display='none';
@@ -1272,7 +1296,7 @@ function clearLegDisplays(){document.querySelectorAll('.leg-display').forEach(d=
 
 /* =================== TSP helpers (unchanged) =================== */
 function buildDistanceMatrix(points){const n=points.length;const D=Array.from({length:n},()=>Array(n).fill(0));for(let i=0;i<n;i++){for(let j=i+1;j<n;j++){const d=haversine(points[i],points[j]);D[i][j]=D[j][i]=d;} }return D;}
-function haversine(a,b){const R=6371;const toRad=x=>x*Math.PI/180;const dLat=toRad(b.lat-a.lat);const dLng=toRad(b.lng-a.lng);const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(s));}
+function haversine(a,b){const R=6371;const toRad=x=>x*Math.PI/180;const dLat=toRad(b.lat-a.lat);const dLng=toRad(b.lng-a.lng);const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(s));}
 function orderCost(order,D){let c=0; for(let i=0;i<order.length-1;i++) c+=D[order[i]][order[i+1]]; return c;}
 function nearestNeighbour(D,start=0){const n=D.length; const visited=Array(n).fill(false); const ord=[start]; visited[start]=true; for(let k=1;k<n;k++){const last=ord[ord.length-1]; let best=Infinity,idx=-1; for(let j=0;j<n;j++){ if(!visited[j] && D[last][j]<best){best=D[last][j]; idx=j;} } ord.push(idx); visited[idx]=true;} return ord;}
 function twoOpt(order,D){const n=order.length; let improved=true; while(improved){improved=false; for(let i=1;i<n-2;i++){for(let j=i+1;j<n-1;j++){const a=order[i-1],b=order[i],c=order[j],d=order[j+1]; if(D[a][b]+D[c][d] > D[a][c]+D[b][d]){ order.splice(i,j-i+1,...order.slice(i,j+1).reverse()); improved=true; }}}} return order;}
@@ -1331,12 +1355,13 @@ function initRegionLabelOverlay(){
   };
 }
 
-/* =================== GEOJSON: load, style, drawer controls =================== */
-const ALL_FEATURES = [];  // store references for quick iteration
+/* =================== GEOJSON + POLYGON PANEL (NEW) =================== */
+const ALL_FEATURES = [];                 // all features across files
+const POLY_STORAGE_KEY = 'geoPolyState_v1';
+let POLY_STATE = {};                     // { code: { visible, name, color } }
 let dataAttached = true, deferWhileInteract = false, reattachTO = 0;
 
 function areaCodeFromFeature(feat){
-  // Gather text once, then cache as __code/__name
   const fields = ['code','Code','CODE','name','Name','NAME','title','Title','TITLE','description','Description'];
   let txt = '';
   fields.forEach(k => { const v = feat.getProperty && feat.getProperty(k); if(v) txt += ' ' + String(v); });
@@ -1358,8 +1383,18 @@ function styleFeature(feature){
   };
 }
 
+function loadSavedPolyState(){
+  try{ const v = JSON.parse(localStorage.getItem(POLY_STORAGE_KEY)||'{}'); if(v && typeof v==='object') return v; }catch(_){}
+  return {};
+}
+function savePolyState(){ try{ localStorage.setItem(POLY_STORAGE_KEY, JSON.stringify(POLY_STATE)); }catch(_){ } }
+
+function getFeaturesByCode(code){ return ALL_FEATURES.filter(f => (f.getProperty('__code')||'') === code); }
+
 async function loadGeoLayers(){
   map.data.setStyle(styleFeature);
+  const saved = loadSavedPolyState();
+
   for (const layer of LAYERS){
     try{
       const res = await fetch(encodeURI(layer.file));
@@ -1368,49 +1403,70 @@ async function loadGeoLayers(){
       const feats = map.data.addGeoJson(gj);
       feats.forEach(f=>{
         const code = areaCodeFromFeature(f);
-        const name = f.getProperty('name') || f.getProperty('Name') || code || '';
+        const fallbackName = f.getProperty('name') || f.getProperty('Name') || code || '';
+        const savedRow = code ? saved[code] : null;
+
         f.setProperty('__layer', layer.id);
         f.setProperty('__code', code);
-        f.setProperty('__name', name);
-        f.setProperty('__color', code && AREA_COLORS[code] ? AREA_COLORS[code] : '#607d8b');
+        f.setProperty('__name', savedRow?.name || fallbackName);
+        f.setProperty('__color', (savedRow?.color) || (code && AREA_COLORS[code] ? AREA_COLORS[code] : '#607d8b'));
         f.setProperty('__fillOpacity', AREA_FILL_OPACITY);
         f.setProperty('__stroke', AREA_STROKE_WEIGHT);
-        f.setProperty('__visible', true);
+
+        const vis = savedRow?.visible !== false;
+        f.setProperty('__visible', vis);
+
         ALL_FEATURES.push(f);
       });
     }catch(err){
       console.warn('GeoJSON load failed for', layer.file, err);
     }
   }
-  // Initialize codeState & names based on features present
-  collectCodes().forEach(code => { if(!(code in codeState)) codeState[code] = true; });
-  buildDrawerUI();     // now we know layers & codes
-  applyVisibility();   // ensure filters/visibility consistent
+
+  // unique codes actually present
+  const codes = [...new Set(ALL_FEATURES.map(f=>f.getProperty('__code')).filter(Boolean))].sort();
+  POLY_STATE = {};
+  codes.forEach(code=>{
+    const any = ALL_FEATURES.find(f=>f.getProperty('__code')===code);
+    POLY_STATE[code] = {
+      visible: any?.getProperty('__visible') !== false,
+      name:    any?.getProperty('__name') || code,
+      color:   any?.getProperty('__color') || AREA_COLORS[code] || '#607d8b'
+    };
+  });
+  savePolyState();
+
+  buildDrawerUI();
+  applyVisibility();
 }
 
-function collectCodes(){
-  const set = new Set(Object.keys(AREA_COLORS));
-  ALL_FEATURES.forEach(f=>{ const c=f.getProperty('__code'); if(c) set.add(c); });
-  return Array.from(set).sort();
-}
-
-/* ---------- Visibility & filtering ---------- */
+/* visibility + filter */
 function applyVisibility(){
-  const q = (document.getElementById('filterText').value || '').trim().toUpperCase();
+  const q = (document.getElementById('filterText')?.value || '').trim().toUpperCase();
+
   ALL_FEATURES.forEach(f=>{
-    const inLayer = !!layerState[f.getProperty('__layer')];
     const code = (f.getProperty('__code') || '').toUpperCase();
     const name = (f.getProperty('__name') || '').toUpperCase();
+    const st   = POLY_STATE[f.getProperty('__code')] || {visible:true};
     const match = !q || code.includes(q) || name.includes(q);
-    const codeVisible = (code in codeState) ? !!codeState[code] : true;
-    f.setProperty('__visible', inLayer && codeVisible && match);
+    const vis   = !!st.visible && match;
+    f.setProperty('__visible', vis);
   });
   map.data.setStyle(styleFeature);
+
+  // also filter list rows
+  const list = document.getElementById('polysList');
+  if(!list) return;
+  [...list.querySelectorAll('.poly-row')].forEach(row=>{
+    const code = row.dataset.code;
+    const nm = (POLY_STATE[code]?.name || code).toUpperCase();
+    const match = !q || code.toUpperCase().includes(q) || nm.includes(q);
+    row.style.display = match ? '' : 'none';
+  });
 }
 
-/* ---------- Drawer UI ---------- */
+/* Drawer UI */
 function buildDrawerUI(){
-  // Button open/close (slim tab)
   const btn = document.getElementById('areasBtn');
   const drawer = document.getElementById('areasDrawer');
   const setOpen = (open) => {
@@ -1420,149 +1476,131 @@ function buildDrawerUI(){
   };
   btn.onclick = ()=> setOpen(!drawer.classList.contains('open'));
 
-  // Layers
-  const lg = document.getElementById('layersGrid');
-  lg.innerHTML = '';
-  LAYERS.forEach(l=>{
-    const label = document.createElement('label');
-    label.className='row';
-    label.innerHTML = `<input type="checkbox" data-layer="${l.id}" ${layerState[l.id]?'checked':''}>
-                       <span>${l.name}</span>`;
-    lg.appendChild(label);
-  });
-  lg.addEventListener('change', (e)=>{
-    const cb = e.target.closest('input[type="checkbox"]');
-    if(!cb) return;
-    layerState[cb.dataset.layer] = cb.checked;
-    applyVisibility();
+  // rows
+  const list = document.getElementById('polysList');
+  list.innerHTML = '';
+  const sortedCodes = Object.keys(POLY_STATE).sort((a,b)=>{
+    const na=(POLY_STATE[a]?.name||a).toUpperCase();
+    const nb=(POLY_STATE[b]?.name||b).toUpperCase();
+    return na.localeCompare(nb);
   });
 
-  // Polygons (per‑code visibility + rename)
-  const pg = document.getElementById('polysGrid');
-  pg.innerHTML = '';
-  const codes = collectCodes();
-  codes.forEach(code=>{
-    // left: checkbox + code badge
-    const left = document.createElement('div');
-    left.className='polyRow';
-    left.innerHTML = `
-      <label style="grid-column:1/2;">
-        <input type="checkbox" data-poly="${code}" ${ (codeState[code]??true) ? 'checked':'' }>
-        <span class="badgeCode">${code}</span>
-      </label>
-      <div style="grid-column:2/3;">
-        <input type="text" class="polyName" data-poly="${code}" placeholder="Label for ${code}">
-      </div>
-      <div style="grid-column:3/4; display:flex; justify-content:flex-end;">
-        <span class="material-icons eye ${ (codeState[code]??true) ? '' : 'off'}" data-eye="${code}" title="Show/Hide">visibility</span>
-      </div>`;
-    pg.appendChild(left);
-  });
+  const makeRow = (code)=>{
+    const st = POLY_STATE[code];
+    const row = document.createElement('div');
+    row.className='poly-row';
+    row.dataset.code = code;
 
-  // Seed name inputs with current names
-  codes.forEach(code=>{
-    const inp = pg.querySelector(`.polyName[data-poly="${code}"]`);
-    if(!inp) return;
-    const f = ALL_FEATURES.find(ff => (ff.getProperty('__code')||'') === code);
-    const nm = (code in codeNames) ? codeNames[code] : (f ? (f.getProperty('__name')||code) : code);
-    inp.value = nm;
-  });
+    // checkbox
+    const ckWrap = document.createElement('div');
+    ckWrap.className = 'ck';
+    ckWrap.innerHTML = `<input type="checkbox" ${st.visible?'checked':''} aria-label="Toggle ${st.name}">`;
+    ckWrap.querySelector('input').style.setProperty('--accent-color', st.color);
+    ckWrap.querySelector('input').style.accentColor = st.color;
 
-  pg.addEventListener('change', (e)=>{
-    const cb = e.target.closest('input[type="checkbox"][data-poly]');
-    if(!cb) return;
-    const code = cb.dataset.poly;
-    codeState[code] = cb.checked;
-    const eye = pg.querySelector(`.eye[data-eye="${code}"]`);
-    if(eye) eye.classList.toggle('off', !cb.checked);
-    applyVisibility();
-  });
-  pg.addEventListener('input', debounce((e)=>{
-    const inp = e.target.closest('input.polyName[data-poly]');
-    if(!inp) return;
-    const code = inp.dataset.poly;
-    const val  = (inp.value||'').trim();
-    codeNames[code] = val;
-    // Push name to all features for this code
-    ALL_FEATURES.forEach(f=>{
-      if((f.getProperty('__code')||'') === code){
-        f.setProperty('__name', val || code);
-      }
+    // name input + badge
+    const nameWrap = document.createElement('div');
+    nameWrap.className = 'name';
+    const tag = document.createElement('span');
+    tag.className = 'badgeCode';
+    tag.textContent = code;
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.value = st.name || code;
+    nameInput.placeholder = code;
+    nameInput.spellcheck = false;
+    nameInput.setAttribute('data-code', code);
+    nameWrap.appendChild(tag);
+    nameWrap.appendChild(nameInput);
+
+    // zoom (eye)
+    const zoomBtn = document.createElement('button');
+    zoomBtn.className = 'zoom';
+    zoomBtn.title = `Zoom to ${st.name || code}`;
+    zoomBtn.innerHTML = `<span class="material-icons">visibility</span>`;
+
+    // color swatch + hidden color input
+    const swatch = document.createElement('button');
+    swatch.className = 'swatch';
+    swatch.title = `Change color for ${st.name || code}`;
+    swatch.style.background = st.color;
+
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.value = st.color;
+    colorInput.setAttribute('data-code', code);
+
+    // assemble
+    row.appendChild(ckWrap);
+    row.appendChild(nameWrap);
+    row.appendChild(zoomBtn);
+    row.appendChild(swatch);
+    row.appendChild(colorInput);
+    list.appendChild(row);
+
+    // events
+    ckWrap.querySelector('input').addEventListener('change', (e)=>{
+      POLY_STATE[code].visible = !!e.target.checked; savePolyState();
+      getFeaturesByCode(code).forEach(f=> f.setProperty('__visible', POLY_STATE[code].visible));
+      applyVisibility();
     });
-  }, 120));
-  pg.addEventListener('click', (e)=>{
-    const eye = e.target.closest('.eye[data-eye]');
-    if(!eye) return;
-    const code = eye.dataset.eye;
-    const next = !(codeState[code] ?? true);
-    codeState[code] = next;
-    const cb = pg.querySelector(`input[type="checkbox"][data-poly="${code}"]`);
-    if(cb) cb.checked = next;
-    eye.classList.toggle('off', !next);
-    applyVisibility();
-  });
 
-  // Colors
-  const cg = document.getElementById('colorsGrid');
-  cg.innerHTML = '';
-  Object.keys(AREA_COLORS).forEach(code=>{
-    const wrapCode = document.createElement('div');
-    wrapCode.textContent = code;
-    wrapCode.className = 'badgeCode';
+    nameInput.addEventListener('input', debounce(()=>{
+      POLY_STATE[code].name = (nameInput.value||'').trim() || code; savePolyState();
+      getFeaturesByCode(code).forEach(f=> f.setProperty('__name', POLY_STATE[code].name));
+      applyVisibility();
+    }, 120));
 
-    const pickerWrap = document.createElement('div');
-    pickerWrap.style.display='flex'; pickerWrap.style.alignItems='center'; pickerWrap.style.gap='6px';
-    pickerWrap.innerHTML = `<input type="color" value="${AREA_COLORS[code]}" data-code="${code}">`;
-
-    const rowL = document.createElement('div'); rowL.appendChild(wrapCode);
-    const rowR = document.createElement('div'); rowR.appendChild(pickerWrap);
-    cg.appendChild(rowL); cg.appendChild(rowR);
-  });
-  cg.addEventListener('input', (e)=>{
-    const inp = e.target.closest('input[type="color"]'); if(!inp) return;
-    const code = inp.dataset.code; AREA_COLORS[code] = inp.value;
-    // Push to features with that code
-    ALL_FEATURES.forEach(f=>{
-      if((f.getProperty('__code')||'') === code){
-        f.setProperty('__color', inp.value);
-      }
+    zoomBtn.addEventListener('click', ()=>{
+      const feats = getFeaturesByCode(code); if(!feats.length) return;
+      const b = new google.maps.LatLngBounds();
+      feats.forEach(f=>{
+        try{ f.getGeometry().forEachLatLng(latlng => b.extend(latlng)); }catch(_){}
+      });
+      if(!b.isEmpty()) map.fitBounds(b, {top:80,right:20,bottom:20,left:20});
     });
-    map.data.setStyle(styleFeature);
-  });
 
-  // Opacity & stroke
+    swatch.addEventListener('click', ()=> colorInput.click());
+    colorInput.addEventListener('input', ()=>{
+      const hex = colorInput.value;
+      POLY_STATE[code].color = hex; savePolyState();
+      swatch.style.background = hex;
+      ckWrap.querySelector('input').style.accentColor = hex;
+      getFeaturesByCode(code).forEach(f=> f.setProperty('__color', hex));
+      map.data.setStyle(styleFeature);
+    });
+  };
+
+  sortedCodes.forEach(makeRow);
+
+  // style sliders
   const op = document.getElementById('opacityRange');
   const opV= document.getElementById('opacityVal');
   const st = document.getElementById('strokeRange');
   const stV= document.getElementById('strokeVal');
+  if(op){ op.value = AREA_FILL_OPACITY; opV.textContent = (+op.value).toFixed(2); }
+  if(st){ st.value = AREA_STROKE_WEIGHT; stV.textContent = (+st.value).toFixed(1); }
 
-  op.addEventListener('input', ()=>{
+  op?.addEventListener('input', ()=>{
     AREA_FILL_OPACITY = +op.value;
     opV.textContent = (+op.value).toFixed(2);
     ALL_FEATURES.forEach(f=>f.setProperty('__fillOpacity', AREA_FILL_OPACITY));
     map.data.setStyle(styleFeature);
   });
-  st.addEventListener('input', ()=>{
+  st?.addEventListener('input', ()=>{
     AREA_STROKE_WEIGHT = +st.value;
     stV.textContent = (+st.value).toFixed(1);
     ALL_FEATURES.forEach(f=>f.setProperty('__stroke', AREA_STROKE_WEIGHT));
     map.data.setStyle(styleFeature);
   });
 
-  // Filter
+  // filter
   const ft = document.getElementById('filterText');
   document.getElementById('filterClear').onclick=()=>{ ft.value=''; applyVisibility(); };
   ft.addEventListener('input', debounce(applyVisibility, 80));
-
-  // Performance
-  const def = document.getElementById('deferSwitch');
-  def.addEventListener('change', ()=>{
-    deferWhileInteract = !!def.checked;
-    if(!deferWhileInteract) reattachData();
-  });
 }
 
-/* ---------- Optional: defer redraw while interacting ---------- */
+/* Optional helpers kept (no UI toggle) */
 function detachData(){
   if(!deferWhileInteract || !dataAttached) return;
   map.data.setMap(null); dataAttached=false;
@@ -1613,11 +1651,6 @@ window.routePlannerInit=()=>{
   map.addListener('click', hideRegionLabel);
   document.getElementById('panel').addEventListener('click', hideRegionLabel, true);
 
-  // Optional smoother interaction mode
-  map.addListener('dragstart', ()=>detachData());
-  map.addListener('zoom_changed', ()=>detachData());
-  map.addListener('idle', ()=>{ if(deferWhileInteract){ clearTimeout(reattachTO); reattachTO=setTimeout(reattachData, 50);} });
-
   /* ---------- Services ---------- */
   dirSvc=new google.maps.DirectionsService();
   dirRend=new google.maps.DirectionsRenderer({map,suppressMarkers:true});
@@ -1637,62 +1670,7 @@ window.routePlannerInit=()=>{
   sv.addListener('visible_changed', () => enforcePanelVisibility());
   enforcePanelVisibility();
 
-  (function robustHideLens(){
-    const isTarget = (el)=>{
-      try{
-        const aria=(el.getAttribute?.('aria-label')||'').toLowerCase();
-        const title=(el.getAttribute?.('title')||'').toLowerCase();
-        return (aria.includes('visual') || aria.includes('lens') ||
-                title.includes('visual') || title.includes('lens'));
-      }catch(_){return false;}
-    };
-    const hideEl = (el)=>{
-      try{
-        el.style.display='none'; el.hidden=true; el.setAttribute('aria-hidden','true');
-        if(el.parentElement && el.parentElement.childElementCount<=4){
-          el.parentElement.style.display='none'; el.parentElement.hidden=true;
-        }
-      }catch(_){}
-    };
-    const walk = (root)=>{
-      if(!root) return;
-      const stack=[root];
-      while(stack.length){
-        const node=stack.pop();
-        if(node.nodeType!==1 && !(node instanceof ShadowRoot)) continue;
-        const el=node;
-        if(el.nodeType===1 && isTarget(el)) hideEl(el);
-        if(el.children) for(const c of el.children) stack.push(c);
-        if(el.shadowRoot) stack.push(el.shadowRoot);
-        if(el instanceof ShadowRoot) for(const c of el.children) stack.push(c);
-      }
-    };
-    const hideAll = ()=>walk(document.body);
-    hideAll();
-    const mo = new MutationObserver(()=>hideAll());
-    mo.observe(document.body, {subtree:true, childList:true, attributes:true});
-    map.getStreetView().addListener('visible_changed', hideAll);
-  })();
-
-  (function attachFunctionKeyTrap(){
-    function onDown(e){
-      if(!['F1','F2','F3','F4'].includes(e.key)) return;
-      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-      if(e.repeat) return;
-      if(e.key==='F1') toggleShift('day');
-      else if(e.key==='F2') toggleShift('night');
-      else if(e.key==='F3') clearAllStops();
-      else if(e.key==='F4'){ if(!flatMode){ autoResolveNext=true; optimizeByFramesTwoPass?.(); } }
-    }
-    function onUp(e){
-      if(!['F1','F2','F3','F4'].includes(e.key)) return;
-      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-    }
-    window.addEventListener('keydown', onDown, {capture:true, passive:false});
-    window.addEventListener('keyup',   onUp,   {capture:true, passive:false});
-    document.onhelp = () => false; window.onhelp = () => false;
-  })();
-
+  // keep reflow snappiness
   window.addEventListener('resize', ()=>{ clearTimeout(window.__rb); window.__rb=setTimeout(()=>{rebalanceFrameHeights();},150); });
 
   if(window.__mapsApiReady){ /* maps already loaded */ }
