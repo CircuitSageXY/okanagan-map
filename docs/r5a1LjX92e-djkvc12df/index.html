@@ -32,19 +32,22 @@
 
   --pxPerMin:2;
 
-  /* Label palette: tuned for “paper map” look (no purple by default) */
-  --label-accent:#2A9D8F;      /* teal “pinstripe”/accent */
-  --paper-base:#fffef8;        /* warm paper */
-  --paper-ink:#0f1720;         /* label text color */
-  --paper-shadow:0 18px 38px rgba(13,20,26,.22), 0 4px 10px rgba(13,20,26,.20);
-  --paper-line:#e6e1d5;        /* fold/grid lines */
-  --paper-grid:#ece7da;        /* light grid cells */
-  --water-tint:#e3f2fd;        /* tiny map hint */
+  /* -------- Label palette (map‑tuned) -------- */
+  /* Accent is selected from palette per label text (stable hash). */
+  --accent-teal:#2A9D8F;
+  --accent-blue:#3B82F6;
+  --accent-slate:#475569;
+  --accent-olive:#6B8E23;
+
+  --label-paper:#ffffff;      /* readable “paper” surface */
+  --label-ink:#0f1720;        /* dark slate text */
+  --label-border:rgba(15,23,32,.14);
+  --label-halo:rgba(15,23,32,.16); /* subtle halo around badge */
 }
 
 /* ---------- BASICS ---------- */
 html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
-#map{backface-visibility:hidden;transform:translateZ(0);} /* keep GPU compositing */
+#map{backface-visibility:hidden;transform:translateZ(0);}
 .hidden{display:none!important;}
 .pac-container{ display:none !important; }  /* hide Google popup (we render our own) */
 
@@ -186,7 +189,6 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 #addrFooter{margin-top:10px;border-top:1px solid #dadada;padding-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 #flatMsg{font-size:16px;font-weight:700;color:#0066cc;flex:1 1 100%;}
 #flatButtons{display:flex;gap:6px;align-items:center;}
-/* Make Optimize look/behave like the chips */
 #flatButtons .toggleChip{ padding:4px 12px; line-height:20px; min-width:auto; }
 #flatButtons .toggleChip.action{ border-color:var(--clrB); color:var(--clrB); }
 #flatButtons .toggleChip.action:hover,
@@ -204,102 +206,75 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .sg li:hover,.sg li.active{background:#e8f1fe;}
 .sg small{opacity:.7;margin-left:6px;}
 
-/* ---------- “FOLDED‑MAP” LABEL (compact + fast) ---------- */
+/* ===========================================================
+   ULTRA‑SNAPPY REGION LABEL (capsule + pointer + halo)
+   =========================================================== */
 .region-label{
-  position:absolute;
-  left:0; top:0;
-  transform:translate(-50%,-100%) perspective(900px) rotateX(-50deg) scale(.92);
-  will-change: transform, opacity;
+  position:absolute; left:0; top:0;
+  transform:translate(-50%,-100%) scale(.96);
+  opacity:0;
+  will-change:transform,opacity;
   z-index:1000;
   pointer-events:auto;
-  opacity:0;                /* WAAPI lifts this to 1 */
 }
 
-.map-card{
+/* the badge itself */
+.badge{
   position:relative;
-  display:flex; align-items:center; gap:6px;
-  padding:6px 8px 8px 8px;
-  border-radius:22px;
-  background:transparent;    /* the “panels” render the paper */
-  box-shadow:var(--paper-shadow);
-  color:var(--paper-ink);
+  display:flex; align-items:center; gap:10px;
+  padding:6px 10px;
+  background:var(--label-paper);
+  color:var(--label-ink);
+  border:1px solid var(--label-border);
+  border-radius:16px;
+  box-shadow:0 2px 5px rgba(0,0,0,.06);
 }
 
-/* three “paper panels” that fold */
-.panel{
-  position:relative;
-  width:56px; height:34px; flex:none;
-  background:
-    linear-gradient(90deg, transparent 31px, var(--paper-line) 32px, transparent 33px), /* fold line */
-    linear-gradient(0deg, transparent 16px, var(--paper-line) 17px, transparent 18px), /* mid fold */
-    linear-gradient(90deg, var(--paper-grid) 0 1px, transparent 1px) 0/12px 100%,     /* narrow grid */
-    linear-gradient(0deg,  var(--paper-grid) 0 1px, transparent 1px) 0/100% 12px,
-    linear-gradient(180deg, rgba(0,0,0,.03), rgba(0,0,0,0)),
-    var(--paper-base);
-  border-radius:10px;
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);
-  transform-style:preserve-3d;
-}
-.panel-left  { transform-origin: left  center;  transform: rotateY(62deg); }
-.panel-right { transform-origin: right center;  transform: rotateY(-62deg); }
-.panel-center{ width:76px; } /* center is wider for the title badge */
-
-/* a subtle water tint peeking on the edges for “map-ness” */
-.panel::after{
-  content:""; position:absolute; inset:0; pointer-events:none;
-  background: radial-gradient(120px 30px at 12% 75%, var(--water-tint), transparent 60%),
-              radial-gradient(120px 30px at 88% 25%, var(--water-tint), transparent 60%);
-  opacity:.55; border-radius:inherit; mix-blend-mode:multiply;
-}
-
-/* accent “pin” left */
-.accent-pill{
-  width:8px; height:26px; border-radius:5px;
-  background:linear-gradient(180deg, var(--label-accent), color-mix(in oklab, var(--label-accent), #000 10%));
-  box-shadow:0 0 0 1px rgba(255,255,255,.55) inset, 0 1px 4px rgba(0,0,0,.25);
-  margin-right:2px;
-}
-
-/* title badge over the center panel */
-.map-title{
-  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-  font-weight:800; letter-spacing:.35px; text-transform:uppercase;
-  background:#ffffff; color:#111; border:1px solid rgba(0,0,0,.08);
-  border-radius:999px; padding:3px 12px; white-space:nowrap;
-  text-shadow:none; font-size:14px;
-  box-shadow:0 1px 1px rgba(0,0,0,.04), 0 0 0 2px rgba(255,255,255,.7);
+/* subtle halo to lift the badge off colored polygons */
+.badge::before{
+  content:""; position:absolute; inset:-14px -18px -18px -18px; z-index:-1;
+  background:radial-gradient(140px 70px at 50% 60%, var(--label-halo), transparent 65%);
+  pointer-events:none;
 }
 
 /* pointer nib */
-.map-card::after{
+.badge::after{
   content:""; position:absolute; left:calc(50% - 8px); bottom:-8px;
-  width:0;height:0;
+  width:0; height:0;
   border-left:8px solid transparent;
   border-right:8px solid transparent;
-  border-top:8px solid rgba(255,255,255,.95);
-  filter:drop-shadow(0 2px 2px rgba(0,0,0,.12));
+  border-top:8px solid var(--label-paper);
+  filter:drop-shadow(0 1px 1px rgba(0,0,0,.10));
+}
+
+/* accent bar (stable color per name) */
+.accent{
+  width:8px; height:22px; border-radius:4px; flex:none;
+  background:var(--accent,#2A9D8F);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.5), 0 0 0 1px rgba(0,0,0,.05);
+}
+
+/* title */
+.title{
+  font-weight:800; letter-spacing:.35px; text-transform:uppercase;
+  white-space:nowrap; font-size:14px;
 }
 
 /* close button */
-.region-close{
-  margin-left:6px;
-  cursor:pointer;
-  background:#fff; color:#4b5563;
-  width:22px; height:22px; border-radius:50%;
+.close{
+  margin-left:6px; width:22px; height:22px; border-radius:50%;
   display:inline-flex; align-items:center; justify-content:center;
-  font-size:16px; line-height:16px;
-  box-shadow:0 1px 2px rgba(0,0,0,.18);
-  border:1px solid rgba(0,0,0,.08);
+  background:#fff; border:1px solid var(--label-border);
+  box-shadow:0 1px 1px rgba(0,0,0,.06);
+  color:#4b5563; font-size:16px; line-height:16px; cursor:pointer;
 }
-.region-close:hover{ color:#000; }
+.close:hover{ color:#000; }
 
-/* Reduced-motion users: skip 3D */
 @media (prefers-reduced-motion: reduce){
-  .region-label{ transition:none !important; opacity:1 !important; transform:translate(-50%,-112%) !important; }
-  .panel-left, .panel-right{ transform:none !important; }
+  .region-label{ transform:translate(-50%,-112%)!important; opacity:1!important; }
 }
 
-/* Hide Google “Visual Search / Lens” bubble + friends (CSS level; JS also enforces) */
+/* Hide Google “Visual Search / Lens” bubble + friends */
 .gm-style [aria-label*="Visual"],
 .gm-style [title*="Visual"],
 .gm-style [aria-label*="Lens"],
@@ -341,7 +316,6 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
   <div id="addrFooter">
     <div id="flatMsg"></div>
     <div id="flatButtons">
-      <!-- Optimize styled as a chip, matching Day/Night -->
       <button id="flatOpt" class="toggleChip action" type="button">Optimize</button>
       <button id="flatDelSel">Delete Selected</button>
     </div>
@@ -358,8 +332,8 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 const BASE_EMPTY_PER_FRAME = 4;
 const INITIAL_FLAT_ROWS    = 2;
 
-/* label color mode: 'uniform' => use --label-accent; 'hash' => per‑name hues */
-const LABEL_COLOR_MODE = 'uniform';
+/* color mode: 'hash' (stable accent from palette) or 'uniform' (single accent) */
+const LABEL_COLOR_MODE = 'hash';
 
 const TOL_PCT = 0.03, TOL_KM = 0.30;
 
@@ -380,7 +354,7 @@ function hideAllAutocompleteUIs(){
   });
 }
 
-/* ---------- Suggestion dropdown (our component) ---------- */
+/* ---------- Suggestion dropdown ---------- */
 const SG = (function(){
   const root = document.getElementById('sgRoot');
   const list = root.querySelector('ul');
@@ -831,7 +805,6 @@ async function multiPaste(e){
 
   const startRow=e.target.closest('.row');
 
-  /* ---- Flat view ---- */
   if(flatMode){
     const list=document.getElementById('addrList');
     let rows=[...list.querySelectorAll('.row')];
@@ -854,7 +827,6 @@ async function multiPaste(e){
     return;
   }
 
-  /* ---- Day/Night frames ---- */
   const firstFrameId=+startRow.dataset.frame;
   const frMeta=FRAMES.find(f=>f.id===firstFrameId);
   const shift=frMeta.shift;
@@ -986,7 +958,7 @@ function applyShiftVisibility(){
   hideAllAutocompleteUIs();
   scheduleAutoCompute(120,false);
 
-  enforcePanelVisibility(); /* ← make sure only one panel is visible */
+  enforcePanelVisibility();
 }
 
 function buildAddrBar(){
@@ -1228,13 +1200,13 @@ function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){const n=D.leng
 
 /* -------- Optimize by Frames (F4) -------- */
 async function optimizeByFramesTwoPass(){
-  if (flatMode) return;  // Only for Day/Night view
-  clearLegDisplays(); // avoid duplicated leg displays during reorder
+  if (flatMode) return;
+  clearLegDisplays();
 
   const dist = (a,b)=>{
     if(!a||!b) return 0;
     const R=6371, toRad=x=>x*Math.PI/180;
-    const dLat=toRad(b.lat-a.lat), dLng=toRad(b.lng-a.lng);
+    const dLat=toRad(b.lat-a.lat), dLng=toRad(b.lng-a.lat);
     const s=Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;
     return 2*R*Math.asin(Math.sqrt(s));
   };
@@ -1335,7 +1307,6 @@ async function optimizeByFramesTwoPass(){
     const list = document.getElementById('frame-'+fr.id);
     const opt  = perFrameOptions[i][ chosen[i] ];
     opt.sequenceRows.forEach(r=>list.appendChild(r));
-    // remove empties after optimizing
     [...list.querySelectorAll('.row')].forEach(r=>{
       if(!r.querySelector('.stop').value.trim()) r.remove();
     });
@@ -1343,6 +1314,77 @@ async function optimizeByFramesTwoPass(){
 
   renumber();
   scheduleAutoCompute(0,true);
+}
+
+/* =================== LABEL OVERLAY (snappy) =================== */
+function pickAccentFromName(name){
+  if(LABEL_COLOR_MODE==='uniform') return getComputedStyle(document.documentElement).getPropertyValue('--accent-teal').trim()||'#2A9D8F';
+  const palette=[
+    getComputedStyle(document.documentElement).getPropertyValue('--accent-teal').trim()||'#2A9D8F',
+    getComputedStyle(document.documentElement).getPropertyValue('--accent-blue').trim()||'#3B82F6',
+    getComputedStyle(document.documentElement).getPropertyValue('--accent-slate').trim()||'#475569',
+    getComputedStyle(document.documentElement).getPropertyValue('--accent-olive').trim()||'#6B8E23'
+  ];
+  let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i))>>>0; }
+  return palette[h % palette.length];
+}
+
+class RegionLabelOverlay extends google.maps.OverlayView{
+  constructor(pos,text,accent){
+    super();
+    this.position=pos; this.text=text||''; this.accent=accent||pickAccentFromName(this.text);
+    this.container=null;
+
+    this.kfIn  = [
+      {opacity:0, transform:'translate(-50%,-100%) scale(.96)'},
+      {opacity:1, transform:'translate(-50%,-112%) scale(1.00)'}
+    ];
+    this.kfOut = [
+      {opacity:1, transform:'translate(-50%,-112%) scale(1.00)'},
+      {opacity:0, transform:'translate(-50%,-100%) scale(.96)'}
+    ];
+    this.optIn  = {duration:90,  easing:'cubic-bezier(.2,.9,.2,1)', fill:'forwards'};
+    this.optOut = {duration:80,  easing:'cubic-bezier(.2,.7,.2,1)', fill:'forwards'};
+  }
+  onAdd(){
+    const div=document.createElement('div');
+    div.className='region-label';
+    div.innerHTML =
+      `<div class="badge" style="--accent:${this.accent}">
+         <span class="accent"></span>
+         <span class="title">${this.text}</span>
+         <span class="close material-icons" title="Close">close</span>
+       </div>`;
+    div.querySelector('.close').onclick=()=>this.setMap(null);
+
+    this.container=div;
+    this.getPanes().floatPane.appendChild(div);
+
+    if(typeof div.animate === 'function'){
+      div.animate(this.kfIn, this.optIn);
+    }else{
+      div.style.opacity='1';
+      div.style.transform='translate(-50%,-112%)';
+    }
+  }
+  draw(){
+    const proj=this.getProjection(); if(!proj||!this.container) return;
+    const pt=proj.fromLatLngToDivPixel(this.position);
+    this.container.style.left=pt.x+'px';
+    this.container.style.top =pt.y+'px';
+  }
+  onRemove(){
+    if(!this.container) return;
+    const el=this.container;
+    this.container=null;
+    const can = typeof el.animate === 'function';
+    if(can){
+      try{ el.getAnimations().forEach(a=>a.cancel()); }catch(_){}
+      el.animate(this.kfOut, this.optOut).finished.then(()=>el.remove()).catch(()=>el.remove());
+    }else{
+      el.remove();
+    }
+  }
 }
 
 /* =================== INIT =================== */
@@ -1357,103 +1399,13 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)
   );
 
-  /* ---------- Region overlay + KML (toggle + uniform color) ---------- */
-  function nameToAccent(name){
-    if(LABEL_COLOR_MODE==='uniform') return getComputedStyle(document.documentElement).getPropertyValue('--label-accent').trim()||'#2A9D8F';
-    let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i)) % 360; }
-    return `hsl(${h} 65% 48%)`;
-  }
-
-  /* === Folded‑map overlay (fast, 3D, WAAPI with fallback) === */
-  class RegionLabelOverlay extends google.maps.OverlayView{
-    constructor(pos,text,accent){
-      super();
-      this.position=pos; this.text=text||''; this.accent=accent||'#2A9D8F';
-      this.container=null;
-
-      /* wrapper (opacity + slight pitch) */
-      this.kfInMain = [
-        { opacity:0, transform:'translate(-50%,-96%) perspective(900px) rotateX(-52deg) scale(.92)' },
-        { opacity:1, transform:'translate(-50%,-112%) perspective(900px) rotateX(0deg)   scale(1.00)' }
-      ];
-      this.kfOutMain = [
-        { opacity:1, transform:'translate(-50%,-112%) perspective(900px) rotateX(0deg)   scale(1.00)' },
-        { opacity:0, transform:'translate(-50%,-96%)  perspective(900px) rotateX(-36deg) scale(.92)' }
-      ];
-      this.optInMain  = { duration:160, easing:'cubic-bezier(.2,.9,.2,1)',  fill:'forwards' };
-      this.optOutMain = { duration:110, easing:'cubic-bezier(.2,.7,.2,1)',  fill:'forwards' };
-
-      /* map panels fold */
-      this.kfFoldLeftOpen  = [ { transform:'rotateY(62deg)' }, { transform:'rotateY(18deg)' } ];
-      this.kfFoldRightOpen = [ { transform:'rotateY(-62deg)' },{ transform:'rotateY(-18deg)' } ];
-      this.kfFoldLeftClose = [ { transform:'rotateY(18deg)' },  { transform:'rotateY(62deg)' } ];
-      this.kfFoldRightClose=[ { transform:'rotateY(-18deg)' }, { transform:'rotateY(-62deg)' } ];
-      this.optFold    = { duration:160, easing:'cubic-bezier(.2,.9,.2,1)', fill:'forwards' };
-      this.optFoldOut = { duration:110, easing:'cubic-bezier(.2,.7,.2,1)', fill:'forwards' };
-    }
-    onAdd(){
-      const div=document.createElement('div');
-      div.className='region-label';
-      div.innerHTML =
-        `<div class="map-card" style="--label-accent:${this.accent}">
-           <span class="accent-pill"></span>
-           <div class="panel panel-left"></div>
-           <div class="panel panel-center"><div class="map-title">${this.text}</div></div>
-           <div class="panel panel-right"></div>
-           <span class="region-close material-icons" title="Close">close</span>
-         </div>`;
-      div.querySelector('.region-close').onclick=()=>this.setMap(null);
-      this.container=div;
-      this.getPanes().floatPane.appendChild(div);
-
-      const card  = div.firstElementChild;
-      const left  = card.querySelector('.panel-left');
-      const right = card.querySelector('.panel-right');
-
-      const canAnim = typeof div.animate === 'function';
-      if (canAnim){
-        div.animate(this.kfInMain, this.optInMain);           // wrapper opacity/pitch
-        left.animate(this.kfFoldLeftOpen, this.optFold);      // fold open
-        right.animate(this.kfFoldRightOpen, this.optFold);
-      }else{
-        // fallback: visible, unfolded
-        div.style.opacity='1';
-        div.style.transform='translate(-50%,-112%)';
-        left.style.transform='none'; right.style.transform='none';
-      }
-    }
-    draw(){
-      const proj=this.getProjection(); if(!proj||!this.container) return;
-      const pt=proj.fromLatLngToDivPixel(this.position);
-      this.container.style.left=pt.x+'px';
-      this.container.style.top =pt.y+'px';
-    }
-    onRemove(){
-      if(!this.container) return;
-      const el=this.container;
-      const card  = el.firstElementChild;
-      const left  = card.querySelector('.panel-left');
-      const right = card.querySelector('.panel-right');
-
-      const canAnim = typeof el.animate === 'function';
-      if (canAnim){
-        try{ el.getAnimations().forEach(a=>a.cancel()); }catch(_){}
-        const a1 = el.animate(this.kfOutMain, this.optOutMain).finished.catch(()=>{});
-        const a2 = left.animate(this.kfFoldLeftClose, this.optFoldOut).finished.catch(()=>{});
-        const a3 = right.animate(this.kfFoldRightClose, this.optFoldOut).finished.catch(()=>{});
-        Promise.all([a1,a2,a3]).then(()=>el.remove()).catch(()=>el.remove());
-      }else{
-        el.remove();
-      }
-      this.container=null;
-    }
-  }
-
+  /* KML + label toggle */
   let currentRegionOverlay=null;
   let currentRegionId=null;
+
   function showRegionLabel(pos,name,id){
     hideRegionLabel();
-    currentRegionOverlay=new RegionLabelOverlay(pos,name,nameToAccent(name));
+    currentRegionOverlay=new RegionLabelOverlay(pos,name,pickAccentFromName(name||''));
     currentRegionId=id || name || '';
     currentRegionOverlay.setMap(map);
   }
@@ -1474,7 +1426,6 @@ window.routePlannerInit=()=>{
     showRegionLabel(pos, name, id);
   });
 
-  // close label when clicking any non‑KML part of the map or the panel
   map.addListener('click', hideRegionLabel);
   document.getElementById('panel').addEventListener('click', hideRegionLabel, true);
 
@@ -1488,19 +1439,16 @@ window.routePlannerInit=()=>{
   buildFrameBuckets();
   buildAddrBar();
 
-  // Default = FLAT view
-  applyShiftVisibility();   // dayVisible=false & nightVisible=false -> enterFlatMode()
+  applyShiftVisibility();  // start in FLAT
 
-  // Flat Optimize removes empties first, then optimizes
   document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; globalOptimizeRoute();};
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
-  // Street View: hide/show panels automatically
   const sv = map.getStreetView();
   sv.addListener('visible_changed', () => enforcePanelVisibility());
   enforcePanelVisibility();
 
-  // Aggressive “Visual Search / Lens” remover — walks DOM + shadow roots
+  /* Robust removal of Lens bubble */
   (function robustHideLens(){
     const isTarget = (el)=>{
       try{
@@ -1536,7 +1484,6 @@ window.routePlannerInit=()=>{
     hideAll();
     const mo = new MutationObserver(()=>hideAll());
     mo.observe(document.body, {subtree:true, childList:true, attributes:true});
-    // also run on SV visibility changes
     map.getStreetView().addListener('visible_changed', hideAll);
   })();
 
@@ -1564,12 +1511,11 @@ window.routePlannerInit=()=>{
   if(window.__mapsApiReady){ /* maps already loaded */ }
 };
 
-/* --------- Flat‑view optimizer (removes empties first) --------- */
+/* --------- Flat‑view optimizer --------- */
 async function globalOptimizeRoute(){
   if(!flatMode){ return; }
   const list=document.getElementById('addrList');
 
-  // Remove all empty rows before optimizing
   [...list.querySelectorAll('.row')].forEach(r=>{
     if(!r.querySelector('.stop').value.trim()) r.remove();
   });
