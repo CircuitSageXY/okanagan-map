@@ -50,7 +50,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .hidden{display:none!important;}
 .pac-container{ display:none !important; }  /* hide Google popup (we render our own) */
 
-/* ---------- SIDE PANEL ---------- */
+/* ---------- LEFT SIDE PANEL (unchanged planner UI) ---------- */
 #panel{
   position:absolute;top:0;left:0;z-index:5;width:var(--panelW);height:100%;
   background:var(--clrPanelBg);border-right:1px solid var(--clrPanelBorder);
@@ -61,7 +61,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 #content{display:flex;align-items:flex-start;position:relative;}
 #timelineCol{display:none;} #timeline{display:none;}
 
-/* ---------- FRAMES ---------- */
+/* ---------- FRAMES (unchanged) ---------- */
 #framesContainer{flex:1;min-width:0;}
 .frame{
   border:1px solid var(--clrPanelBorder);border-radius:6px;margin-bottom:14px;background:#fff;
@@ -82,7 +82,6 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   display:grid;grid-template-columns: var(--tlW) 1fr;column-gap:12px;
   align-items:stretch; padding:6px 10px 8px 6px;
 }
-
 .frame-timeline{position:relative;}
 .tl-axis{position:absolute;left:6px;width:var(--axis-w);background:#000;border-radius:2px;}
 .tl-tick{position:absolute;left:0;width:100%;pointer-events:none;}
@@ -97,7 +96,6 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 
 /* shaded band */
 .tl-seg{position:absolute;left:0;right:0;border-radius:3px;opacity:.08;}
-
 .frame-list{overflow:visible;flex:1 1 auto;}
 .addRowBtn{display:none;}
 
@@ -111,7 +109,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .frame[data-frame="6"]{border-left:4px solid var(--f-evening);}
 .frame[data-frame="7"]{border-left:4px solid var(--f-lateev);}
 
-/* ---------- ROWS ---------- */
+/* ---------- ROWS (unchanged) ---------- */
 .row{display:flex;align-items:center;margin:8px 0;padding:4px 6px 4px 0;border-radius:var(--radiusMd);transition:background var(--transFast),box-shadow var(--transFast),outline var(--transFast);}
 .row.focused{background:var(--clrInputBgAlt);box-shadow:0 0 0 2px rgba(33,150,243,.25);}
 .row:hover:not(.focused):not(.selected){background:rgba(0,0,0,.04);}
@@ -148,7 +146,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   cursor:pointer;margin-left:4px;font-size:20px;line-height:20px;color:#fff;
   width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;
   background:var(--clrD);border-radius:var(--radiusSm);
-  transition:transform var(--transFast),background var(--transFast);} 
+  transition:transform var(--transFast),background var(--transFast);}
 .remove:hover{background:#f75a4d;transform:scale(1.08);} .remove:active{transform:scale(.94);}
 
 /* ---------- TOTALS ---------- */
@@ -174,7 +172,6 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 #addrBarHeader{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:500;font-size:15px;}
 #addrTitle{flex:1;}
 #addrToggles{display:flex;gap:6px;}
-/* add transitions so hover feels snappy */
 .toggleChip{
   padding:3px 10px;border-radius:14px;border:1px solid #bbb;font-size:12px;cursor:pointer;user-select:none;line-height:16px;display:inline-block;min-width:46px;text-align:center;
   transition: background var(--transFast), color var(--transFast), border-color var(--transFast), box-shadow var(--transFast);
@@ -183,19 +180,11 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .toggleChip.night{border-color:var(--f-evening);color:var(--f-evening);}
 .toggleChip.active.day  {background:var(--f-afternoon);color:#fff;}
 .toggleChip.active.night{background:var(--f-evening);color:#fff;}
-
-/* Hover feedback for Day/Night to match Optimize */
-.toggleChip.day:hover, .toggleChip.day:focus-visible{
-  background:var(--f-afternoon); color:#fff;
-}
-.toggleChip.night:hover, .toggleChip.night:focus-visible{
-  background:var(--f-evening); color:#fff;
-}
+.toggleChip.day:hover,.toggleChip.day:focus-visible{background:var(--f-afternoon);color:#fff;}
+.toggleChip.night:hover,.toggleChip.night:focus-visible{background:var(--f-evening);color:#fff;}
 
 #addrAdd{display:none;}
 #addrList .row{margin:6px 0;}
-
-/* — Flat footer — */
 #addrFooter{margin-top:10px;border-top:1px solid #dadada;padding-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 #flatMsg{font-size:16px;font-weight:700;color:#0066cc;flex:1 1 100%;}
 #flatButtons{display:flex;gap:6px;align-items:center;}
@@ -208,8 +197,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 /* ---------- OUR suggestion dropdown ---------- */
 .sg{
   position:absolute; z-index:9999; background:#fff; border:1px solid #d2d2d2;
-  border-radius:8px; box-shadow:0 8px 20px rgba(0,0,0,.15);
-  overflow:auto; max-height:220px; display:none; min-width:260px;
+  border-radius:8px; box-shadow:0 8px 20px rgba(0,0,0,.15); overflow:auto; max-height:220px; display:none; min-width:260px;
 }
 .sg ul{list-style:none;margin:0;padding:4px 0;}
 .sg li{padding:8px 12px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;}
@@ -217,84 +205,38 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .sg small{opacity:.7;margin-left:6px;}
 
 /* ===========================================================
-   ULTRA‑SNAPPY REGION LABEL (capsule + pointer + halo)
+   LABEL OVERLAY (capsule)
    =========================================================== */
 .region-label{
-  position:absolute; left:0; top:0;
-  transform:translate(-50%,-100%) scale(.96);
-  opacity:0;
-  will-change:transform,opacity;
-  z-index:1000;
-  pointer-events:auto;
+  position:absolute; left:0; top:0; transform:translate(-50%,-100%) scale(.96); opacity:0;
+  will-change:transform,opacity; z-index:1000; pointer-events:auto;
 }
-
-/* the badge itself */
 .badge{
-  position:relative;
-  display:flex; align-items:center; gap:10px;
-  padding:6px 10px;
-  background:var(--label-paper);
-  color:var(--label-ink);
-  border:1px solid var(--label-border);
-  border-radius:16px;
-  box-shadow:0 2px 8px rgba(0,0,0,.10);
+  position:relative; display:flex; align-items:center; gap:10px; padding:6px 10px;
+  background:var(--label-paper); color:var(--label-ink); border:1px solid var(--label-border);
+  border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,.10);
 }
-
-/* subtle halo */
-.badge::before{
-  content:""; position:absolute; inset:-14px -18px -18px -18px; z-index:-1;
-  background:radial-gradient(140px 70px at 50% 60%, var(--label-halo), transparent 65%);
-  pointer-events:none;
-}
-
-/* pointer nib */
-.badge::after{
-  content:""; position:absolute; left:calc(50% - 8px); bottom:-8px;
-  width:0; height:0;
-  border-left:8px solid transparent;
-  border-right:8px solid transparent;
-  border-top:8px solid var(--label-paper);
-  filter:drop-shadow(0 1px 1px rgba(0,0,0,.10));
-}
-
-/* accent bar (stable color per name) */
-.accent{
-  width:8px; height:22px; border-radius:4px; flex:none;
-  background:var(--accent,#2A9D8F);
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.5), 0 0 0 1px rgba(0,0,0,.05);
-}
-
-/* accent pill that wraps the title */
-.titlewrap{
-  display:inline-block;
-  padding:3px 10px;
-  border-radius:12px;
+.badge::before{content:""; position:absolute; inset:-14px -18px -18px -18px; z-index:-1;
+  background:radial-gradient(140px 70px at 50% 60%, var(--label-halo), transparent 65%);}
+.badge::after{content:""; position:absolute; left:calc(50% - 8px); bottom:-8px; width:0;height:0;
+  border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid var(--label-paper);
+  filter:drop-shadow(0 1px 1px rgba(0,0,0,.10));}
+.accent{ width:8px; height:22px; border-radius:4px; flex:none; background:var(--accent,#2A9D8F);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.5), 0 0 0 1px rgba(0,0,0,.05); }
+.titlewrap{ display:inline-block; padding:3px 10px; border-radius:12px;
   background: color-mix(in srgb, var(--accent) 16%, #fff);
   border:1px solid color-mix(in srgb, var(--accent) 55%, transparent);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.6);
-}
-
-/* title */
-.title{
-  font-weight:800; letter-spacing:.35px; text-transform:uppercase;
-  white-space:nowrap; font-size:14px;
-}
-
-/* close button (kept for compatibility, not used) */
-.close{
-  margin-left:6px; width:22px; height:22px; border-radius:50%;
-  display:inline-flex; align-items:center; justify-content:center;
-  background:#fff; border:1px solid var(--label-border);
-  box-shadow:0 1px 1px rgba(0,0,0,.06);
-  color:#4b5563; font-size:16px; line-height:16px; cursor:pointer;
-}
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.6); }
+.title{ font-weight:800; letter-spacing:.35px; text-transform:uppercase; white-space:nowrap; font-size:14px; }
+.close{ margin-left:6px; width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center;
+  background:#fff; border:1px solid var(--label-border); box-shadow:0 1px 1px rgba(0,0,0,.06); color:#4b5563; font-size:16px; line-height:16px; cursor:pointer; }
 .close:hover{ color:#000; }
 
 @media (prefers-reduced-motion: reduce){
   .region-label{ transform:translate(-50%,-112%)!important; opacity:1!important; }
 }
 
-/* Hide Google “Visual Search / Lens” bubble + friends */
+/* Hide Google Lens bubble */
 .gm-style [aria-label*="Visual"],
 .gm-style [title*="Visual"],
 .gm-style [aria-label*="Lens"],
@@ -302,6 +244,34 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .gm-style .widget-visual-search,
 .gm-style .scene-viewcard-button,
 .gm-style .app-viewcard-strip{ display:none !important; }
+
+/* ===========================================================
+   NEW: RIGHT DRAWER FOR AREAS (layers/colors/filter/perf)
+   =========================================================== */
+#areasBtn{
+  position:absolute; right:12px; top:12px; z-index:8;
+  background:#fff; border:1px solid #d7d7d7; border-radius:10px; padding:8px 10px;
+  box-shadow:0 2px 6px rgba(0,0,0,.25); cursor:pointer; font-weight:600;
+}
+#areasDrawer{
+  position:absolute; right:12px; top:58px; z-index:8; width:320px;
+  max-height:calc(100% - 70px); overflow:auto;
+  background:#fff; border:1px solid #d7d7d7; border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,.18);
+  transform:translateX(calc(100% + 16px)); transition:transform .18s ease;
+}
+#areasDrawer.open{ transform:translateX(0); }
+#areasDrawer header{ position:sticky; top:0; background:#fafafa; border-bottom:1px solid #e2e2e2; padding:10px 12px; font-weight:700; }
+#areasDrawer .sec{ padding:10px 12px; border-bottom:1px dashed #eee; }
+#areasDrawer .sec:last-child{ border-bottom:none; }
+#areasDrawer h4{ margin:0 0 8px 0; font-size:14px; color:#333; }
+#areasDrawer .row{ display:flex; align-items:center; gap:8px; margin:6px 0; padding:0; }
+#areasDrawer input[type="color"]{ width:34px; height:22px; padding:0; border:1px solid #ccc; border-radius:6px; }
+#areasDrawer input[type="range"]{ width:100%; }
+#areasDrawer .hint{ font-size:12px; color:#666; }
+#areasDrawer .grid{ display:grid; grid-template-columns: 1fr auto; gap:6px 8px; }
+.badgeCode{ display:inline-block; min-width:60px; font-weight:700; font-size:12px; padding:2px 6px; border:1px solid #ddd; border-radius:6px; }
+.switch{ display:flex; align-items:center; gap:8px; }
+.switch input{ transform:scale(1.1); }
 </style>
 
 <script>
@@ -342,8 +312,55 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
   </div>
 </div>
 
-<!-- our dropdown root -->
+<!-- ---------- OUR dropdown root ---------- -->
 <div id="sgRoot" class="sg"><ul></ul></div>
+
+<!-- ---------- RIGHT DRAWER BUTTON + PANEL ---------- -->
+<button id="areasBtn" type="button">Areas</button>
+<div id="areasDrawer" aria-hidden="true">
+  <header>Areas: Layers • Colors • Filter</header>
+
+  <div class="sec" id="secLayers">
+    <h4>Layers</h4>
+    <!-- checkboxes inserted by JS -->
+    <div id="layersGrid" class="grid"></div>
+  </div>
+
+  <div class="sec" id="secFilter">
+    <h4>Filter</h4>
+    <div class="row">
+      <input id="filterText" type="text" placeholder="Type to filter by name or code…" style="flex:1;border:1px solid #ccc;border-radius:6px;padding:6px 8px;">
+      <button id="filterClear" type="button" style="border:1px solid #ccc;border-radius:6px;padding:6px 8px;background:#fafafa;">Clear</button>
+    </div>
+    <div class="hint">Matches region <b>name</b> or code (e.g., <code>RUT-S</code>, <code>WEST2</code>).</div>
+  </div>
+
+  <div class="sec" id="secColors">
+    <h4>Colors</h4>
+    <div id="colorsGrid" class="grid">
+      <!-- rows inserted by JS -->
+    </div>
+    <div class="row">
+      <label style="min-width:90px">Opacity</label>
+      <input id="opacityRange" type="range" min="0" max="1" step="0.01" value="0.20">
+      <span id="opacityVal" class="hint">0.20</span>
+    </div>
+    <div class="row">
+      <label style="min-width:90px">Stroke</label>
+      <input id="strokeRange" type="range" min="0" max="3" step="0.1" value="1.3">
+      <span id="strokeVal" class="hint">1.3</span>
+    </div>
+  </div>
+
+  <div class="sec" id="secPerf">
+    <h4>Performance</h4>
+    <label class="switch">
+      <input id="deferSwitch" type="checkbox">
+      <span>Smooth pan/zoom (defer redraw while moving)</span>
+    </label>
+    <div class="hint">When enabled, areas hide during the gesture and reappear cleanly on release — eliminates flicker/cutting on heavy datasets.</div>
+  </div>
+</div>
 
 <div id="map"></div>
 
@@ -351,14 +368,9 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 /* =================== CONFIG / CONSTANTS =================== */
 const BASE_EMPTY_PER_FRAME = 4;
 const INITIAL_FLAT_ROWS    = 2;
-
-/* color mode: 'hash' or 'uniform' */
 const LABEL_COLOR_MODE = 'hash';
-
-/* label animation settings */
-const LABEL_USE_ANIM = false;   // false: instant show/hide; true: animate
-const LABEL_ANIM_MS  = 30;      // animation duration when enabled
-
+const LABEL_USE_ANIM = false;
+const LABEL_ANIM_MS  = 30;
 const TOL_PCT = 0.03, TOL_KM = 0.30;
 
 let map,dirSvc,dirRend,geocoder,acService,placeSvc;
@@ -371,6 +383,30 @@ let dayVisible=false, nightVisible=false, flatMode=false;
 let OK_BOUNDS;
 const frameInitialized = new Map();
 
+/* ---------- AREA LAYERS (files) ---------- */
+const LAYERS = [
+  { id:'geo_areas',   name:'Geo Areas (all)',                 file:'Geo Areas.geojson' },
+  { id:'kel_central', name:'Kelowna – Central',               file:'Kelowna - Central.geojson' },
+  { id:'kel_south',   name:'Kelowna – South',                 file:'Kelowna - South.geojson' },
+  { id:'rut_lc',      name:'Rutland & Lake Country',          file:'Rutland & Lake Country.geojson' }
+];
+const layerState = Object.fromEntries(LAYERS.map(l => [l.id, true]));
+
+/* ---------- COLORS (from your RGB list) ---------- */
+const AREA_COLORS = {
+  'MISS1':'#FFEA00',
+  'MISS2':'#000000',
+  'RUT-S':'#C2185B',
+  'RUT-N':'#0288D1',
+  'RUT-LC':'#CE93D8',
+  'CENT-S':'#FF5252',
+  'GLNMR':'#0097A7',
+  'WEST1':'#9C27B0',
+  'WEST2':'#F9A825'
+};
+let AREA_FILL_OPACITY = 0.20;
+let AREA_STROKE_WEIGHT = 1.3;
+
 function hideAllAutocompleteUIs(){
   document.querySelectorAll('.pac-container').forEach(el=>{
     el.style.display='none';
@@ -378,22 +414,7 @@ function hideAllAutocompleteUIs(){
   });
 }
 
-/* ---------- NEW: area color mapping (from your RGB list) ---------- */
-const AREA_COLORS = {
-  'MISS1': '#FFEA00',
-  'MISS2': '#000000',
-  'RUT-S': '#C2185B',
-  'RUT-N': '#0288D1',
-  'RUT-LC': '#CE93D8',
-  'CENT-S': '#FF5252',
-  'GLNMR': '#0097A7',
-  'WEST1': '#9C27B0',
-  'WEST2': '#F9A825'
-};
-const AREA_FILL_OPACITY = 0.20;   // transparent feel for fills
-const AREA_STROKE_WEIGHT = 1.3;
-
-/* ---------- Suggestion dropdown ---------- */
+/* ---------- Suggestion dropdown (unchanged) ---------- */
 const SG = (function(){
   const root = document.getElementById('sgRoot');
   const list = root.querySelector('ul');
@@ -483,7 +504,7 @@ const fetchPredictions = debounce((text, cb)=>{
 /* Focus helper */
 function safeFocus(el){ if(!el) return; try{ el.focus({preventScroll:true}); }catch{} setTimeout(()=>{ try{ el.focus({preventScroll:true}); }catch{} },0); }
 
-/* ---------- FRAMES ---------- */
+/* ---------- FRAMES (unchanged) ---------- */
 const FRAMES=[
   {id:0,key:'early',     name:'AM Early',     start:'07:00', end:'09:00',  color:'var(--f-early)',     shift:'day'},
   {id:1,key:'late',      name:'AM Late',      start:'09:00', end:'11:00',  color:'var(--f-late)',      shift:'day'},
@@ -495,7 +516,7 @@ const FRAMES=[
   {id:7,key:'lateev',    name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--f-lateev)',    shift:'night'}
 ];
 
-/* ---------- TIMELINE ---------- */
+/* ---------- TIMELINE (unchanged) ---------- */
 const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);};
 const pad=n=>n.toString().padStart(2,'0');
@@ -626,7 +647,7 @@ function ensurePlaceholdersForFrame(frameId,{force=false}={}){
   for(let i=cur;i<BASE_EMPTY_PER_FRAME;i++) addRowToFrame(frameId,false,false);
 }
 
-/* =================== TIMELINE (per-frame; fused) =================== */
+/* =================== TIMELINE =================== */
 function buildTimelineFromDOM(){
   if(flatMode) return;
   if(__buildingTimeline) return;
@@ -764,14 +785,12 @@ function attachInputEvents(inp){
     }
   });
 
-  // Arrow nav inside our dropdown
   inp.addEventListener('keydown', e=>{
     if(!SG.isOpen()) return;
     if(e.key==='ArrowDown'){ e.preventDefault(); SG.move(+1); }
     if(e.key==='ArrowUp'){   e.preventDefault(); SG.move(-1); }
   });
 
-  // Enter / Tab → accept + advance
   inp.addEventListener('keydown', e => {
     const isAdvanceKey = (e.key === 'Enter') || (e.key === 'Tab' && !e.shiftKey);
     if (!isAdvanceKey) return;
@@ -948,7 +967,6 @@ function updateToggleChips(){
   const d=document.getElementById('toggleDay');   if(d) d.classList.toggle('active',dayVisible);
   const n=document.getElementById('toggleNight'); if(n) n.classList.toggle('active',nightVisible);
 }
-
 function enforcePanelVisibility(){
   const svOn = map && map.getStreetView().getVisible();
   const panel = document.getElementById('panel');
@@ -970,7 +988,6 @@ function enforcePanelVisibility(){
     addr.style.display='none';
   }
 }
-
 function toggleShift(which){
   if(which==='day') dayVisible=!dayVisible;
   if(which==='night') nightVisible=!nightVisible;
@@ -999,7 +1016,6 @@ function applyShiftVisibility(){
 
   enforcePanelVisibility();
 }
-
 function buildAddrBar(){
   Sortable.create(document.getElementById('addrList'),{
     handle:'.drag',animation:150, onEnd:()=>{renumber();scheduleAutoCompute(120,false);}
@@ -1053,15 +1069,13 @@ function clearAllStops(){
   SG.hide();
 }
 
-/* =================== ROUTING / OPTIMIZATION =================== */
+/* =================== ROUTING / OPTIMIZATION (unchanged) =================== */
 const scheduleAutoCompute=(ms=120, allowResolve=false)=>{
   clearTimeout(autoTimer);
   autoResolveNext = allowResolve;
   autoTimer=setTimeout(()=>autoCompute(),ms);
 };
-
 const TEARDROP_PATH = "M0,-28 C-8,-28 -14,-22 -14,-14 c0,11 14,28 14,28 s14,-17 14,-28 C14,-22 8,-28 0,-28 z";
-
 function clearDirections(){dirRend.set('directions',null);dirRend.setMap(null);dirRend.setMap(map);clearRouteMarkers();}
 function addPreviewPin(latlng,label){
   const marker=new google.maps.Marker({
@@ -1072,7 +1086,6 @@ function addPreviewPin(latlng,label){
   previewPins.push(marker);
 }
 function clearPreviewPins(){previewPins.forEach(m=>m.setMap(null));previewPins=[];}
-
 function drawRouteMarkers(points,rows){
   points.forEach((p,i)=>{
     if(!p) return;
@@ -1089,8 +1102,6 @@ function drawRouteMarkers(points,rows){
   });
 }
 function clearRouteMarkers(){routeMarkers.forEach(m=>m.setMap(null));routeMarkers=[];}
-
-/* Resolve stack */
 async function resolveAddress(text){
   const prediction = await new Promise(res=>{
     acService.getPlacePredictions(
@@ -1145,7 +1156,6 @@ async function ensureCoords(rows,{parallel=false}={}){
     return okAll;
   }
 }
-
 function getOrderedRows(includeHidden=false){
   if(flatMode) return [...document.querySelectorAll('#addrList .row')].filter(r=>r.querySelector('.stop').value.trim());
   const rows=[];
@@ -1158,8 +1168,6 @@ function getOrderedRows(includeHidden=false){
   });
   return rows.filter(r=>r.querySelector('.stop').value.trim());
 }
-
-/* Main autoCompute */
 async function autoCompute(){
   const rows=getOrderedRows();
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
@@ -1167,12 +1175,10 @@ async function autoCompute(){
   if(rows.filter(r=>r.querySelector('.stop').value.trim()).length===0){
     clearPreviewPins();clearLegDisplays();msg.textContent=''; if(flatMsg) flatMsg.textContent=''; clearDirections();return;
   }
-
   if(rows.some(r=>!r.querySelector('.stop').dataset.lat)){
     if(autoResolveNext){ await ensureCoords(rows,{parallel:true}); autoResolveNext=false; }
     else{ clearDirections(); clearLegDisplays(); return; }
   }
-
   if(rows.length===1){
     clearDirections();clearLegDisplays();clearPreviewPins();
     const inp=rows[0].querySelector('.stop');
@@ -1182,8 +1188,6 @@ async function autoCompute(){
     clearPreviewPins(); await rebuildRoute();
   }
 }
-
-/* Rebuild directions on map */
 async function rebuildRoute(){
   const rows=getOrderedRows();
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
@@ -1207,8 +1211,6 @@ async function rebuildRoute(){
     });
   });
 }
-
-/* Leg summaries */
 function displayLegs(res,stat){
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
   if(stat!=='OK'){msg.textContent='Route error: '+stat; if(flatMsg) flatMsg.textContent=msg.textContent; clearDirections();return;}
@@ -1229,7 +1231,7 @@ function displayLegs(res,stat){
 }
 function clearLegDisplays(){document.querySelectorAll('.leg-display').forEach(d=>d.remove());}
 
-/* =================== TSP helpers =================== */
+/* =================== TSP helpers (unchanged) =================== */
 function buildDistanceMatrix(points){const n=points.length;const D=Array.from({length:n},()=>Array(n).fill(0));for(let i=0;i<n;i++){for(let j=i+1;j<n;j++){const d=haversine(points[i],points[j]);D[i][j]=D[j][i]=d;} }return D;}
 function haversine(a,b){const R=6371;const toRad=x=>x*Math.PI/180;const dLat=toRad(b.lat-a.lat);const dLng=toRad(b.lng-a.lng);const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(s));}
 function orderCost(order,D){let c=0; for(let i=0;i<order.length-1;i++) c+=D[order[i]][order[i+1]]; return c;}
@@ -1237,125 +1239,7 @@ function nearestNeighbour(D,start=0){const n=D.length; const visited=Array(n).fi
 function twoOpt(order,D){const n=order.length; let improved=true; while(improved){improved=false; for(let i=1;i<n-2;i++){for(let j=i+1;j<n-1;j++){const a=order[i-1],b=order[i],c=order[j],d=order[j+1]; if(D[a][b]+D[c][d] > D[a][c]+D[b][d]){ order.splice(i,j-i+1,...order.slice(i,j+1).reverse()); improved=true; }}}} return order;}
 function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){const n=D.length; let start=fixedStart!=null?fixedStart:0; let ord=nearestNeighbour(D,start); ord=twoOpt(ord,D); if(fixedEnd!=null && ord[ord.length-1]!==fixedEnd){let best=ord,bestCost=orderCost(ord,D); for(let s=0;s<n;s++){const r=[...ord.slice(s),...ord.slice(0,s)]; if(r[r.length-1]!==fixedEnd) continue; const c=orderCost(r,D); if(c<bestCost){best=r; bestCost=c;}} ord=best;} if(fixedStart!=null && ord[0]!==fixedStart){const idx=ord.indexOf(fixedStart); if(idx>-1) ord=[...ord.slice(idx),...ord.slice(0,idx)];} return ord;}
 
-/* -------- Optimize by Frames (F4) -------- */
-async function optimizeByFramesTwoPass(){
-  if (flatMode) return;
-  clearLegDisplays();
-
-  const dist = (a,b)=>{
-    if(!a||!b) return 0;
-    const R=6371, toRad=x=>x*Math.PI/180;
-    const dLat=toRad(b.lat-a.lat), dLng=toRad(b.lng-a.lat);
-    const s=Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;
-    return 2*R*Math.asin(Math.sqrt(s));
-  };
-
-  const frames = FRAMES.filter(fr=>{
-    const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
-    return ((fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible)) &&
-           !sec.classList.contains('collapsed') &&
-           sec.style.display!=='none';
-  });
-  if(!frames.length) return;
-
-  const perFrameOptions = [];
-
-  for (const fr of frames){
-    const list   = document.getElementById('frame-'+fr.id);
-    const rows   = [...list.querySelectorAll('.row')];
-    const filled = rows.filter(r=>r.querySelector('.stop').value.trim());
-
-    if (filled.length <= 1){
-      const only = filled[0] || null;
-      const pt   = only ? {lat:+only.querySelector('.stop').dataset.lat, lng:+only.querySelector('.stop').dataset.lng} : null;
-      perFrameOptions.push([{
-        internalCost: 0, startPt: pt, endPt: pt, sequenceRows: only ? [only] : []
-      }]);
-      continue;
-    }
-
-    const ok = await ensureCoords(filled, {parallel:true});
-    if(!ok){
-      const ptsNow = filled.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
-      perFrameOptions.push([{
-        internalCost: 0, startPt: ptsNow[0], endPt: ptsNow[ptsNow.length-1], sequenceRows: filled
-      }]);
-      continue;
-    }
-
-    const pts = filled.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
-    const D   = buildDistanceMatrix(pts);
-
-    let tour = nearestNeighbour(D, 0);
-    tour = twoOpt(tour, D);
-
-    let tourCost = 0;
-    for(let i=0;i<tour.length-1;i++) tourCost += D[tour[i]][tour[i+1]];
-    tourCost += D[tour[tour.length-1]][tour[0]];
-
-    const options = [];
-    const m = tour.length;
-
-    for(let cut=0; cut<m; cut++){
-      const a = tour[cut];
-      const b = tour[(cut+1)%m];
-      const internalCost = tourCost - D[a][b];
-
-      const forwardIdx = [];
-      for(let t=0;t<m;t++) forwardIdx.push( tour[(cut+1+t)%m] );
-      const seqRowsF = forwardIdx.map(i=>filled[i]);
-      const startPtF = pts[b], endPtF = pts[a];
-
-      const backIdx  = [...forwardIdx].reverse();
-      const seqRowsB = backIdx.map(i=>filled[i]);
-      const startPtB = pts[a], endPtB = pts[b];
-
-      options.push({ internalCost, startPt:startPtF, endPt:endPtF, sequenceRows:seqRowsF });
-      options.push({ internalCost, startPt:startPtB, endPt:endPtB, sequenceRows:seqRowsB });
-    }
-
-    perFrameOptions.push(options);
-  }
-
-  const N = perFrameOptions.length;
-  const dp  = perFrameOptions.map(opts => new Array(opts.length).fill(Infinity));
-  const prv = perFrameOptions.map(opts => new Array(opts.length).fill(-1));
-
-  perFrameOptions[0].forEach((opt,k)=>{ dp[0][k]=opt.internalCost; });
-
-  for(let i=1;i<N;i++){
-    perFrameOptions[i].forEach((optK,k)=>{
-      let bestCost = Infinity, bestJ = -1;
-      perFrameOptions[i-1].forEach((optJ,j)=>{
-        const link = dist(optJ.endPt, optK.startPt);
-        const cand = dp[i-1][j] + link + optK.internalCost;
-        if(cand < bestCost){ bestCost=cand; bestJ=j; }
-      });
-      dp[i][k] = bestCost; prv[i][k] = bestJ;
-    });
-  }
-
-  let lastK = dp[N-1].reduce((bestIdx, v, idx)=> v < dp[N-1][bestIdx] ? idx : bestIdx, 0);
-  const chosen = new Array(N);
-  for(let i=N-1;i>=0;i--){
-    chosen[i] = lastK;
-    lastK = i>0 ? prv[i][lastK] : -1;
-  }
-
-  frames.forEach((fr, i)=>{
-    const list = document.getElementById('frame-'+fr.id);
-    const opt  = perFrameOptions[i][ chosen[i] ];
-    opt.sequenceRows.forEach(r=>list.appendChild(r));
-    [...list.querySelectorAll('.row')].forEach(r=>{
-      if(!r.querySelector('.stop').value.trim()) r.remove();
-    });
-  });
-
-  renumber();
-  scheduleAutoCompute(0,true);
-}
-
-/* =================== LABEL OVERLAY (snappy) =================== */
+/* =================== LABEL OVERLAY =================== */
 function pickAccentFromName(name){
   if(LABEL_COLOR_MODE==='uniform') return getComputedStyle(document.documentElement).getPropertyValue('--accent-teal').trim()||'#2A9D8F';
   const palette=[
@@ -1367,8 +1251,6 @@ function pickAccentFromName(name){
   let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i))>>>0; }
   return palette[h % palette.length];
 }
-
-/* Lazy define overlay only after google.maps is ready */
 let RegionLabelOverlay;
 function initRegionLabelOverlay(){
   RegionLabelOverlay = class RegionLabelOverlay extends google.maps.OverlayView{
@@ -1376,15 +1258,8 @@ function initRegionLabelOverlay(){
       super();
       this.position=pos; this.text=text||''; this.accent=accent||pickAccentFromName(this.text);
       this.container=null;
-
-      this.kfIn  = [
-        {opacity:0, transform:'translate(-50%,-100%) scale(.96)'},
-        {opacity:1, transform:'translate(-50%,-112%) scale(1.00)'}
-      ];
-      this.kfOut = [
-        {opacity:1, transform:'translate(-50%,-112%) scale(1.00)'},
-        {opacity:0, transform:'translate(-50%,-100%) scale(.96)'}
-      ];
+      this.kfIn  = [{opacity:0, transform:'translate(-50%,-100%) scale(.96)'},{opacity:1, transform:'translate(-50%,-112%) scale(1.00)'}];
+      this.kfOut = [{opacity:1, transform:'translate(-50%,-112%) scale(1.00)'},{opacity:0, transform:'translate(-50%,-100%) scale(.96)'}];
       this.optIn  = {duration:LABEL_ANIM_MS,  easing:'cubic-bezier(.2,.9,.2,1)', fill:'forwards'};
       this.optOut = {duration:LABEL_ANIM_MS,  easing:'cubic-bezier(.2,.7,.2,1)', fill:'forwards'};
     }
@@ -1396,16 +1271,9 @@ function initRegionLabelOverlay(){
            <span class="accent"></span>
            <span class="titlewrap"><span class="title">${this.text}</span></span>
          </div>`;
-
-      this.container=div;
-      this.getPanes().floatPane.appendChild(div);
-
-      if(LABEL_USE_ANIM && typeof div.animate === 'function'){
-        div.animate(this.kfIn, this.optIn);
-      }else{
-        div.style.opacity='1';
-        div.style.transform='translate(-50%,-112%)';
-      }
+      this.container=div; this.getPanes().floatPane.appendChild(div);
+      if(LABEL_USE_ANIM && typeof div.animate === 'function'){ div.animate(this.kfIn, this.optIn); }
+      else{ div.style.opacity='1'; div.style.transform='translate(-50%,-112%)'; }
     }
     draw(){
       const proj=this.getProjection(); if(!proj||!this.container) return;
@@ -1415,63 +1283,179 @@ function initRegionLabelOverlay(){
     }
     onRemove(){
       if(!this.container) return;
-      const el=this.container;
-      this.container=null;
+      const el=this.container; this.container=null;
       if(LABEL_USE_ANIM && typeof el.animate === 'function'){
         try{ el.getAnimations().forEach(a=>a.cancel()); }catch(_){}
         el.animate(this.kfOut, this.optOut).finished.then(()=>el.remove()).catch(()=>el.remove());
-      }else{
-        el.remove();
-      }
+      }else{ el.remove(); }
     }
   };
 }
 
-/* ---------- NEW: helpers to style and load GeoJSON ---------- */
+/* =================== GEOJSON: load, style, drawer controls =================== */
+const ALL_FEATURES = [];  // store references for quick iteration
+let dataAttached = true, deferWhileInteract = false, reattachTO = 0;
+
 function areaCodeFromFeature(feat){
-  // Gather text from common fields and the id, then look for our codes
+  // Gather text once, then cache as __code/__name
   const fields = ['code','Code','CODE','name','Name','NAME','title','Title','TITLE','description','Description'];
   let txt = '';
   fields.forEach(k => { const v = feat.getProperty && feat.getProperty(k); if(v) txt += ' ' + String(v); });
   try{ const id = feat.getId && feat.getId(); if(id) txt += ' ' + id; }catch(_){}
   txt = txt.toUpperCase();
-
-  for(const code of Object.keys(AREA_COLORS)){
-    if(txt.includes(code)) return code;
-  }
+  for(const code of Object.keys(AREA_COLORS)){ if(txt.includes(code)) return code; }
   return null;
 }
+
 function styleFeature(feature){
-  const code  = areaCodeFromFeature(feature);
-  const color = (code && AREA_COLORS[code]) || '#607d8b';
+  if(feature.getProperty('__visible') === false) return {visible:false};
+  const color = feature.getProperty('__color') || '#607d8b';
+  const stroke = feature.getProperty('__stroke') ?? AREA_STROKE_WEIGHT;
+  const fillOp = feature.getProperty('__fillOpacity') ?? (feature.getProperty('__code')==='MISS2' ? Math.min(AREA_FILL_OPACITY, 0.12) : AREA_FILL_OPACITY);
   return {
-    fillColor: color,
-    fillOpacity: (code==='MISS2' ? 0.12 : AREA_FILL_OPACITY), // black reads heavier; make slightly lighter
-    strokeColor: color,
-    strokeOpacity: 0.85,
-    strokeWeight: AREA_STROKE_WEIGHT
+    fillColor: color, fillOpacity: fillOp,
+    strokeColor: color, strokeOpacity: 0.85,
+    strokeWeight: stroke, visible:true
   };
 }
-async function loadGeoLayers(){
-  // Load all your files; they sit next to index.html. encodeURI handles the spaces.
-  const files = [
-    'Geo Areas.geojson',
-    'Kelowna - Central.geojson',
-    'Kelowna - South.geojson',
-    'Rutland & Lake Country.geojson'
-  ];
-  map.data.setStyle(styleFeature);
 
-  for(const f of files){
+async function loadGeoLayers(){
+  map.data.setStyle(styleFeature);
+  for (const layer of LAYERS){
     try{
-      const res = await fetch(encodeURI(f));
+      const res = await fetch(encodeURI(layer.file));
       if(!res.ok) throw new Error(res.statusText);
       const gj  = await res.json();
-      map.data.addGeoJson(gj);
+      const feats = map.data.addGeoJson(gj);
+      feats.forEach(f=>{
+        const code = areaCodeFromFeature(f);
+        const name = f.getProperty('name') || f.getProperty('Name') || code || '';
+        f.setProperty('__layer', layer.id);
+        f.setProperty('__code', code);
+        f.setProperty('__name', name);
+        f.setProperty('__color', code && AREA_COLORS[code] ? AREA_COLORS[code] : '#607d8b');
+        f.setProperty('__fillOpacity', AREA_FILL_OPACITY);
+        f.setProperty('__stroke', AREA_STROKE_WEIGHT);
+        f.setProperty('__visible', true);
+        ALL_FEATURES.push(f);
+      });
     }catch(err){
-      console.warn('GeoJSON load failed for', f, err);
+      console.warn('GeoJSON load failed for', layer.file, err);
     }
   }
+  buildDrawerUI();     // now we know layers & codes
+  applyVisibility();   // ensure filters/visibility consistent
+}
+
+/* ---------- Visibility & filtering ---------- */
+function applyVisibility(){
+  const q = (document.getElementById('filterText').value || '').trim().toUpperCase();
+  ALL_FEATURES.forEach(f=>{
+    const inLayer = !!layerState[f.getProperty('__layer')];
+    const code = (f.getProperty('__code') || '').toUpperCase();
+    const name = (f.getProperty('__name') || '').toUpperCase();
+    const match = !q || code.includes(q) || name.includes(q);
+    f.setProperty('__visible', inLayer && match);
+  });
+  map.data.setStyle(styleFeature);
+}
+
+/* ---------- Drawer UI ---------- */
+function buildDrawerUI(){
+  // Button open/close
+  const btn = document.getElementById('areasBtn');
+  const drawer = document.getElementById('areasDrawer');
+  btn.onclick = ()=>{
+    const open = !drawer.classList.contains('open');
+    drawer.classList.toggle('open', open);
+    drawer.setAttribute('aria-hidden', open ? 'false':'true');
+  };
+
+  // Layers
+  const lg = document.getElementById('layersGrid');
+  lg.innerHTML = '';
+  LAYERS.forEach(l=>{
+    const label = document.createElement('label');
+    label.className='row';
+    label.innerHTML = `<input type="checkbox" data-layer="${l.id}" ${layerState[l.id]?'checked':''}>
+                       <span>${l.name}</span>`;
+    lg.appendChild(label);
+  });
+  lg.addEventListener('change', (e)=>{
+    const cb = e.target.closest('input[type="checkbox"]');
+    if(!cb) return;
+    layerState[cb.dataset.layer] = cb.checked;
+    applyVisibility();
+  });
+
+  // Colors
+  const cg = document.getElementById('colorsGrid');
+  cg.innerHTML = '';
+  Object.keys(AREA_COLORS).forEach(code=>{
+    const wrapCode = document.createElement('div');
+    wrapCode.textContent = code;
+    wrapCode.className = 'badgeCode';
+
+    const pickerWrap = document.createElement('div');
+    pickerWrap.style.display='flex'; pickerWrap.style.alignItems='center'; pickerWrap.style.gap='6px';
+    pickerWrap.innerHTML = `<input type="color" value="${AREA_COLORS[code]}" data-code="${code}">`;
+
+    const rowL = document.createElement('div'); rowL.appendChild(wrapCode);
+    const rowR = document.createElement('div'); rowR.appendChild(pickerWrap);
+    cg.appendChild(rowL); cg.appendChild(rowR);
+  });
+  cg.addEventListener('input', (e)=>{
+    const inp = e.target.closest('input[type="color"]'); if(!inp) return;
+    const code = inp.dataset.code; AREA_COLORS[code] = inp.value;
+    // Push to features with that code
+    ALL_FEATURES.forEach(f=>{
+      if((f.getProperty('__code')||'') === code){
+        f.setProperty('__color', inp.value);
+      }
+    });
+    map.data.setStyle(styleFeature);
+  });
+
+  // Opacity & stroke
+  const op = document.getElementById('opacityRange');
+  const opV= document.getElementById('opacityVal');
+  const st = document.getElementById('strokeRange');
+  const stV= document.getElementById('strokeVal');
+
+  op.addEventListener('input', ()=>{
+    AREA_FILL_OPACITY = +op.value;
+    opV.textContent = (+op.value).toFixed(2);
+    ALL_FEATURES.forEach(f=>f.setProperty('__fillOpacity', AREA_FILL_OPACITY));
+    map.data.setStyle(styleFeature);
+  });
+  st.addEventListener('input', ()=>{
+    AREA_STROKE_WEIGHT = +st.value;
+    stV.textContent = (+st.value).toFixed(1);
+    ALL_FEATURES.forEach(f=>f.setProperty('__stroke', AREA_STROKE_WEIGHT));
+    map.data.setStyle(styleFeature);
+  });
+
+  // Filter
+  const ft = document.getElementById('filterText');
+  document.getElementById('filterClear').onclick=()=>{ ft.value=''; applyVisibility(); };
+  ft.addEventListener('input', debounce(applyVisibility, 80));
+
+  // Performance
+  const def = document.getElementById('deferSwitch');
+  def.addEventListener('change', ()=>{
+    deferWhileInteract = !!def.checked;
+    if(!deferWhileInteract) reattachData();
+  });
+}
+
+/* ---------- Optional: defer redraw while interacting ---------- */
+function detachData(){
+  if(!deferWhileInteract || !dataAttached) return;
+  map.data.setMap(null); dataAttached=false;
+}
+function reattachData(){
+  if(dataAttached) return;
+  map.data.setMap(map); dataAttached=true;
 }
 
 /* =================== INIT =================== */
@@ -1481,7 +1465,6 @@ window.routePlannerInit=()=>{
     mapTypeControl:false,streetViewControl:true,fullscreenControl:true,tilt:0
   });
 
-  /* define overlay class now that google.maps exists */
   initRegionLabelOverlay();
 
   OK_BOUNDS = new google.maps.LatLngBounds(
@@ -1489,7 +1472,7 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)
   );
 
-  /* ---------- NEW: GeoJSON areas + label toggle (replaces KML) ---------- */
+  /* ---------- GeoJSON areas + label toggle ---------- */
   let currentRegionOverlay=null;
   let currentRegionId=null;
 
@@ -1504,14 +1487,10 @@ window.routePlannerInit=()=>{
     currentRegionOverlay=null; currentRegionId=null;
   }
 
-  // Load GeoJSON layers and wire click to show a label (like before)
-  loadGeoLayers().then(()=>{
-    // Optional: fit to pre-set OK_BOUNDS; we already center/zoom above.
-  });
+  loadGeoLayers(); // async; builds drawer after load
 
   map.data.addListener('click', (e)=>{
-    const name = e.feature.getProperty('name') || e.feature.getProperty('Name') ||
-                 areaCodeFromFeature(e.feature) || 'Region';
+    const name = e.feature.getProperty('__name') || e.feature.getProperty('name') || 'Region';
     const id   = (e.feature.getId && e.feature.getId()) || name;
     if(currentRegionOverlay && currentRegionId===id){ hideRegionLabel(); return; }
     const pos  = e.latLng || map.getCenter();
@@ -1519,6 +1498,11 @@ window.routePlannerInit=()=>{
   });
   map.addListener('click', hideRegionLabel);
   document.getElementById('panel').addEventListener('click', hideRegionLabel, true);
+
+  // Optional smoother interaction mode
+  map.addListener('dragstart', ()=>detachData());
+  map.addListener('zoom_changed', ()=>detachData());
+  map.addListener('idle', ()=>{ if(deferWhileInteract){ clearTimeout(reattachTO); reattachTO=setTimeout(reattachData, 50);} });
 
   /* ---------- Services ---------- */
   dirSvc=new google.maps.DirectionsService();
@@ -1539,7 +1523,6 @@ window.routePlannerInit=()=>{
   sv.addListener('visible_changed', () => enforcePanelVisibility());
   enforcePanelVisibility();
 
-  /* Robust removal of Lens bubble */
   (function robustHideLens(){
     const isTarget = (el)=>{
       try{
@@ -1553,8 +1536,7 @@ window.routePlannerInit=()=>{
       try{
         el.style.display='none'; el.hidden=true; el.setAttribute('aria-hidden','true');
         if(el.parentElement && el.parentElement.childElementCount<=4){
-          el.parentElement.style.display='none';
-          el.parentElement.hidden=true;
+          el.parentElement.style.display='none'; el.parentElement.hidden=true;
         }
       }catch(_){}
     };
