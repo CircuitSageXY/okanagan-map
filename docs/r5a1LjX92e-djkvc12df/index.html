@@ -148,7 +148,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   cursor:pointer;margin-left:4px;font-size:20px;line-height:20px;color:#fff;
   width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;
   background:var(--clrD);border-radius:var(--radiusSm);
-  transition:transform var(--transFast),background var(--transFast);}
+  transition:transform var(--transFast),background var(--transFast);} 
 .remove:hover{background:#f75a4d;transform:scale(1.08);} .remove:active{transform:scale(.94);}
 
 /* ---------- TOTALS ---------- */
@@ -237,7 +237,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   color:var(--label-ink);
   border:1px solid var(--label-border);
   border-radius:16px;
-  box-shadow:0 2px 8px rgba(0,0,0,.10); /* slightly softer shadow */
+  box-shadow:0 2px 8px rgba(0,0,0,.10);
 }
 
 /* subtle halo */
@@ -377,6 +377,21 @@ function hideAllAutocompleteUIs(){
     el.setAttribute('aria-hidden','true');
   });
 }
+
+/* ---------- NEW: area color mapping (from your RGB list) ---------- */
+const AREA_COLORS = {
+  'MISS1': '#FFEA00',
+  'MISS2': '#000000',
+  'RUT-S': '#C2185B',
+  'RUT-N': '#0288D1',
+  'RUT-LC': '#CE93D8',
+  'CENT-S': '#FF5252',
+  'GLNMR': '#0097A7',
+  'WEST1': '#9C27B0',
+  'WEST2': '#F9A825'
+};
+const AREA_FILL_OPACITY = 0.20;   // transparent feel for fills
+const AREA_STROKE_WEIGHT = 1.3;
 
 /* ---------- Suggestion dropdown ---------- */
 const SG = (function(){
@@ -1412,6 +1427,53 @@ function initRegionLabelOverlay(){
   };
 }
 
+/* ---------- NEW: helpers to style and load GeoJSON ---------- */
+function areaCodeFromFeature(feat){
+  // Gather text from common fields and the id, then look for our codes
+  const fields = ['code','Code','CODE','name','Name','NAME','title','Title','TITLE','description','Description'];
+  let txt = '';
+  fields.forEach(k => { const v = feat.getProperty && feat.getProperty(k); if(v) txt += ' ' + String(v); });
+  try{ const id = feat.getId && feat.getId(); if(id) txt += ' ' + id; }catch(_){}
+  txt = txt.toUpperCase();
+
+  for(const code of Object.keys(AREA_COLORS)){
+    if(txt.includes(code)) return code;
+  }
+  return null;
+}
+function styleFeature(feature){
+  const code  = areaCodeFromFeature(feature);
+  const color = (code && AREA_COLORS[code]) || '#607d8b';
+  return {
+    fillColor: color,
+    fillOpacity: (code==='MISS2' ? 0.12 : AREA_FILL_OPACITY), // black reads heavier; make slightly lighter
+    strokeColor: color,
+    strokeOpacity: 0.85,
+    strokeWeight: AREA_STROKE_WEIGHT
+  };
+}
+async function loadGeoLayers(){
+  // Load all your files; they sit next to index.html. encodeURI handles the spaces.
+  const files = [
+    'Geo Areas.geojson',
+    'Kelowna - Central.geojson',
+    'Kelowna - South.geojson',
+    'Rutland & Lake Country.geojson'
+  ];
+  map.data.setStyle(styleFeature);
+
+  for(const f of files){
+    try{
+      const res = await fetch(encodeURI(f));
+      if(!res.ok) throw new Error(res.statusText);
+      const gj  = await res.json();
+      map.data.addGeoJson(gj);
+    }catch(err){
+      console.warn('GeoJSON load failed for', f, err);
+    }
+  }
+}
+
 /* =================== INIT =================== */
 window.routePlannerInit=()=>{
   map=new google.maps.Map(document.getElementById('map'),{
@@ -1427,7 +1489,7 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)
   );
 
-  /* KML + label toggle */
+  /* ---------- NEW: GeoJSON areas + label toggle (replaces KML) ---------- */
   let currentRegionOverlay=null;
   let currentRegionId=null;
 
@@ -1442,18 +1504,19 @@ window.routePlannerInit=()=>{
     currentRegionOverlay=null; currentRegionId=null;
   }
 
-  const kml=new google.maps.KmlLayer({
-    url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',
-    map, preserveViewport:true, suppressInfoWindows:true, screenOverlays:false, clickable:true, zIndex:0
-  });
-  kml.addListener('click', (e)=>{
-    const name=e.featureData?.name||'';
-    const id  = e.featureData?.id || name;
-    if(currentRegionOverlay && currentRegionId===id){ hideRegionLabel(); return; }
-    const pos=e.latLng || e.featureData?.position || map.getCenter();
-    showRegionLabel(pos, name, id);
+  // Load GeoJSON layers and wire click to show a label (like before)
+  loadGeoLayers().then(()=>{
+    // Optional: fit to pre-set OK_BOUNDS; we already center/zoom above.
   });
 
+  map.data.addListener('click', (e)=>{
+    const name = e.feature.getProperty('name') || e.feature.getProperty('Name') ||
+                 areaCodeFromFeature(e.feature) || 'Region';
+    const id   = (e.feature.getId && e.feature.getId()) || name;
+    if(currentRegionOverlay && currentRegionId===id){ hideRegionLabel(); return; }
+    const pos  = e.latLng || map.getCenter();
+    showRegionLabel(pos, name, id);
+  });
   map.addListener('click', hideRegionLabel);
   document.getElementById('panel').addEventListener('click', hideRegionLabel, true);
 
