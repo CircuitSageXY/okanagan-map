@@ -32,8 +32,8 @@
 
   --pxPerMin:2;
 
-  /* Uniform label accent (used when LABEL_COLOR_MODE='uniform') */
-  --label-accent:#ff7eb3;
+  /* Label accent — set this to #333 (grey/black) or any hex you prefer */
+  --label-accent:#5b46ff; /* dark purple default */
 }
 
 /* ---------- BASICS ---------- */
@@ -59,7 +59,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   border:1px solid var(--clrPanelBorder);border-radius:6px;margin-bottom:14px;background:#fff;
   box-shadow:0 1px 2px rgba(0,0,0,.08);position:relative;display:flex;flex-direction:column;
 }
-/* headings are no longer sticky so they won’t cover content */
+/* Headings are not sticky so they won’t cover content */
 .frame-header{
   position:relative;top:auto;z-index:1;display:flex;align-items:center;gap:8px;padding:6px 10px;
   font-size:15px;font-weight:500;color:#000;border-bottom:1px solid #e0e0e0;background:#fafafa;
@@ -195,34 +195,41 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .sg li:hover,.sg li.active{background:#e8f1fe;}
 .sg small{opacity:.7;margin-left:6px;}
 
-/* ---------- REGION LABEL OVERLAY (fast, uniform color) ---------- */
+/* ---------- REGION LABEL OVERLAY (compact, fast) ---------- */
 .region-label{
   position:absolute; transform:translate(-50%, -100%) scale(.98);
   z-index:1000; pointer-events:auto;
-  transition:opacity .08s ease, transform .08s ease;
+  transition:opacity .06s cubic-bezier(.2,.7,.2,1), transform .06s cubic-bezier(.2,.7,.2,1);
   opacity:0;
 }
-.region-label.show{ opacity:1; transform:translate(-50%, -108%) scale(1); }
+.region-label.show{ opacity:1; transform:translate(-50%, -112%) scale(1); }
 
 .region-card{
+  position:relative;
   display:flex; align-items:center; gap:10px;
-  background: linear-gradient(135deg, var(--accent, var(--label-accent)) 0%, #ffffff 58%);
-  border:1px solid rgba(0,0,0,.10);
-  border-radius:12px;
-  box-shadow:0 10px 24px rgba(0,0,0,.20);
+  background: linear-gradient(135deg, var(--accent, var(--label-accent)) 0%, #ffffff 62%);
+  border:1px solid rgba(0,0,0,.12);
+  border-radius:14px;
+  box-shadow:0 12px 26px rgba(0,0,0,.22);
   padding:8px 12px;
-  font-size:14px; color:#1f1f1f;
+  font-size:14px; color:#1e1f23;
+}
+.region-card::after{ /* pointer */
+  content:""; position:absolute; left:22px; bottom:-8px;
+  width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid rgba(255,255,255,0.95);
+  filter:drop-shadow(0 2px 2px rgba(0,0,0,.12));
 }
 .region-accent{ width:8px; height:22px; border-left:8px solid var(--accent, var(--label-accent)); border-radius:4px;}
 .region-title{
-  font-weight:700; letter-spacing:.3px; text-transform:uppercase;
-  background:rgba(255,255,255,.65); padding:2px 8px; border-radius:999px;
+  font-weight:800; letter-spacing:.35px; text-transform:uppercase;
+  font-family: var(--fontMain);
+  background:rgba(255,255,255,.7); padding:2px 8px; border-radius:999px;
   border:1px solid rgba(0,0,0,.06);
 }
-.region-close{ margin-left:auto; cursor:pointer; color:#555; font-size:18px; line-height:18px; }
+.region-close{ margin-left:auto; cursor:pointer; color:#444; font-size:18px; line-height:18px; }
 .region-close:hover{ color:#000; }
 
-/* Hide Google's “Visual search / Lens” bubble + friends */
+/* Hide Google “Visual Search / Lens” bubble + friends (CSS level; JS also enforces) */
 .gm-style [aria-label*="Visual"],
 .gm-style [title*="Visual"],
 .gm-style [aria-label*="Lens"],
@@ -859,6 +866,29 @@ function updateToggleChips(){
   const d=document.getElementById('toggleDay');   if(d) d.classList.toggle('active',dayVisible);
   const n=document.getElementById('toggleNight'); if(n) n.classList.toggle('active',nightVisible);
 }
+
+function enforcePanelVisibility(){
+  const svOn = map && map.getStreetView().getVisible();
+  const panel = document.getElementById('panel');
+  const addr  = document.getElementById('addrBar');
+
+  if(svOn){
+    panel.style.display = 'none';
+    addr.style.display  = 'none';
+    return;
+  }
+  panel.style.display = '';
+  if(flatMode){
+    panel.classList.add('flat');
+    addr.classList.add('active');
+    addr.style.display='block';
+  }else{
+    panel.classList.remove('flat');
+    addr.classList.remove('active');
+    addr.style.display='none';
+  }
+}
+
 function toggleShift(which){
   if(which==='day') dayVisible=!dayVisible;
   if(which==='night') nightVisible=!nightVisible;
@@ -884,6 +914,8 @@ function applyShiftVisibility(){
   SG.hide();
   hideAllAutocompleteUIs();
   scheduleAutoCompute(120,false);
+
+  enforcePanelVisibility(); /* ← make sure only one panel is visible */
 }
 
 function buildAddrBar(){
@@ -908,21 +940,20 @@ function focusFirstFlatInputIfNone(){
 }
 function enterFlatMode(){
   if(flatMode) return; flatMode=true;
-  document.getElementById('panel').classList.add('flat');
-  document.getElementById('addrBar').classList.add('active');
+  clearDirections(); clearLegDisplays();
+  SG.hide();
+  enforcePanelVisibility();
+
   const list=document.getElementById('addrList');
   if(list.querySelectorAll('.row').length===0){
     addRowToAddrBar(true,false);
     for(let i=1;i<INITIAL_FLAT_ROWS;i++) addRowToAddrBar(false,false);
   }else{ focusFirstFlatInputIfNone(); }
-  clearDirections(); clearLegDisplays();
-  SG.hide();
 }
 function exitFlatMode(){
   if(!flatMode) return; flatMode=false;
-  document.getElementById('panel').classList.remove('flat');
-  document.getElementById('addrBar').classList.remove('active');
   SG.hide();
+  enforcePanelVisibility();
 }
 
 /* =================== CLEAR =================== */
@@ -1256,10 +1287,10 @@ window.routePlannerInit=()=>{
   );
 
   /* ---------- Region overlay + KML (toggle + uniform color) ---------- */
-  function nameToAccent(name){ 
-    if(LABEL_COLOR_MODE==='uniform') return getComputedStyle(document.documentElement).getPropertyValue('--label-accent').trim()||'#ff7eb3';
-    let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i)) % 360; } 
-    return `hsl(${h} 75% 70%)`; 
+  function nameToAccent(name){
+    if(LABEL_COLOR_MODE==='uniform') return getComputedStyle(document.documentElement).getPropertyValue('--label-accent').trim()||'#5b46ff';
+    let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i)) % 360; }
+    return `hsl(${h} 75% 70%)`;
   }
 
   class RegionLabelOverlay extends google.maps.OverlayView{
@@ -1293,7 +1324,7 @@ window.routePlannerInit=()=>{
       if(!this.container) return;
       const el=this.container;
       el.classList.remove('show');
-      setTimeout(()=>{ if(el&&el.parentNode) el.parentNode.removeChild(el); }, 90);
+      setTimeout(()=>{ if(el&&el.parentNode) el.parentNode.removeChild(el); }, 60);
       this.container=null;
     }
   }
@@ -1340,35 +1371,56 @@ window.routePlannerInit=()=>{
   // Default = FLAT view
   applyShiftVisibility();   // dayVisible=false & nightVisible=false -> enterFlatMode()
 
-  // Flat Optimize now removes empties first, then optimizes
+  // Flat Optimize removes empties first, then optimizes
   document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; globalOptimizeRoute();};
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
-  // Street View: hide/show Flat panel automatically (no back button)
+  // Street View: hide/show panels automatically
   const sv = map.getStreetView();
-  sv.addListener('visible_changed', () => {
-    const on = sv.getVisible();
-    document.getElementById('addrBar').style.display = on ? 'none' : (flatMode?'block':'none');
-  });
+  sv.addListener('visible_changed', () => enforcePanelVisibility());
+  enforcePanelVisibility();
 
-  // Aggressive “Visual Search” killer: run once and on DOM changes
-  (function killVisualSearch(){
-    const mapRoot = document.getElementById('map');
-    const hide = ()=>{
-      const sel = [
-        '.gm-style [aria-label*="Visual"]',
-        '.gm-style [title*="Visual"]',
-        '.gm-style [aria-label*="Lens"]',
-        '.gm-style [title*="Lens"]',
-        '.gm-style .widget-visual-search',
-        '.gm-style .scene-viewcard-button',
-        '.gm-style .app-viewcard-strip'
-      ].join(',');
-      document.querySelectorAll(sel).forEach(el=>{ el.style.display='none'; el.hidden=true; });
+  // Aggressive “Visual Search / Lens” remover — walks DOM + shadow roots
+  (function robustHideLens(){
+    const isTarget = (el)=>{
+      try{
+        const aria=(el.getAttribute?.('aria-label')||'').toLowerCase();
+        const title=(el.getAttribute?.('title')||'').toLowerCase();
+        return (aria.includes('visual') || aria.includes('lens') ||
+                title.includes('visual') || title.includes('lens'));
+      }catch(_){return false;}
     };
-    hide();
-    const mo = new MutationObserver(hide);
-    mo.observe(mapRoot, {subtree:true, childList:true, attributes:true});
+    const hideEl = (el)=>{
+      try{
+        el.style.display='none'; el.hidden=true; el.setAttribute('aria-hidden','true');
+        if(el.parentElement && el.parentElement.childElementCount<=4){
+          el.parentElement.style.display='none';
+          el.parentElement.hidden=true;
+        }
+      }catch(_){}
+    };
+    const walk = (root)=>{
+      if(!root) return;
+      const stack=[root];
+      while(stack.length){
+        const node=stack.pop();
+        if(node.nodeType!==1 && !(node instanceof ShadowRoot)) continue;
+        const el=node;
+        if(el.nodeType===1 && isTarget(el)) hideEl(el);
+        // iterate children
+        if(el.children) for(const c of el.children) stack.push(c);
+        // shadow root
+        if(el.shadowRoot) stack.push(el.shadowRoot);
+        // ShadowRoot children
+        if(el instanceof ShadowRoot) for(const c of el.children) stack.push(c);
+      }
+    };
+    const hideAll = ()=>walk(document.body);
+    hideAll();
+    const mo = new MutationObserver(()=>hideAll());
+    mo.observe(document.body, {subtree:true, childList:true, attributes:true});
+    // also run on SV visibility changes
+    map.getStreetView().addListener('visible_changed', hideAll);
   })();
 
   (function attachFunctionKeyTrap(){
