@@ -1152,7 +1152,35 @@ function clearAllStops(){
   SG.hide();
 }
 
-/* =================== ROUTING / OPTIMIZATION (unchanged) =================== */
+/* NEW: clear only the filled inputs in the CURRENT VIEW (flat or visible frames) */
+function clearFilledCurrentView(){
+  if (flatMode){
+    document.querySelectorAll('#addrList .row .stop').forEach(inp=>{
+      if((inp.value||'').trim()){
+        const r = inp.closest('.row');
+        r?.classList.remove('invalid');
+        inp.value=''; inp.dataset.lat=''; inp.dataset.lng=''; delete inp.dataset.dirty;
+      }
+    });
+  } else {
+    FRAMES.forEach(fr=>{
+      const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
+      const visible=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
+      if(!visible || sec.classList.contains('collapsed') || sec.style.display==='none') return;
+      document.querySelectorAll(`#frame-${fr.id} .row .stop`).forEach(inp=>{
+        if((inp.value||'').trim()){
+          const r = inp.closest('.row');
+          r?.classList.remove('invalid');
+          inp.value=''; inp.dataset.lat=''; inp.dataset.lng=''; delete inp.dataset.dirty;
+        }
+      });
+    });
+  }
+  renumber();
+  scheduleAutoCompute(0,false);
+}
+
+/* =================== ROUTING / OPTIMIZATION (existing) =================== */
 const scheduleAutoCompute=(ms=120, allowResolve=false)=>{
   clearTimeout(autoTimer);
   autoResolveNext = allowResolve;
@@ -1314,7 +1342,7 @@ function displayLegs(res,stat){
 }
 function clearLegDisplays(){document.querySelectorAll('.leg-display').forEach(d=>d.remove());}
 
-/* =================== TSP helpers (unchanged, fixed Math.sin) =================== */
+/* =================== TSP helpers (existing for PATH) =================== */
 function buildDistanceMatrix(points){const n=points.length;const D=Array.from({length:n},()=>Array(n).fill(0));for(let i=0;i<n;i++){for(let j=i+1;j<n;j++){const d=haversine(points[i],points[j]);D[i][j]=D[j][i]=d;} }return D;}
 function haversine(a,b){const R=6371;const toRad=x=>x*Math.PI/180;const dLat=toRad(b.lat-a.lat);const dLng=toRad(b.lng-a.lng);const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(s));}
 function orderCost(order,D){let c=0; for(let i=0;i<order.length-1;i++) c+=D[order[i]][order[i+1]]; return c;}
@@ -1322,64 +1350,193 @@ function nearestNeighbour(D,start=0){const n=D.length; const visited=Array(n).fi
 function twoOpt(order,D){const n=order.length; let improved=true; while(improved){improved=false; for(let i=1;i<n-2;i++){for(let j=i+1;j<n-1;j++){const a=order[i-1],b=order[i],c=order[j],d=order[j+1]; if(D[a][b]+D[c][d] > D[a][c]+D[b][d]){ order.splice(i,j-i+1,...order.slice(i,j+1).reverse()); improved=true; }}}} return order;}
 function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){const n=D.length; let start=fixedStart!=null?fixedStart:0; let ord=nearestNeighbour(D,start); ord=twoOpt(ord,D); if(fixedEnd!=null && ord[ord.length-1]!==fixedEnd){let best=ord,bestCost=orderCost(ord,D); for(let s=0;s<n;s++){const r=[...ord.slice(s),...ord.slice(0,s)]; if(r[r.length-1]!==fixedEnd) continue; const c=orderCost(r,D); if(c<bestCost){best=r; bestCost=c;}} ord=best;} if(fixedStart!=null && ord[0]!==fixedStart){const idx=ord.indexOf(fixedStart); if(idx>-1) ord=[...ord.slice(idx),...ord.slice(0,idx)];} return ord;}
 
-/* =================== LABEL OVERLAY =================== */
-function pickAccentFromName(name){
-  if(LABEL_COLOR_MODE==='uniform') return getComputedStyle(document.documentElement).getPropertyValue('--accent-teal').trim()||'#2A9D8F';
-  const palette=[
-    getComputedStyle(document.documentElement).getPropertyValue('--accent-teal').trim()||'#2A9D8F',
-    getComputedStyle(document.documentElement).getPropertyValue('--accent-blue').trim()||'#3B82F6',
-    getComputedStyle(document.documentElement).getPropertyValue('--accent-slate').trim()||'#475569',
-    getComputedStyle(document.documentElement).getPropertyValue('--accent-olive').trim()||'#6B8E23'
-  ];
-  let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i))>>>0; }
-  return palette[h % palette.length];
+/* =================== NEW: cycle‑based helpers for “Optimize by Frames” =================== */
+function cycleCost(order, D){ let c=0, n=order.length; for(let i=0;i<n;i++){ c += D[order[i]][order[(i+1)%n]]; } return c; }
+function nearestNeighbourCycle(D){ const n=D.length; if(n<=2) return Array.from({length:n},(_,i)=>i); const ord=nearestNeighbour(D,0); return ord; }
+function twoOptCycle(order, D){
+  const n=order.length; if(n<=3) return order.slice();
+  let improved=true;
+  while(improved){
+    improved=false;
+    for(let i=0;i<n-1;i++){
+      for(let k=i+1;k<n;k++){
+        const a = order[i];
+        const b = order[(i+1)%n];
+        const c = order[k];
+        const d = order[(k+1)%n];
+        // skip adjacent edges and wrap-around pair
+        if(b===c || d===a) continue;
+        const delta = (D[a][b] + D[c][d]) - (D[a][c] + D[b][d]);
+        if(delta > 1e-9){
+          // reverse segment (i+1 .. k)
+          const i1=(i+1), k1=k;
+          const seg = order.slice(i1, k1+1).reverse();
+          order.splice(i1, seg.length, ...seg);
+          improved=true;
+        }
+      }
+    }
+  }
+  return order;
 }
-let RegionLabelOverlay;
-function initRegionLabelOverlay(){
-  RegionLabelOverlay = class RegionLabelOverlay extends google.maps.OverlayView{
-    constructor(pos,text,accent){
-      super();
-      this.position=pos; this.text=text||''; this.accent=accent||pickAccentFromName(this.text);
-      this.container=null;
-      this.kfIn  = [{opacity:0, transform:'translate(-50%,-100%) scale(.96)'},{opacity:1, transform:'translate(-50%,-112%) scale(1.00)'}];
-      this.kfOut = [{opacity:1, transform:'translate(-50%,-112%) scale(1.00)'},{opacity:0, transform:'translate(-50%,-100%) scale(.96)'}];
-      this.optIn  = {duration:LABEL_ANIM_MS,  easing:'cubic-bezier(.2,.9,.2,1)', fill:'forwards'};
-      this.optOut = {duration:LABEL_ANIM_MS,  easing:'cubic-bezier(.2,.7,.2,1)', fill:'forwards'};
+function optimizeFrameAsCycle(points){
+  const D = buildDistanceMatrix(points);
+  let cyc = nearestNeighbourCycle(D);
+  cyc = twoOptCycle(cyc, D);
+  const C  = cycleCost(cyc, D);
+  // find max edge weight
+  const n = cyc.length;
+  let maxW = -Infinity;
+  const edgesW = [];
+  for(let i=0;i<n;i++){
+    const w = D[cyc[i]][cyc[(i+1)%n]];
+    edgesW.push(w);
+    if(w>maxW) maxW=w;
+  }
+  return {cyc, D, C, edgesW, maxW};
+}
+function pathFromCycle(cyc, breakIdx, forward=true){
+  const n=cyc.length;
+  const a=cyc[breakIdx], b=cyc[(breakIdx+1)%n];
+  // forward path starts at b -> ... -> a (following cycle direction)
+  if(forward){
+    const path = [];
+    for(let i=breakIdx+1;i<=breakIdx+n;i++){
+      path.push(cyc[i % n]);
     }
-    onAdd(){
-      const div=document.createElement('div');
-      div.className='region-label';
-      div.innerHTML =
-        `<div class="badge" style="--accent:${this.accent}">
-           <span class="accent"></span>
-           <span class="titlewrap"><span class="title">${this.text}</span></span>
-         </div>`;
-      this.container=div; this.getPanes().floatPane.appendChild(div);
-      if(LABEL_USE_ANIM && typeof div.animate === 'function'){ div.animate(this.kfIn, this.optIn); }
-      else{ div.style.opacity='1'; div.style.transform='translate(-50%,-112%)'; }
+    return {path, start:b, end:a};
+  }else{
+    // reverse orientation: a -> ... -> b
+    const path = [];
+    for(let i=breakIdx;i>breakIdx-n;i--){
+      const idx=(i+n)%n;
+      path.push(cyc[idx]);
     }
-    draw(){
-      const proj=this.getProjection(); if(!proj||!this.container) return;
-      const pt=proj.fromLatLngToDivPixel(this.position);
-      this.container.style.left=pt.x+'px';
-      this.container.style.top =pt.y+'px';
-    }
-    onRemove(){
-      if(!this.container) return;
-      const el=this.container; this.container=null;
-      if(LABEL_USE_ANIM && typeof el.animate === 'function'){
-        try{ el.getAnimations().forEach(a=>a.cancel()); }catch(_){}
-        el.animate(this.kfOut, this.optOut).finished.then(()=>el.remove()).catch(()=>el.remove());
-      }else{ el.remove(); }
-    }
-  };
+    return {path, start:a, end:b};
+  }
 }
 
-/* =================== GEOJSON + GROUPED POLYGON PANEL =================== */
-const ALL_FEATURES = [];                 // all features across files
+/* =================== NEW: Optimize‑by‑Frames (robust, DP across frames) =================== */
+async function optimizeByFrames(){
+  if (flatMode){ return; }
+
+  // collect visible (and not collapsed) frames in order
+  const activeFrames = FRAMES.filter(fr=>{
+    const visible=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
+    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
+    return visible && sec && !sec.classList.contains('collapsed') && sec.style.display!=='none';
+  });
+
+  // rows per frame + ensure coords
+  const perFrame = activeFrames.map(fr=>{
+    const list = document.getElementById('frame-'+fr.id);
+    const rows = [...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
+    return {fr, rows};
+  });
+  const allRows = perFrame.flatMap(x=>x.rows);
+  if(allRows.length<=1){ renumber(); scheduleAutoCompute(0,true); return; }
+
+  const ok = await ensureCoords(allRows,{parallel:true});
+  if(!ok){ document.getElementById('msg').textContent='One or more stops can’t be located – please edit.'; return; }
+
+  // Build candidates per frame
+  const framesPlan = perFrame.map(({fr, rows})=>{
+    const pts = rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat, lng:+r.querySelector('.stop').dataset.lng}));
+    if(pts.length===0){
+      return {fr, rows, candidates:[{path:[], start:null, end:null, breakIdx:-1, forward:true}]};
+    }
+    if(pts.length===1){
+      return {fr, rows, candidates:[{path:[0], start:0, end:0, breakIdx:0, forward:true}]};
+    }
+    if(pts.length===2){
+      // single edge; both orientations; same intra cost
+      return {fr, rows, candidates:[
+        {path:[0,1], start:0, end:1, breakIdx:0, forward:true},
+        {path:[1,0], start:1, end:0, breakIdx:0, forward:false}
+      ]};
+    }
+
+    const {cyc, D, edgesW, maxW} = optimizeFrameAsCycle(pts);
+    const tol = Math.max(TOL_KM, TOL_PCT * maxW);
+    const breakEdges = [];
+    edgesW.forEach((w,i)=>{ if((maxW - w) <= tol) breakEdges.push(i); });
+
+    const candidates=[];
+    for(const i of breakEdges){
+      const fwd = pathFromCycle(cyc, i, true);
+      const rev = pathFromCycle(cyc, i, false);
+      candidates.push({path:fwd.path, start:fwd.start, end:fwd.end, breakIdx:i, forward:true, D});
+      candidates.push({path:rev.path, start:rev.start, end:rev.end, breakIdx:i, forward:false, D});
+    }
+    return {fr, rows, candidates, pts};
+  });
+
+  // Dynamic programming across frames to minimize sum of inter‑frame distances
+  const distBetween = (A, aIndex, B, bIndex)=>{
+    if(aIndex==null || bIndex==null) return 0;
+    const pa = A.pts ? A.pts[aIndex] : null;
+    const pb = B.pts ? B.pts[bIndex] : null;
+    if(!pa || !pb) return 0;
+    return haversine(pa, pb);
+  };
+
+  const N = framesPlan.length;
+  if(N===0){ renumber(); scheduleAutoCompute(0,true); return; }
+
+  const dp = [];    // dp[k][j] = {cost, prevJ}
+  for(let k=0;k<N;k++){
+    dp[k] = [];
+    const Fk = framesPlan[k];
+    for(let j=0;j<Fk.candidates.length;j++){
+      if(k===0){
+        dp[k][j] = {cost:0, prev:-1};
+      }else{
+        let best = {cost:Infinity, prev:-1};
+        for(let pj=0; pj<dp[k-1].length; pj++){
+          const prevC = framesPlan[k-1].candidates[pj];
+          const thisC = Fk.candidates[j];
+          const linkCost = distBetween(framesPlan[k-1], prevC.end, Fk, thisC.start);
+          const total = dp[k-1][pj].cost + linkCost;
+          if(total < best.cost){
+            best = {cost:total, prev:pj};
+          }
+        }
+        dp[k][j]=best;
+      }
+    }
+  }
+  // pick best on last frame
+  let bestLastJ = 0, bestCost = Infinity;
+  for(let j=0;j<dp[N-1].length;j++){
+    if(dp[N-1][j].cost < bestCost){ bestCost = dp[N-1][j].cost; bestLastJ = j; }
+  }
+  // backtrack
+  const pick = Array(N).fill(0);
+  let curJ = bestLastJ;
+  for(let k=N-1;k>=0;k--){
+    pick[k] = curJ;
+    curJ = dp[k][curJ].prev;
+  }
+
+  // Apply reorders per frame
+  for(let k=0;k<N;k++){
+    const plan = framesPlan[k];
+    const c    = plan.candidates[pick[k]];
+    if(!c || !c.path || c.path.length<=1) continue;
+    const list = document.getElementById('frame-'+plan.fr.id);
+    const newOrder = c.path.map(idx=>plan.rows[idx]);
+    newOrder.forEach(r=>list.appendChild(r));
+  }
+
+  renumber();
+  scheduleAutoCompute(0,true);
+}
+
+/* Optional helpers kept (no UI toggle) */
+const ALL_FEATURES = [];
 const POLY_STORAGE_KEY = 'geoPolyState_v2';
-let POLY_STATE = {};                     // { code: { visible, name, color } }
-let GROUP_STATE = {};                    // { groupKey: { name, expanded } }
+let POLY_STATE = {};
+let GROUP_STATE = {};
 let dataAttached = true, deferWhileInteract = false, reattachTO = 0;
 
 function areaCodeFromFeature(feat){
@@ -1462,7 +1619,7 @@ async function loadGeoLayers(){
   Object.keys(GROUP_DEFS).forEach(k=>{
     GROUP_STATE[k] = {
       name: savedGroups?.[k]?.name || GROUP_DEFS[k].name,
-      expanded: savedGroups?.[k]?.expanded !== false   // default expanded
+      expanded: savedGroups?.[k]?.expanded !== false
     };
   });
   saveSaved(GROUP_STORAGE_KEY, GROUP_STATE);
@@ -1486,7 +1643,6 @@ function applyVisibility(){
   });
   map.data.setStyle(styleFeature);
 
-  // filter UI
   const root = document.getElementById('groupsRoot');
   if(!root) return;
   [...root.querySelectorAll('.group')].forEach(g=>{
@@ -1494,7 +1650,6 @@ function applyVisibility(){
     const gName = (GROUP_STATE[gkey]?.name || '').toUpperCase();
     const rows  = [...g.querySelectorAll('.poly-row')];
 
-    // Decide which rows match
     let anyRowMatch = false;
     rows.forEach(r=>{
       const code = r.dataset.code;
@@ -1504,12 +1659,9 @@ function applyVisibility(){
       if(match) anyRowMatch = true;
     });
 
-    // Group matches if name matches OR a child matches
     const groupMatches = !q || gName.includes(q) || anyRowMatch;
-
     g.style.display = groupMatches ? '' : 'none';
 
-    // If only group name matches (no child rows), show all rows in that group
     if(q && gName.includes(q) && !anyRowMatch){
       rows.forEach(r=> r.style.display='');
     }
@@ -1529,11 +1681,9 @@ function buildDrawerUI(){
   btn.onclick = ()=> setOpen(!drawer.classList.contains('open'));
   closeBtn.onclick = ()=> setOpen(false);
 
-  // groups/root
   const root = document.getElementById('groupsRoot');
   root.innerHTML = '';
 
-  // Build groups in the order defined in GROUP_DEFS
   Object.keys(GROUP_DEFS).forEach(gkey=>{
     const gWrap = document.createElement('div');
     gWrap.className = 'group' + (GROUP_STATE[gkey]?.expanded===false ? ' collapsed':'');
@@ -1551,7 +1701,6 @@ function buildDrawerUI(){
     const gBody = document.createElement('div');
     gBody.className = 'group-body';
 
-    // Add rows for codes in this group (only those present)
     GROUP_DEFS[gkey].codes
       .filter(code => code in POLY_STATE)
       .forEach(code => gBody.appendChild(makePolyRow(code)));
@@ -1560,7 +1709,6 @@ function buildDrawerUI(){
     gWrap.appendChild(gBody);
     root.appendChild(gWrap);
 
-    // events for header
     gHead.querySelector('.toggle').addEventListener('click', ()=>{
       const now = !gWrap.classList.contains('collapsed');
       gWrap.classList.toggle('collapsed', now);
@@ -1575,7 +1723,6 @@ function buildDrawerUI(){
     }, 120));
   });
 
-  // style sliders
   const op = document.getElementById('opacityRange');
   const opV= document.getElementById('opacityVal');
   const st = document.getElementById('strokeRange');
@@ -1596,25 +1743,22 @@ function buildDrawerUI(){
     map.data.setStyle(styleFeature);
   });
 
-  // filter
   const ft = document.getElementById('filterText');
   document.getElementById('filterClear').onclick=()=>{ ft.value=''; applyVisibility(); };
   ft.addEventListener('input', debounce(applyVisibility, 80));
 }
 
-/* create one polygon row (single checkbox visibility + editable name + color) */
+/* create one polygon row */
 function makePolyRow(code){
   const st = POLY_STATE[code];
   const row = document.createElement('div');
   row.className='poly-row';
   row.dataset.code = code;
 
-  // checkbox
   const ckWrap = document.createElement('div');
   ckWrap.className = 'ck';
   ckWrap.innerHTML = `<input type="checkbox" ${st.visible?'checked':''} aria-label="Toggle ${st.name}">`;
 
-  // name input (only one editable — no duplicate label)
   const nameWrap = document.createElement('div');
   nameWrap.className = 'name';
   const nameInput = document.createElement('input');
@@ -1625,7 +1769,6 @@ function makePolyRow(code){
   nameInput.setAttribute('data-code', code);
   nameWrap.appendChild(nameInput);
 
-  // color swatch + hidden color input
   const swatch = document.createElement('button');
   swatch.className = 'swatch';
   swatch.title = `Change color for ${st.name || code}`;
@@ -1635,13 +1778,11 @@ function makePolyRow(code){
   colorInput.value = st.color;
   colorInput.setAttribute('data-code', code);
 
-  // assemble
   row.appendChild(ckWrap);
   row.appendChild(nameWrap);
   row.appendChild(swatch);
   row.appendChild(colorInput);
 
-  // events
   ckWrap.querySelector('input').addEventListener('change', (e)=>{
     POLY_STATE[code].visible = !!e.target.checked; saveSaved(POLY_STORAGE_KEY, POLY_STATE);
     getFeaturesByCode(code).forEach(f=> f.setProperty('__visible', POLY_STATE[code].visible));
@@ -1666,7 +1807,6 @@ function makePolyRow(code){
   return row;
 }
 
-/* Optional helpers kept (no UI toggle) */
 function detachData(){
   if(!deferWhileInteract || !dataAttached) return;
   map.data.setMap(null); dataAttached=false;
@@ -1676,11 +1816,10 @@ function reattachData(){
   map.data.setMap(map); dataAttached=true;
 }
 
-/* ============ F1..F4 keyboard shortcuts ============ */
+/* ============ F1..F4 keyboard shortcuts (RESTORED to your mapping) ============ */
 function initHotkeys(){
-  // Use capture so we beat browser defaults (e.g. F1 Help) and prevent them.
   document.addEventListener('keydown', (e)=>{
-    if (e.altKey || e.ctrlKey || e.metaKey) return; // don't clash with OS/browser combos
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
 
     switch (e.key) {
       case 'F1': {                           // Toggle Day
@@ -1693,27 +1832,18 @@ function initHotkeys(){
         toggleShift('night');
         break;
       }
-      case 'F3': {                           // Toggle Areas drawer + focus filter
+      case 'F3': {                           // Clear filled address bars in CURRENT VIEW
         e.preventDefault();
-        const drawer = document.getElementById('areasDrawer');
-        const btn    = document.getElementById('areasBtn');
-        const open   = !drawer.classList.contains('open');
-        drawer.classList.toggle('open', open);
-        drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
-        btn.classList.toggle('open', open);
-        if (open) {
-          const ft = document.getElementById('filterText');
-          setTimeout(()=>{ try{ ft && ft.focus(); ft && ft.select(); }catch{} }, 0);
-        }
+        clearFilledCurrentView();
         break;
       }
-      case 'F4': {                           // Optimize in flat, otherwise clear all
+      case 'F4': {                           // Optimize (by Frames in framed view, global in flat view)
         e.preventDefault();
+        autoResolveNext = true;
         if (flatMode) {
-          autoResolveNext = true;
           globalOptimizeRoute();
         } else {
-          clearAllStops();
+          optimizeByFrames();
         }
         break;
       }
@@ -1721,7 +1851,7 @@ function initHotkeys(){
     }
   }, true);
 }
-/* =================================================== */
+/* ============================================================================ */
 
 /* =================== INIT =================== */
 window.routePlannerInit=()=>{
@@ -1783,17 +1913,16 @@ window.routePlannerInit=()=>{
   sv.addListener('visible_changed', () => enforcePanelVisibility());
   enforcePanelVisibility();
 
-  // keep reflow snappiness
   window.addEventListener('resize', ()=>{ clearTimeout(window.__rb); window.__rb=setTimeout(()=>{rebalanceFrameHeights();},150); });
 
-  // NEW: bind hotkeys
+  // bind hotkeys
   initHotkeys();
 };
 
 /* If Maps loaded before this script, init() already ran and set the flag. */
 if (window.__mapsApiReady) { window.routePlannerInit(); }
 
-/* --------- Flat‑view optimizer --------- */
+/* --------- Flat‑view optimizer (existing) --------- */
 async function globalOptimizeRoute(){
   if(!flatMode){ return; }
   const list=document.getElementById('addrList');
