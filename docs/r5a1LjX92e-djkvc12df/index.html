@@ -615,54 +615,65 @@ function forceCloseAutocomplete(inp){
 }
 
 /* ===========================================================
-   REGION LABEL OVERLAY (FIX for missing initRegionLabelOverlay)
+   REGION LABEL OVERLAY (lazy-define after Maps API loads)
    =========================================================== */
 function pickAccentFromName(name=''){
   const accents = ['#2A9D8F','#3B82F6','#475569','#6B8E23']; // teal, blue, slate, olive
   let h=0; for(let i=0;i<name.length;i++){ h = (h*31 + name.charCodeAt(i))>>>0; }
   return accents[h % accents.length];
 }
-class RegionLabelOverlay extends google.maps.OverlayView{
-  constructor(position, title, accent){
-    super();
-    this.position = position;
-    this.title = title || '';
-    this.accent = accent || '#2A9D8F';
-    this.div = null;
+
+/**
+ * Define RegionLabelOverlay only once, and only after google.maps is available.
+ * Call this from routePlannerInit() right after you create the map.
+ */
+function initRegionLabelOverlay(){
+  if (window.RegionLabelOverlay) return;            // already defined
+  if (!window.google || !google.maps) return;       // guard (shouldn't happen inside routePlannerInit)
+
+  class RegionLabelOverlay extends google.maps.OverlayView{
+    constructor(position, title, accent){
+      super();
+      this.position = position;
+      this.title    = title || '';
+      this.accent   = accent || '#2A9D8F';
+      this.div      = null;
+    }
+    onAdd(){
+      const div = document.createElement('div');
+      div.className = 'region-label';
+      div.style.setProperty('--accent', this.accent);
+      div.innerHTML = `
+        <div class="badge">
+          <span class="accent"></span>
+          <span class="titlewrap"><span class="title">${(this.title||'').replace(/</g,'&lt;')}</span></span>
+          <button class="close" type="button" title="Close">×</button>
+        </div>`;
+      div.querySelector('.close').addEventListener('click', ()=> this.setMap(null));
+      this.div = div;
+      this.getPanes().overlayMouseTarget.appendChild(div);
+      requestAnimationFrame(()=>{
+        div.style.transition = 'transform .18s ease, opacity .18s ease';
+        div.style.transform  = 'translate(-50%,-112%) scale(1)';
+        div.style.opacity    = '1';
+      });
+    }
+    draw(){
+      if(!this.div) return;
+      const pix = this.getProjection().fromLatLngToDivPixel(this.position);
+      this.div.style.left = pix.x + 'px';
+      this.div.style.top  = pix.y + 'px';
+    }
+    onRemove(){
+      if(this.div?.parentNode) this.div.parentNode.removeChild(this.div);
+      this.div = null;
+    }
   }
-  onAdd(){
-    const div = document.createElement('div');
-    div.className = 'region-label';
-    div.style.setProperty('--accent', this.accent);
-    div.innerHTML = `
-      <div class="badge">
-        <span class="accent"></span>
-        <span class="titlewrap"><span class="title">${this.title.replace(/</g,'&lt;')}</span></span>
-        <button class="close" type="button" title="Close">×</button>
-      </div>`;
-    div.querySelector('.close').addEventListener('click', ()=> this.setMap(null));
-    this.div = div;
-    const panes = this.getPanes();
-    panes.overlayMouseTarget.appendChild(div);
-    // tiny fade/scale in
-    requestAnimationFrame(()=>{
-      div.style.transition = 'transform .18s ease, opacity .18s ease';
-      div.style.transform  = 'translate(-50%,-112%) scale(1)';
-      div.style.opacity    = '1';
-    });
-  }
-  draw(){
-    if(!this.div) return;
-    const proj = this.getProjection();
-    const pix  = proj.fromLatLngToDivPixel(this.position);
-    this.div.style.left = pix.x + 'px';
-    this.div.style.top  = pix.y + 'px';
-  }
-  onRemove(){
-    if(this.div && this.div.parentNode) this.div.parentNode.removeChild(this.div);
-    this.div = null;
-  }
+
+  // expose globally so your click handler can "new RegionLabelOverlay(...)"
+  window.RegionLabelOverlay = RegionLabelOverlay;
 }
+
 function initRegionLabelOverlay(){ /* no-op now that class is defined */ }
 
 /* =================== UI BUILD (frames/rows) =================== */
