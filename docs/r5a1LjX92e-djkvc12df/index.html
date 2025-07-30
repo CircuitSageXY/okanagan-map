@@ -260,14 +260,12 @@ let OK_BOUNDS;
 let suppressTopUpOnce = false;
 let __noTopUpUntil = 0;
 
-/* Per‑frame “top‑up allowed?” switch.
-   false  => allow initial 4 placeholders
-   true   => user has deleted; do NOT auto‑add placeholders in this frame */
+/* Per‑frame “top‑up allowed?” switch */
 const userManagedTopUp = {};
 function disableTopUp(frameId){ userManagedTopUp[frameId] = true; }
 function isTopUpAllowed(frameId){ return !userManagedTopUp[frameId]; }
 
-/* Hide any native Google autocomplete UI (we render our own) */
+/* Hide any native Google autocomplete UI */
 function hideAllAutocompleteUIs(){
   document.querySelectorAll('.pac-container').forEach(el=>{
     el.style.display='none';
@@ -412,7 +410,8 @@ function buildFrameBuckets(){
   const container=document.getElementById('framesContainer');
 
   FRAMES.forEach(fr=>{
-    userManagedTopUp[fr.id] = false;           // allow initial placeholders
+    userManagedTopUp[fr.id] = false;   /* allow initial 4 placeholders */
+
     const sec=document.createElement('div');
     sec.className='frame';sec.dataset.frame=fr.id;sec.dataset.shift=fr.shift;
 
@@ -792,7 +791,6 @@ function normalizeShiftLayout(shift){
     const hasFilled=[...list.querySelectorAll('.row')].some(r=>r.querySelector('.stop').value.trim());
     const isLastUsed = (idx===lastUsed);
 
-    // If user deleted in this frame, never add placeholders.
     const allowTopUp = isTopUpAllowed(f.id) && (isLastUsed ? !suppressTopUpOnce : false);
     const targetPlaceholders = isTopUpAllowed(f.id)
       ? (hasFilled ? (isLastUsed?BASE_EMPTY_PER_FRAME:0) : BASE_EMPTY_PER_FRAME)
@@ -1005,7 +1003,7 @@ function clearAllStops(){
   FRAMES.forEach(fr=>{ userManagedTopUp[fr.id] = false; });
   clearPreviewPins();clearDirections();clearLegDisplays();
   document.getElementById('msg').textContent='';
-  document.getElementById('flatMsg')?.textContent='';
+  const fm=document.getElementById('flatMsg'); if(fm) fm.textContent='';
   showDeleteBtns(); scheduleTimelineBuild(); renumber();
   SG.hide();
   // make sure each visible frame has the starter inputs again
@@ -1220,7 +1218,7 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)
   );
 
-  // Region overlay + KML (unchanged)
+  // Region overlay + KML
   function nameToAccent(name){ let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i)) % 360; } return `hsl(${h} 70% 70%)`; }
   class RegionLabelOverlay extends google.maps.OverlayView{
     constructor(pos,text,accent){super();this.position=pos;this.text=text||'';this.accent=accent||'#9ecfff';this.container=null;}
@@ -1282,7 +1280,7 @@ window.routePlannerInit=()=>{
   if(window.__mapsApiReady){ /* maps already loaded */ }
 };
 
-/* --------- Flat‑view optimizer (same as before) --------- */
+/* --------- Flat‑view optimizer --------- */
 async function globalOptimizeRoute(){
   if(!flatMode){ return; }
   const list=document.getElementById('addrList');
