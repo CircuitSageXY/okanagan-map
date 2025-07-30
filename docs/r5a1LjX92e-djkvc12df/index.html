@@ -1347,76 +1347,92 @@ window.routePlannerInit=()=>{
     return ACCENT_PALETTE[idx];
   }
 
-  /* === Folded‑map label overlay (GPU‑only WAAPI) === */
-  class RegionLabelOverlay extends google.maps.OverlayView{
-    constructor(pos,text,accent){
-      super();
-      this.position=pos; this.text=text||''; this.accent=accent||'#2A9D8F';
-      this.container=null;
+/* === Folded‑map label overlay (GPU‑only WAAPI) — FIXED === */
+class RegionLabelOverlay extends google.maps.OverlayView{
+  constructor(pos,text,accent){
+    super();
+    this.position=pos; this.text=text||''; this.accent=accent||'#2A9D8F';
+    this.container=null;
 
-      /* prebuilt keyframes + timings */
-      this.kfInMain = [
-        { opacity:0, transform:'translate(-50%,-96%) perspective(700px) rotateX(-55deg) scale(.88)' },
-        { opacity:1, transform:'translate(-50%,-112%) perspective(700px) rotateX(0deg)   scale(1.00)' }
-      ];
-      this.kfOutMain = [
-        { opacity:1, transform:'translate(-50%,-112%) perspective(700px) rotateX(0deg)   scale(1.00)' },
-        { opacity:0, transform:'translate(-50%,-96%)  perspective(700px) rotateX(-35deg) scale(.90)' }
-      ];
-      this.optInMain  = { duration:160, easing:'cubic-bezier(.2,.9,.2,1)',  fill:'forwards' };
-      this.optOutMain = { duration:110, easing:'cubic-bezier(.2,.7,.2,1)',  fill:'forwards' };
+    /* prebuilt keyframes + timings (for the WRAPPER) */
+    this.kfInMain = [
+      { opacity:0, transform:'translate(-50%,-96%) perspective(700px) rotateX(-55deg) scale(.88)' },
+      { opacity:1, transform:'translate(-50%,-112%) perspective(700px) rotateX(0deg)   scale(1.00)' }
+    ];
+    this.kfOutMain = [
+      { opacity:1, transform:'translate(-50%,-112%) perspective(700px) rotateX(0deg)   scale(1.00)' },
+      { opacity:0, transform:'translate(-50%,-96%)  perspective(700px) rotateX(-35deg) scale(.90)' }
+    ];
+    this.optInMain  = { duration:160, easing:'cubic-bezier(.2,.9,.2,1)',  fill:'forwards' };
+    this.optOutMain = { duration:110, easing:'cubic-bezier(.2,.7,.2,1)',  fill:'forwards' };
 
-      this.kfFoldLeftOpen  = [ { transform:'rotateY(52deg)' }, { transform:'rotateY(18deg)' } ];
-      this.kfFoldRightOpen = [ { transform:'rotateY(-52deg)' }, { transform:'rotateY(-18deg)' } ];
-      this.kfFoldLeftClose = [ { transform:'rotateY(18deg)' },  { transform:'rotateY(62deg)' } ];
-      this.kfFoldRightClose=[ { transform:'rotateY(-18deg)' }, { transform:'rotateY(-62deg)' } ];
-      this.optFold = { duration:160, easing:'cubic-bezier(.2,.9,.2,1)', fill:'forwards' };
-      this.optFoldOut = { duration:110, easing:'cubic-bezier(.2,.7,.2,1)', fill:'forwards' };
-    }
-    onAdd(){
-      const div=document.createElement('div');
-      div.className='region-label';
-      div.innerHTML =
-        `<div class="map-card" style="--map-accent:${this.accent}">
-           <span class="accent-pill"></span>
-           <div class="panel panel-left"></div>
-           <div class="panel panel-center">
-             <div class="map-title">${this.text}</div>
-           </div>
-           <div class="panel panel-right"></div>
-           <span class="region-close material-icons" title="Close">close</span>
-         </div>`;
-      div.querySelector('.region-close').onclick=()=>this.setMap(null);
-      this.container=div;
-      this.getPanes().floatPane.appendChild(div);
+    /* side panel folds (animate the PANELS) */
+    this.kfFoldLeftOpen  = [ { transform:'rotateY(52deg)' }, { transform:'rotateY(18deg)' } ];
+    this.kfFoldRightOpen = [ { transform:'rotateY(-52deg)' }, { transform:'rotateY(-18deg)' } ];
+    this.kfFoldLeftClose = [ { transform:'rotateY(18deg)' },  { transform:'rotateY(62deg)' } ];
+    this.kfFoldRightClose=[ { transform:'rotateY(-18deg)' }, { transform:'rotateY(-62deg)' } ];
+    this.optFold    = { duration:160, easing:'cubic-bezier(.2,.9,.2,1)', fill:'forwards' };
+    this.optFoldOut = { duration:110, easing:'cubic-bezier(.2,.7,.2,1)', fill:'forwards' };
+  }
+  onAdd(){
+    const div=document.createElement('div');
+    div.className='region-label';
+    div.innerHTML =
+      `<div class="map-card" style="--map-accent:${this.accent}">
+         <span class="accent-pill"></span>
+         <div class="panel panel-left"></div>
+         <div class="panel panel-center">
+           <div class="map-title">${this.text}</div>
+         </div>
+         <div class="panel panel-right"></div>
+         <span class="region-close material-icons" title="Close">close</span>
+       </div>`;
+    div.querySelector('.region-close').onclick=()=>this.setMap(null);
+    this.container=div;
+    this.getPanes().floatPane.appendChild(div);
 
-      const card  = div.firstElementChild;
-      const left  = card.querySelector('.panel-left');
-      const right = card.querySelector('.panel-right');
-      card.animate(this.kfInMain, this.optInMain);
+    const card  = div.firstElementChild;
+    const left  = card.querySelector('.panel-left');
+    const right = card.querySelector('.panel-right');
+
+    const canAnim = typeof div.animate === 'function';
+    if (canAnim){
+      // Animate the WRAPPER so opacity comes up from 0 → 1
+      div.animate(this.kfInMain, this.optInMain);
       left.animate(this.kfFoldLeftOpen, this.optFold);
       right.animate(this.kfFoldRightOpen, this.optFold);
+    }else{
+      // Fallback (no WAAPI)
+      div.style.opacity = '1';
+      div.style.transform = 'translate(-50%,-112%)';
     }
-    draw(){
-      const proj=this.getProjection(); if(!proj||!this.container) return;
-      const pt=proj.fromLatLngToDivPixel(this.position);
-      this.container.style.left=pt.x+'px';
-      this.container.style.top =pt.y+'px';
-    }
-    onRemove(){
-      if(!this.container) return;
-      const el=this.container;
-      const card  = el.firstElementChild;
-      const left  = card.querySelector('.panel-left');
-      const right = card.querySelector('.panel-right');
+  }
+  draw(){
+    const proj=this.getProjection(); if(!proj||!this.container) return;
+    const pt=proj.fromLatLngToDivPixel(this.position);
+    this.container.style.left=pt.x+'px';
+    this.container.style.top =pt.y+'px';
+  }
+  onRemove(){
+    if(!this.container) return;
+    const el=this.container;               // WRAPPER
+    const card  = el.firstElementChild;
+    const left  = card.querySelector('.panel-left');
+    const right = card.querySelector('.panel-right');
+
+    const canAnim = typeof el.animate === 'function';
+    if (canAnim){
       try{ el.getAnimations().forEach(a=>a.cancel()); }catch(_){}
-      const a1 = card.animate(this.kfOutMain, this.optOutMain).finished.catch(()=>{});
+      const a1 = el.animate(this.kfOutMain, this.optOutMain).finished.catch(()=>{});
       const a2 = left.animate(this.kfFoldLeftClose, this.optFoldOut).finished.catch(()=>{});
       const a3 = right.animate(this.kfFoldRightClose, this.optFoldOut).finished.catch(()=>{});
       Promise.all([a1,a2,a3]).then(()=>el.remove()).catch(()=>el.remove());
-      this.container=null;
+    }else{
+      el.remove();
     }
+    this.container=null;
   }
+}
 
   let currentRegionOverlay=null;
   let currentRegionId=null;
