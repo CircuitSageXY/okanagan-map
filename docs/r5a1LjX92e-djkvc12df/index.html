@@ -32,15 +32,14 @@
 
   --pxPerMin:2;
 
-  /* Legacy label accent (still used if LABEL_COLOR_MODE='uniform') */
-  --label-accent:#5b46ff;
-
-  /* Folded‑map label theme */
-  --map-paper-1:#fdfcf7;        /* paper top */
-  --map-paper-2:#f5f1e6;        /* paper bottom */
-  --map-stroke:#cfc9bb;         /* paper edge / border */
-  --map-grid:#c3d6c6;           /* faint grid */
-  --map-accent:#2a9d8f;         /* default accent when uniform */
+  /* Label palette: tuned for “paper map” look (no purple by default) */
+  --label-accent:#2A9D8F;      /* teal “pinstripe”/accent */
+  --paper-base:#fffef8;        /* warm paper */
+  --paper-ink:#0f1720;         /* label text color */
+  --paper-shadow:0 18px 38px rgba(13,20,26,.22), 0 4px 10px rgba(13,20,26,.20);
+  --paper-line:#e6e1d5;        /* fold/grid lines */
+  --paper-grid:#ece7da;        /* light grid cells */
+  --water-tint:#e3f2fd;        /* tiny map hint */
 }
 
 /* ---------- BASICS ---------- */
@@ -205,79 +204,99 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .sg li:hover,.sg li.active{background:#e8f1fe;}
 .sg small{opacity:.7;margin-left:6px;}
 
-/* ---------- FOLDED‑MAP REGION LABEL (fast + clear) ---------- */
+/* ---------- “FOLDED‑MAP” LABEL (compact + fast) ---------- */
 .region-label{
-  position:absolute; left:0; top:0;
-  transform:translate(-50%,-100%);         /* map-projected anchor */
-  will-change:transform,opacity;
-  z-index:1000; pointer-events:auto; opacity:0;
+  position:absolute;
+  left:0; top:0;
+  transform:translate(-50%,-100%) perspective(900px) rotateX(-50deg) scale(.92);
+  will-change: transform, opacity;
+  z-index:1000;
+  pointer-events:auto;
+  opacity:0;                /* WAAPI lifts this to 1 */
 }
 
-/* wrapper with perspective so side panels can swing */
 .map-card{
-  position:relative; display:flex; align-items:center; gap:0; padding:0;
-  perspective:900px;
-  filter:drop-shadow(0 12px 26px rgba(0,0,0,.22)) drop-shadow(0 2px 6px rgba(0,0,0,.18));
+  position:relative;
+  display:flex; align-items:center; gap:6px;
+  padding:6px 8px 8px 8px;
+  border-radius:22px;
+  background:transparent;    /* the “panels” render the paper */
+  box-shadow:var(--paper-shadow);
+  color:var(--paper-ink);
 }
 
-/* pointer nub under center */
-.map-card::after{
-  content:""; position:absolute; left:50%; bottom:-8px; transform:translateX(-50%);
-  width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid var(--map-paper-1);
-  filter:drop-shadow(0 2px 2px rgba(0,0,0,.12));
-}
-
-/* individual panels */
+/* three “paper panels” that fold */
 .panel{
-  height:36px; display:flex; align-items:center; position:relative;
-  border:1px solid var(--map-stroke);
+  position:relative;
+  width:56px; height:34px; flex:none;
   background:
-    linear-gradient(180deg, var(--map-paper-1), var(--map-paper-2));
+    linear-gradient(90deg, transparent 31px, var(--paper-line) 32px, transparent 33px), /* fold line */
+    linear-gradient(0deg, transparent 16px, var(--paper-line) 17px, transparent 18px), /* mid fold */
+    linear-gradient(90deg, var(--paper-grid) 0 1px, transparent 1px) 0/12px 100%,     /* narrow grid */
+    linear-gradient(0deg,  var(--paper-grid) 0 1px, transparent 1px) 0/100% 12px,
+    linear-gradient(180deg, rgba(0,0,0,.03), rgba(0,0,0,0)),
+    var(--paper-base);
+  border-radius:10px;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);
+  transform-style:preserve-3d;
 }
-.panel::before{ /* faint map grid */
-  content:""; position:absolute; inset:0; opacity:.26; pointer-events:none;
-  background:
-    repeating-linear-gradient(0deg, transparent 0 12px, var(--map-grid) 12px 13px),
-    repeating-linear-gradient(90deg, transparent 0 24px, var(--map-grid) 24px 25px);
+.panel-left  { transform-origin: left  center;  transform: rotateY(62deg); }
+.panel-right { transform-origin: right center;  transform: rotateY(-62deg); }
+.panel-center{ width:76px; } /* center is wider for the title badge */
+
+/* a subtle water tint peeking on the edges for “map-ness” */
+.panel::after{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background: radial-gradient(120px 30px at 12% 75%, var(--water-tint), transparent 60%),
+              radial-gradient(120px 30px at 88% 25%, var(--water-tint), transparent 60%);
+  opacity:.55; border-radius:inherit; mix-blend-mode:multiply;
 }
 
-.panel-center{ padding:0 12px; min-width:80px; border-left-color:#d9d4c8; border-right-color:#d9d4c8; }
-.map-title{
-  font-weight:900; text-transform:uppercase; letter-spacing:.35px;
-  font-size:14px; color:#1a1c1e;
-  background:rgba(255,255,255,.85);
-  border:1px solid rgba(0,0,0,.06);
-  border-radius:999px; padding:3px 10px;
-  position:relative; overflow:hidden;
-}
-.panel-left,.panel-right{ width:24px; }
-.panel-left { border-top-left-radius:12px; border-bottom-left-radius:12px; transform-origin:right center; }
-.panel-right{ border-top-right-radius:12px; border-bottom-right-radius:12px; transform-origin:left  center; }
-
-/* fold seam shadows */
-.panel-left::after, .panel-right::after{
-  content:""; position:absolute; top:0; bottom:0; width:12px; pointer-events:none;
-}
-.panel-left::after { right:-1px; background:linear-gradient(90deg, rgba(0,0,0,.18), rgba(0,0,0,0)); opacity:.18; }
-.panel-right::after{ left:-1px;  background:linear-gradient(270deg, rgba(0,0,0,.18), rgba(0,0,0,0)); opacity:.18; }
-
-/* accent pill for quick visual grouping */
+/* accent “pin” left */
 .accent-pill{
-  position:absolute; left:-8px; top:6px; width:10px; height:24px;
-  background:var(--map-accent); border-radius:6px;
-  box-shadow:0 0 0 1px rgba(255,255,255,.45) inset, 0 2px 6px rgba(0,0,0,.25);
+  width:8px; height:26px; border-radius:5px;
+  background:linear-gradient(180deg, var(--label-accent), color-mix(in oklab, var(--label-accent), #000 10%));
+  box-shadow:0 0 0 1px rgba(255,255,255,.55) inset, 0 1px 4px rgba(0,0,0,.25);
+  margin-right:2px;
+}
+
+/* title badge over the center panel */
+.map-title{
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  font-weight:800; letter-spacing:.35px; text-transform:uppercase;
+  background:#ffffff; color:#111; border:1px solid rgba(0,0,0,.08);
+  border-radius:999px; padding:3px 12px; white-space:nowrap;
+  text-shadow:none; font-size:14px;
+  box-shadow:0 1px 1px rgba(0,0,0,.04), 0 0 0 2px rgba(255,255,255,.7);
+}
+
+/* pointer nib */
+.map-card::after{
+  content:""; position:absolute; left:calc(50% - 8px); bottom:-8px;
+  width:0;height:0;
+  border-left:8px solid transparent;
+  border-right:8px solid transparent;
+  border-top:8px solid rgba(255,255,255,.95);
+  filter:drop-shadow(0 2px 2px rgba(0,0,0,.12));
 }
 
 /* close button */
 .region-close{
-  margin-left:6px; cursor:pointer; color:#444; font-size:18px; line-height:18px;
-  background:#fff; border:1px solid var(--map-stroke); border-radius:999px; width:22px; height:22px; display:flex; align-items:center; justify-content:center;
+  margin-left:6px;
+  cursor:pointer;
+  background:#fff; color:#4b5563;
+  width:22px; height:22px; border-radius:50%;
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:16px; line-height:16px;
+  box-shadow:0 1px 2px rgba(0,0,0,.18);
+  border:1px solid rgba(0,0,0,.08);
 }
 .region-close:hover{ color:#000; }
 
-/* Motion reduction */
+/* Reduced-motion users: skip 3D */
 @media (prefers-reduced-motion: reduce){
-  .region-label{ transition:none !important; }
+  .region-label{ transition:none !important; opacity:1 !important; transform:translate(-50%,-112%) !important; }
+  .panel-left, .panel-right{ transform:none !important; }
 }
 
 /* Hide Google “Visual Search / Lens” bubble + friends (CSS level; JS also enforces) */
@@ -339,8 +358,8 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 const BASE_EMPTY_PER_FRAME = 4;
 const INITIAL_FLAT_ROWS    = 2;
 
-/* label color mode: 'uniform' => use --map-accent; 'palette' => per‑name colors */
-const LABEL_COLOR_MODE = 'palette';
+/* label color mode: 'uniform' => use --label-accent; 'hash' => per‑name hues */
+const LABEL_COLOR_MODE = 'uniform';
 
 const TOL_PCT = 0.03, TOL_KM = 0.30;
 
@@ -1338,101 +1357,97 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)
   );
 
-  /* ---------- Region overlay + KML (toggle + map‑friendly colors) ---------- */
-  const ACCENT_PALETTE = ['#2A9D8F', '#3A6EA5', '#5C7C6D', '#4C6E57', '#5B7DA3', '#5d6a6d'];
-  function hashStr(s){ let h=0; for(let i=0;i<s.length;i++){ h=(h*31 + s.charCodeAt(i))>>>0; } return h; }
+  /* ---------- Region overlay + KML (toggle + uniform color) ---------- */
   function nameToAccent(name){
-    if(LABEL_COLOR_MODE==='uniform') return getComputedStyle(document.documentElement).getPropertyValue('--map-accent').trim()||'#2A9D8F';
-    const idx = hashStr(name||'x') % ACCENT_PALETTE.length;
-    return ACCENT_PALETTE[idx];
+    if(LABEL_COLOR_MODE==='uniform') return getComputedStyle(document.documentElement).getPropertyValue('--label-accent').trim()||'#2A9D8F';
+    let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i)) % 360; }
+    return `hsl(${h} 65% 48%)`;
   }
 
-/* === Folded‑map label overlay (GPU‑only WAAPI) — FIXED === */
-class RegionLabelOverlay extends google.maps.OverlayView{
-  constructor(pos,text,accent){
-    super();
-    this.position=pos; this.text=text||''; this.accent=accent||'#2A9D8F';
-    this.container=null;
+  /* === Folded‑map overlay (fast, 3D, WAAPI with fallback) === */
+  class RegionLabelOverlay extends google.maps.OverlayView{
+    constructor(pos,text,accent){
+      super();
+      this.position=pos; this.text=text||''; this.accent=accent||'#2A9D8F';
+      this.container=null;
 
-    /* prebuilt keyframes + timings (for the WRAPPER) */
-    this.kfInMain = [
-      { opacity:0, transform:'translate(-50%,-96%) perspective(700px) rotateX(-55deg) scale(.88)' },
-      { opacity:1, transform:'translate(-50%,-112%) perspective(700px) rotateX(0deg)   scale(1.00)' }
-    ];
-    this.kfOutMain = [
-      { opacity:1, transform:'translate(-50%,-112%) perspective(700px) rotateX(0deg)   scale(1.00)' },
-      { opacity:0, transform:'translate(-50%,-96%)  perspective(700px) rotateX(-35deg) scale(.90)' }
-    ];
-    this.optInMain  = { duration:160, easing:'cubic-bezier(.2,.9,.2,1)',  fill:'forwards' };
-    this.optOutMain = { duration:110, easing:'cubic-bezier(.2,.7,.2,1)',  fill:'forwards' };
+      /* wrapper (opacity + slight pitch) */
+      this.kfInMain = [
+        { opacity:0, transform:'translate(-50%,-96%) perspective(900px) rotateX(-52deg) scale(.92)' },
+        { opacity:1, transform:'translate(-50%,-112%) perspective(900px) rotateX(0deg)   scale(1.00)' }
+      ];
+      this.kfOutMain = [
+        { opacity:1, transform:'translate(-50%,-112%) perspective(900px) rotateX(0deg)   scale(1.00)' },
+        { opacity:0, transform:'translate(-50%,-96%)  perspective(900px) rotateX(-36deg) scale(.92)' }
+      ];
+      this.optInMain  = { duration:160, easing:'cubic-bezier(.2,.9,.2,1)',  fill:'forwards' };
+      this.optOutMain = { duration:110, easing:'cubic-bezier(.2,.7,.2,1)',  fill:'forwards' };
 
-    /* side panel folds (animate the PANELS) */
-    this.kfFoldLeftOpen  = [ { transform:'rotateY(52deg)' }, { transform:'rotateY(18deg)' } ];
-    this.kfFoldRightOpen = [ { transform:'rotateY(-52deg)' }, { transform:'rotateY(-18deg)' } ];
-    this.kfFoldLeftClose = [ { transform:'rotateY(18deg)' },  { transform:'rotateY(62deg)' } ];
-    this.kfFoldRightClose=[ { transform:'rotateY(-18deg)' }, { transform:'rotateY(-62deg)' } ];
-    this.optFold    = { duration:160, easing:'cubic-bezier(.2,.9,.2,1)', fill:'forwards' };
-    this.optFoldOut = { duration:110, easing:'cubic-bezier(.2,.7,.2,1)', fill:'forwards' };
-  }
-  onAdd(){
-    const div=document.createElement('div');
-    div.className='region-label';
-    div.innerHTML =
-      `<div class="map-card" style="--map-accent:${this.accent}">
-         <span class="accent-pill"></span>
-         <div class="panel panel-left"></div>
-         <div class="panel panel-center">
-           <div class="map-title">${this.text}</div>
-         </div>
-         <div class="panel panel-right"></div>
-         <span class="region-close material-icons" title="Close">close</span>
-       </div>`;
-    div.querySelector('.region-close').onclick=()=>this.setMap(null);
-    this.container=div;
-    this.getPanes().floatPane.appendChild(div);
+      /* map panels fold */
+      this.kfFoldLeftOpen  = [ { transform:'rotateY(62deg)' }, { transform:'rotateY(18deg)' } ];
+      this.kfFoldRightOpen = [ { transform:'rotateY(-62deg)' },{ transform:'rotateY(-18deg)' } ];
+      this.kfFoldLeftClose = [ { transform:'rotateY(18deg)' },  { transform:'rotateY(62deg)' } ];
+      this.kfFoldRightClose=[ { transform:'rotateY(-18deg)' }, { transform:'rotateY(-62deg)' } ];
+      this.optFold    = { duration:160, easing:'cubic-bezier(.2,.9,.2,1)', fill:'forwards' };
+      this.optFoldOut = { duration:110, easing:'cubic-bezier(.2,.7,.2,1)', fill:'forwards' };
+    }
+    onAdd(){
+      const div=document.createElement('div');
+      div.className='region-label';
+      div.innerHTML =
+        `<div class="map-card" style="--label-accent:${this.accent}">
+           <span class="accent-pill"></span>
+           <div class="panel panel-left"></div>
+           <div class="panel panel-center"><div class="map-title">${this.text}</div></div>
+           <div class="panel panel-right"></div>
+           <span class="region-close material-icons" title="Close">close</span>
+         </div>`;
+      div.querySelector('.region-close').onclick=()=>this.setMap(null);
+      this.container=div;
+      this.getPanes().floatPane.appendChild(div);
 
-    const card  = div.firstElementChild;
-    const left  = card.querySelector('.panel-left');
-    const right = card.querySelector('.panel-right');
+      const card  = div.firstElementChild;
+      const left  = card.querySelector('.panel-left');
+      const right = card.querySelector('.panel-right');
 
-    const canAnim = typeof div.animate === 'function';
-    if (canAnim){
-      // Animate the WRAPPER so opacity comes up from 0 → 1
-      div.animate(this.kfInMain, this.optInMain);
-      left.animate(this.kfFoldLeftOpen, this.optFold);
-      right.animate(this.kfFoldRightOpen, this.optFold);
-    }else{
-      // Fallback (no WAAPI)
-      div.style.opacity = '1';
-      div.style.transform = 'translate(-50%,-112%)';
+      const canAnim = typeof div.animate === 'function';
+      if (canAnim){
+        div.animate(this.kfInMain, this.optInMain);           // wrapper opacity/pitch
+        left.animate(this.kfFoldLeftOpen, this.optFold);      // fold open
+        right.animate(this.kfFoldRightOpen, this.optFold);
+      }else{
+        // fallback: visible, unfolded
+        div.style.opacity='1';
+        div.style.transform='translate(-50%,-112%)';
+        left.style.transform='none'; right.style.transform='none';
+      }
+    }
+    draw(){
+      const proj=this.getProjection(); if(!proj||!this.container) return;
+      const pt=proj.fromLatLngToDivPixel(this.position);
+      this.container.style.left=pt.x+'px';
+      this.container.style.top =pt.y+'px';
+    }
+    onRemove(){
+      if(!this.container) return;
+      const el=this.container;
+      const card  = el.firstElementChild;
+      const left  = card.querySelector('.panel-left');
+      const right = card.querySelector('.panel-right');
+
+      const canAnim = typeof el.animate === 'function';
+      if (canAnim){
+        try{ el.getAnimations().forEach(a=>a.cancel()); }catch(_){}
+        const a1 = el.animate(this.kfOutMain, this.optOutMain).finished.catch(()=>{});
+        const a2 = left.animate(this.kfFoldLeftClose, this.optFoldOut).finished.catch(()=>{});
+        const a3 = right.animate(this.kfFoldRightClose, this.optFoldOut).finished.catch(()=>{});
+        Promise.all([a1,a2,a3]).then(()=>el.remove()).catch(()=>el.remove());
+      }else{
+        el.remove();
+      }
+      this.container=null;
     }
   }
-  draw(){
-    const proj=this.getProjection(); if(!proj||!this.container) return;
-    const pt=proj.fromLatLngToDivPixel(this.position);
-    this.container.style.left=pt.x+'px';
-    this.container.style.top =pt.y+'px';
-  }
-  onRemove(){
-    if(!this.container) return;
-    const el=this.container;               // WRAPPER
-    const card  = el.firstElementChild;
-    const left  = card.querySelector('.panel-left');
-    const right = card.querySelector('.panel-right');
-
-    const canAnim = typeof el.animate === 'function';
-    if (canAnim){
-      try{ el.getAnimations().forEach(a=>a.cancel()); }catch(_){}
-      const a1 = el.animate(this.kfOutMain, this.optOutMain).finished.catch(()=>{});
-      const a2 = left.animate(this.kfFoldLeftClose, this.optFoldOut).finished.catch(()=>{});
-      const a3 = right.animate(this.kfFoldRightClose, this.optFoldOut).finished.catch(()=>{});
-      Promise.all([a1,a2,a3]).then(()=>el.remove()).catch(()=>el.remove());
-    }else{
-      el.remove();
-    }
-    this.container=null;
-  }
-}
 
   let currentRegionOverlay=null;
   let currentRegionId=null;
