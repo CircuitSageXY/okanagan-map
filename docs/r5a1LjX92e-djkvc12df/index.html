@@ -32,7 +32,7 @@
 
   --pxPerMin:2;
 
-  /* -------- Label palette (map‑tuned) -------- */
+  /* -------- Label palette (map-tuned) -------- */
   --accent-teal:#2A9D8F;
   --accent-blue:#3B82F6;
   --accent-slate:#475569;
@@ -411,7 +411,7 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
       <input id="filterText" type="text" placeholder="Filter groups or areas…">
       <button id="filterClear" type="button">Clear</button>
     </div>
-    <div class="hint">Matches group <b>name</b>, area <b>name</b>, or <b>code</b> (e.g., RUT‑S, WEST2).</div>
+    <div class="hint">Matches group <b>name</b>, area <b>name</b>, or <b>code</b> (e.g., RUT-S, WEST2).</div>
   </div>
 
   <!-- Groups + polygons -->
@@ -447,7 +447,7 @@ const LABEL_USE_ANIM = false;
 const LABEL_ANIM_MS  = 30;
 const TOL_PCT = 0.03, TOL_KM = 0.30;
 
-let map,dirSvc,dirRend,geocoder,acService,placeSvc;
+let map,dirSvc,dirRend,geocoder,acService,placeSvc,dmSvc;
 let previewPins=[],routeMarkers=[];
 let autoTimer=null, autoResolveNext=false;
 
@@ -613,6 +613,57 @@ function forceCloseAutocomplete(inp){
   try{ inp.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); }catch(e){}
   inp.blur(); hideAllAutocompleteUIs(); SG.hide();
 }
+
+/* ===========================================================
+   REGION LABEL OVERLAY (FIX for missing initRegionLabelOverlay)
+   =========================================================== */
+function pickAccentFromName(name=''){
+  const accents = ['#2A9D8F','#3B82F6','#475569','#6B8E23']; // teal, blue, slate, olive
+  let h=0; for(let i=0;i<name.length;i++){ h = (h*31 + name.charCodeAt(i))>>>0; }
+  return accents[h % accents.length];
+}
+class RegionLabelOverlay extends google.maps.OverlayView{
+  constructor(position, title, accent){
+    super();
+    this.position = position;
+    this.title = title || '';
+    this.accent = accent || '#2A9D8F';
+    this.div = null;
+  }
+  onAdd(){
+    const div = document.createElement('div');
+    div.className = 'region-label';
+    div.style.setProperty('--accent', this.accent);
+    div.innerHTML = `
+      <div class="badge">
+        <span class="accent"></span>
+        <span class="titlewrap"><span class="title">${this.title.replace(/</g,'&lt;')}</span></span>
+        <button class="close" type="button" title="Close">×</button>
+      </div>`;
+    div.querySelector('.close').addEventListener('click', ()=> this.setMap(null));
+    this.div = div;
+    const panes = this.getPanes();
+    panes.overlayMouseTarget.appendChild(div);
+    // tiny fade/scale in
+    requestAnimationFrame(()=>{
+      div.style.transition = 'transform .18s ease, opacity .18s ease';
+      div.style.transform  = 'translate(-50%,-112%) scale(1)';
+      div.style.opacity    = '1';
+    });
+  }
+  draw(){
+    if(!this.div) return;
+    const proj = this.getProjection();
+    const pix  = proj.fromLatLngToDivPixel(this.position);
+    this.div.style.left = pix.x + 'px';
+    this.div.style.top  = pix.y + 'px';
+  }
+  onRemove(){
+    if(this.div && this.div.parentNode) this.div.parentNode.removeChild(this.div);
+    this.div = null;
+  }
+}
+function initRegionLabelOverlay(){ /* no-op now that class is defined */ }
 
 /* =================== UI BUILD (frames/rows) =================== */
 function setFrameCollapsed(id, collapse){
@@ -936,7 +987,7 @@ function focusNextInFlatOrCreate(currentInput, queueOnly=false){
   if(queueOnly) setTimeout(()=>safeFocus(target),0); else safeFocus(target);
 }
 
-/* =================== MULTI‑PASTE (both views) =================== */
+/* =================== MULTI-PASTE (both views) =================== */
 async function multiPaste(e){
   const clip=(e.clipboardData||window.clipboardData).getData('text');
   const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -1180,7 +1231,7 @@ function clearFilledCurrentView(){
   scheduleAutoCompute(0,false);
 }
 
-/* =================== ROUTING / OPTIMIZATION (existing) =================== */
+/* =================== ROUTING / DISPLAY =================== */
 const scheduleAutoCompute=(ms=120, allowResolve=false)=>{
   clearTimeout(autoTimer);
   autoResolveNext = allowResolve;
@@ -1342,81 +1393,121 @@ function displayLegs(res,stat){
 }
 function clearLegDisplays(){document.querySelectorAll('.leg-display').forEach(d=>d.remove());}
 
-/* =================== TSP helpers (existing for PATH) =================== */
-function buildDistanceMatrix(points){const n=points.length;const D=Array.from({length:n},()=>Array(n).fill(0));for(let i=0;i<n;i++){for(let j=i+1;j<n;j++){const d=haversine(points[i],points[j]);D[i][j]=D[j][i]=d;} }return D;}
-function haversine(a,b){const R=6371;const toRad=x=>x*Math.PI/180;const dLat=toRad(b.lat-a.lat);const dLng=toRad(b.lng-a.lng);const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(s));}
-function orderCost(order,D){let c=0; for(let i=0;i<order.length-1;i++) c+=D[order[i]][order[i+1]]; return c;}
-function nearestNeighbour(D,start=0){const n=D.length; const visited=Array(n).fill(false); const ord=[start]; visited[start]=true; for(let k=1;k<n;k++){const last=ord[ord.length-1]; let best=Infinity,idx=-1; for(let j=0;j<n;j++){ if(!visited[j] && D[last][j]<best){best=D[last][j]; idx=j;} } ord.push(idx); visited[idx]=true;} return ord;}
-function twoOpt(order,D){const n=order.length; let improved=true; while(improved){improved=false; for(let i=1;i<n-2;i++){for(let j=i+1;j<n-1;j++){const a=order[i-1],b=order[i],c=order[j],d=order[j+1]; if(D[a][b]+D[c][d] > D[a][c]+D[b][d]){ order.splice(i,j-i+1,...order.slice(i,j+1).reverse()); improved=true; }}}} return order;}
-function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){const n=D.length; let start=fixedStart!=null?fixedStart:0; let ord=nearestNeighbour(D,start); ord=twoOpt(ord,D); if(fixedEnd!=null && ord[ord.length-1]!==fixedEnd){let best=ord,bestCost=orderCost(ord,D); for(let s=0;s<n;s++){const r=[...ord.slice(s),...ord.slice(0,s)]; if(r[r.length-1]!==fixedEnd) continue; const c=orderCost(r,D); if(c<bestCost){best=r; bestCost=c;}} ord=best;} if(fixedStart!=null && ord[0]!==fixedStart){const idx=ord.indexOf(fixedStart); if(idx>-1) ord=[...ord.slice(idx),...ord.slice(0,idx)];} return ord;}
+/* =================== DRIVING DISTANCE MATRIX (exact) =================== */
+async function buildDrivingMatrixAll(points){
+  // Build full NxN driving-distance matrix using Google DistanceMatrixService, chunked.
+  const n = points.length;
+  const D = Array.from({length:n},()=>Array(n).fill(0));
+  const MAX = 25; // API limit per dimension
 
-/* =================== NEW: cycle‑based helpers for “Optimize by Frames” =================== */
-function cycleCost(order, D){ let c=0, n=order.length; for(let i=0;i<n;i++){ c += D[order[i]][order[(i+1)%n]]; } return c; }
-function nearestNeighbourCycle(D){ const n=D.length; if(n<=2) return Array.from({length:n},(_,i)=>i); const ord=nearestNeighbour(D,0); return ord; }
-function twoOptCycle(order, D){
-  const n=order.length; if(n<=3) return order.slice();
-  let improved=true;
-  while(improved){
-    improved=false;
-    for(let i=0;i<n-1;i++){
-      for(let k=i+1;k<n;k++){
-        const a = order[i];
-        const b = order[(i+1)%n];
-        const c = order[k];
-        const d = order[(k+1)%n];
-        // skip adjacent edges and wrap-around pair
-        if(b===c || d===a) continue;
-        const delta = (D[a][b] + D[c][d]) - (D[a][c] + D[b][d]);
-        if(delta > 1e-9){
-          // reverse segment (i+1 .. k)
-          const i1=(i+1), k1=k;
-          const seg = order.slice(i1, k1+1).reverse();
-          order.splice(i1, seg.length, ...seg);
-          improved=true;
+  async function getBlock(oStart, oEnd, dStart, dEnd){
+    return new Promise((resolve)=>{
+      dmSvc.getDistanceMatrix({
+        origins: points.slice(oStart,oEnd),
+        destinations: points.slice(dStart,dEnd),
+        travelMode: google.maps.TravelMode.DRIVING,
+        unitSystem: google.maps.UnitSystem.METRIC
+      }, (res, status)=>{
+        if(status !== 'OK' || !res?.rows){
+          // fallback: fill with haversine if API fails
+          for(let i=oStart;i<oEnd;i++){
+            for(let j=dStart;j<dEnd;j++){
+              if(i===j){ D[i][j]=0; continue; }
+              D[i][j] = haversine(points[i], points[j]);
+            }
+          }
+          resolve();
+          return;
+        }
+        for(let i=oStart;i<oEnd;i++){
+          const row = res.rows[i - oStart];
+          for(let j=dStart;j<dEnd;j++){
+            const el = row.elements[j - dStart];
+            if(i===j){ D[i][j]=0; continue; }
+            if(el?.status === 'OK'){
+              D[i][j] = (el.distance.value || 0) / 1000; // km
+            }else{
+              D[i][j] = haversine(points[i], points[j]); // fallback
+            }
+          }
+        }
+        resolve();
+      });
+    });
+  }
+
+  for(let oi=0; oi<n; oi+=MAX){
+    for(let dj=0; dj<n; dj+=MAX){
+      await getBlock(oi, Math.min(oi+MAX,n), dj, Math.min(dj+MAX,n));
+    }
+  }
+  return D;
+}
+function haversine(a,b){const R=6371;const toRad=x=>x*Math.PI/180;const dLat=toRad(b.lat-a.lat);const dLng=toRad(b.lng-a.lng);const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(s));}
+
+/* =================== Held–Karp shortest Hamiltonian PATH (per frame) =================== */
+function shortestHamiltonianPaths(D){
+  // Returns {cost[s][t], path[s][t]} minimal path visiting all vertices exactly once, from s to t.
+  const n = D.length;
+  const INF = 1e18;
+  const cost = Array.from({length:n},()=>Array(n).fill(INF));
+  const path = Array.from({length:n},()=>Array(n).fill(null));
+
+  if(n===0) return {cost, path};
+  if(n===1){
+    cost[0][0]=0; path[0][0]=[0];
+    return {cost, path};
+  }
+
+  for(let s=0;s<n;s++){
+    const FULL = (1<<n);
+    const dp   = Array.from({length:FULL},()=>Array(n).fill(INF));
+    const prev = Array.from({length:FULL},()=>Array(n).fill(-1));
+    dp[1<<s][s] = 0;
+
+    for(let mask=0; mask<FULL; mask++){
+      if((mask & (1<<s)) === 0) continue;             // must include start
+      for(let v=0; v<n; v++){
+        if(!(mask & (1<<v))) continue;                 // v must be in mask
+        const dv = dp[mask][v];
+        if(dv >= INF) continue;
+        for(let w=0; w<n; w++){
+          if(mask & (1<<w)) continue;                  // next not yet in mask
+          const nm = mask | (1<<w);
+          const cand = dv + D[v][w];
+          if(cand < dp[nm][w]){
+            dp[nm][w] = cand;
+            prev[nm][w] = v;
+          }
         }
       }
     }
-  }
-  return order;
-}
-function optimizeFrameAsCycle(points){
-  const D = buildDistanceMatrix(points);
-  let cyc = nearestNeighbourCycle(D);
-  cyc = twoOptCycle(cyc, D);
-  const C  = cycleCost(cyc, D);
-  // find max edge weight
-  const n = cyc.length;
-  let maxW = -Infinity;
-  const edgesW = [];
-  for(let i=0;i<n;i++){
-    const w = D[cyc[i]][cyc[(i+1)%n]];
-    edgesW.push(w);
-    if(w>maxW) maxW=w;
-  }
-  return {cyc, D, C, edgesW, maxW};
-}
-function pathFromCycle(cyc, breakIdx, forward=true){
-  const n=cyc.length;
-  const a=cyc[breakIdx], b=cyc[(breakIdx+1)%n];
-  // forward path starts at b -> ... -> a (following cycle direction)
-  if(forward){
-    const path = [];
-    for(let i=breakIdx+1;i<=breakIdx+n;i++){
-      path.push(cyc[i % n]);
+
+    const ALL = (1<<n)-1;
+    for(let t=0;t<n;t++){
+      if(t===s && n>1) continue; // for n>1, s==t would imply a cycle; skip
+      const c = dp[ALL][t];
+      if(c < cost[s][t]){
+        cost[s][t] = c;
+        // reconstruct
+        const seq = [];
+        let mask = ALL, cur = t;
+        while(cur !== -1){
+          seq.push(cur);
+          const p = prev[mask][cur];
+          if(p === -1) break;
+          mask ^= (1<<cur);
+          cur = p;
+        }
+        seq.reverse(); // from s..t
+        path[s][t] = seq;
+      }
     }
-    return {path, start:b, end:a};
-  }else{
-    // reverse orientation: a -> ... -> b
-    const path = [];
-    for(let i=breakIdx;i>breakIdx-n;i--){
-      const idx=(i+n)%n;
-      path.push(cyc[idx]);
-    }
-    return {path, start:a, end:b};
   }
+  return {cost, path};
 }
 
-/* =================== NEW: Optimize‑by‑Frames (robust, DP across frames) =================== */
+/* =================== OPTIMIZE BY FRAMES (exact with DP across frames) =================== */
 async function optimizeByFrames(){
   if (flatMode){ return; }
 
@@ -1439,100 +1530,103 @@ async function optimizeByFrames(){
   const ok = await ensureCoords(allRows,{parallel:true});
   if(!ok){ document.getElementById('msg').textContent='One or more stops can’t be located – please edit.'; return; }
 
-  // Build candidates per frame
-  const framesPlan = perFrame.map(({fr, rows})=>{
-    const pts = rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat, lng:+r.querySelector('.stop').dataset.lng}));
-    if(pts.length===0){
-      return {fr, rows, candidates:[{path:[], start:null, end:null, breakIdx:-1, forward:true}]};
-    }
-    if(pts.length===1){
-      return {fr, rows, candidates:[{path:[0], start:0, end:0, breakIdx:0, forward:true}]};
-    }
-    if(pts.length===2){
-      // single edge; both orientations; same intra cost
-      return {fr, rows, candidates:[
-        {path:[0,1], start:0, end:1, breakIdx:0, forward:true},
-        {path:[1,0], start:1, end:0, breakIdx:0, forward:false}
-      ]};
-    }
-
-    const {cyc, D, edgesW, maxW} = optimizeFrameAsCycle(pts);
-    const tol = Math.max(TOL_KM, TOL_PCT * maxW);
-    const breakEdges = [];
-    edgesW.forEach((w,i)=>{ if((maxW - w) <= tol) breakEdges.push(i); });
-
-    const candidates=[];
-    for(const i of breakEdges){
-      const fwd = pathFromCycle(cyc, i, true);
-      const rev = pathFromCycle(cyc, i, false);
-      candidates.push({path:fwd.path, start:fwd.start, end:fwd.end, breakIdx:i, forward:true, D});
-      candidates.push({path:rev.path, start:rev.start, end:rev.end, breakIdx:i, forward:false, D});
-    }
-    return {fr, rows, candidates, pts};
+  // Gather all points (global) and mapping
+  const allPoints = [];
+  perFrame.forEach((pf)=>{
+    pf.globalIdxs = [];
+    pf.rows.forEach(r=>{
+      const p = {lat:+r.querySelector('.stop').dataset.lat, lng:+r.querySelector('.stop').dataset.lng};
+      pf.globalIdxs.push(allPoints.length);
+      allPoints.push(p);
+    });
   });
 
-  // Dynamic programming across frames to minimize sum of inter‑frame distances
-  const distBetween = (A, aIndex, B, bIndex)=>{
-    if(aIndex==null || bIndex==null) return 0;
-    const pa = A.pts ? A.pts[aIndex] : null;
-    const pb = B.pts ? B.pts[bIndex] : null;
-    if(!pa || !pb) return 0;
-    return haversine(pa, pb);
-  };
+  // Build global driving matrix once (exact)
+  const Dglobal = await buildDrivingMatrixAll(allPoints);
+
+  // Build candidate tables per frame using Held–Karp paths
+  const framesPlan = perFrame.map(pf=>{
+    const n = pf.rows.length;
+    if(n===0){
+      return { ...pf, n, candidates:[{s:null,t:null,order:[],cost:0}] };
+    }
+    if(n===1){
+      return { ...pf, n, candidates:[{s:0,t:0,order:[0],cost:0}] };
+    }
+    // Extract submatrix for this frame
+    const idxs = pf.globalIdxs;
+    const D = Array.from({length:n},()=>Array(n).fill(0));
+    for(let i=0;i<n;i++){
+      for(let j=0;j<n;j++){
+        D[i][j] = (i===j)?0 : Dglobal[idxs[i]][idxs[j]];
+      }
+    }
+    const hk = shortestHamiltonianPaths(D);
+    const cands = [];
+    for(let s=0;s<n;s++){
+      for(let t=0;t<n;t++){
+        if(s===t && n>1) continue;
+        const c = hk.cost[s][t];
+        const o = hk.path[s][t];
+        if(Number.isFinite(c) && o && o.length===n){
+          cands.push({s,t,order:o.slice(),cost:c});
+        }
+      }
+    }
+    return { ...pf, n, candidates: cands, idxs };
+  });
+
+  // DP across frames
+  function linkCost(prevPlan, prevCand, nextPlan, nextCand){
+    if(prevCand.t==null || nextCand.s==null) return 0;
+    const gi = prevPlan.globalIdxs[prevCand.t];
+    const gj = nextPlan.globalIdxs[nextCand.s];
+    return Dglobal[gi][gj];
+  }
 
   const N = framesPlan.length;
-  if(N===0){ renumber(); scheduleAutoCompute(0,true); return; }
-
-  const dp = [];    // dp[k][j] = {cost, prevJ}
+  const dp = []; const back = [];
   for(let k=0;k<N;k++){
-    dp[k] = [];
-    const Fk = framesPlan[k];
-    for(let j=0;j<Fk.candidates.length;j++){
-      if(k===0){
-        dp[k][j] = {cost:0, prev:-1};
-      }else{
-        let best = {cost:Infinity, prev:-1};
-        for(let pj=0; pj<dp[k-1].length; pj++){
-          const prevC = framesPlan[k-1].candidates[pj];
-          const thisC = Fk.candidates[j];
-          const linkCost = distBetween(framesPlan[k-1], prevC.end, Fk, thisC.start);
-          const total = dp[k-1][pj].cost + linkCost;
-          if(total < best.cost){
-            best = {cost:total, prev:pj};
-          }
+    dp[k] = Array(framesPlan[k].candidates.length).fill(Infinity);
+    back[k] = Array(framesPlan[k].candidates.length).fill(-1);
+    if(k===0){
+      for(let j=0;j<dp[k].length;j++){
+        dp[k][j] = framesPlan[k].candidates[j].cost;
+      }
+    }else{
+      for(let j=0;j<dp[k].length;j++){
+        const curC = framesPlan[k].candidates[j];
+        let best=Infinity, bestP=-1;
+        for(let p=0;p<dp[k-1].length;p++){
+          const prevC = framesPlan[k-1].candidates[p];
+          const tot = dp[k-1][p] + linkCost(framesPlan[k-1], prevC, framesPlan[k], curC) + curC.cost;
+          if(tot < best){ best=tot; bestP=p; }
         }
-        dp[k][j]=best;
+        dp[k][j]=best; back[k][j]=bestP;
       }
     }
   }
-  // pick best on last frame
-  let bestLastJ = 0, bestCost = Infinity;
-  for(let j=0;j<dp[N-1].length;j++){
-    if(dp[N-1][j].cost < bestCost){ bestCost = dp[N-1][j].cost; bestLastJ = j; }
-  }
-  // backtrack
+  // Backtrack best sequence
+  let lastIdx = 0, best=Infinity;
+  for(let j=0;j<dp[N-1].length;j++){ if(dp[N-1][j] < best){ best=dp[N-1][j]; lastIdx=j; } }
   const pick = Array(N).fill(0);
-  let curJ = bestLastJ;
-  for(let k=N-1;k>=0;k--){
-    pick[k] = curJ;
-    curJ = dp[k][curJ].prev;
-  }
+  for(let k=N-1;k>=0;k--){ pick[k]=lastIdx; lastIdx = back[k][lastIdx]; }
 
   // Apply reorders per frame
   for(let k=0;k<N;k++){
     const plan = framesPlan[k];
-    const c    = plan.candidates[pick[k]];
-    if(!c || !c.path || c.path.length<=1) continue;
+    const cand = plan.candidates[pick[k]];
+    if(!cand || !cand.order || cand.order.length<=1) continue;
     const list = document.getElementById('frame-'+plan.fr.id);
-    const newOrder = c.path.map(idx=>plan.rows[idx]);
-    newOrder.forEach(r=>list.appendChild(r));
+    const orderedRows = cand.order.map(i=>plan.rows[i]);
+    orderedRows.forEach(r=>list.appendChild(r));
   }
 
   renumber();
   scheduleAutoCompute(0,true);
 }
 
-/* Optional helpers kept (no UI toggle) */
+/* Optional helpers kept (polygons etc.) */
 const ALL_FEATURES = [];
 const POLY_STORAGE_KEY = 'geoPolyState_v2';
 let POLY_STATE = {};
@@ -1668,7 +1762,7 @@ function applyVisibility(){
   });
 }
 
-/* Drawer UI with groups */
+/* Drawer UI with groups (unchanged) */
 function buildDrawerUI(){
   const btn = document.getElementById('areasBtn');
   const drawer = document.getElementById('areasDrawer');
@@ -1816,7 +1910,7 @@ function reattachData(){
   map.data.setMap(map); dataAttached=true;
 }
 
-/* ============ F1..F4 keyboard shortcuts (RESTORED to your mapping) ============ */
+/* ============ F1..F4 keyboard shortcuts (RESTORED) ============ */
 function initHotkeys(){
   document.addEventListener('keydown', (e)=>{
     if (e.altKey || e.ctrlKey || e.metaKey) return;
@@ -1860,6 +1954,7 @@ window.routePlannerInit=()=>{
     mapTypeControl:false,streetViewControl:true,fullscreenControl:true,tilt:0
   });
 
+  // --- FIX: provide the overlay init + class before use ---
   initRegionLabelOverlay();
 
   OK_BOUNDS = new google.maps.LatLngBounds(
@@ -1900,6 +1995,7 @@ window.routePlannerInit=()=>{
   geocoder=new google.maps.Geocoder();
   acService=new google.maps.places.AutocompleteService();
   placeSvc=new google.maps.places.PlacesService(map);
+  dmSvc = new google.maps.DistanceMatrixService();
 
   buildFrameBuckets();
   buildAddrBar();
@@ -1922,7 +2018,7 @@ window.routePlannerInit=()=>{
 /* If Maps loaded before this script, init() already ran and set the flag. */
 if (window.__mapsApiReady) { window.routePlannerInit(); }
 
-/* --------- Flat‑view optimizer (existing) --------- */
+/* --------- Flat-view optimizer (kept simple) --------- */
 async function globalOptimizeRoute(){
   if(!flatMode){ return; }
   const list=document.getElementById('addrList');
@@ -1938,8 +2034,19 @@ async function globalOptimizeRoute(){
   if(!ok){ const fm=document.getElementById('flatMsg'); if(fm) fm.textContent='One or more stops can’t be located – please edit.'; return; }
 
   const pts=rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
-  const D=buildDistanceMatrix(pts);
-  const ord=solveTSPWithMatrix(D);
+
+  // Use driving matrix for better parity with framed optimizer
+  const D = await buildDrivingMatrixAll(pts);
+  const {cost, path} = shortestHamiltonianPaths(D);
+  // choose best path among all start/end pairs
+  let bestC=1e18, bestS=0, bestT=rows.length-1;
+  for(let s=0;s<rows.length;s++){
+    for(let t=0;t<rows.length;t++){
+      if(s===t && rows.length>1) continue;
+      if(cost[s][t] < bestC){ bestC = cost[s][t]; bestS = s; bestT = t; }
+    }
+  }
+  const ord = path[bestS][bestT] || [...rows.keys()];
   const ordered=ord.map(i=>rows[i]);
   ordered.forEach(r=>list.appendChild(r));
 
