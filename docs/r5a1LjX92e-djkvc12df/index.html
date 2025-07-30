@@ -50,7 +50,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .hidden{display:none!important;}
 .pac-container{ display:none !important; }  /* hide Google popup (we render our own) */
 
-/* ---------- LEFT SIDE PANEL (unchanged planner UI) ---------- */
+/* ---------- LEFT SIDE PANEL ---------- */
 #panel{
   position:absolute;top:0;left:0;z-index:5;width:var(--panelW);height:100%;
   background:var(--clrPanelBg);border-right:1px solid var(--clrPanelBorder);
@@ -61,7 +61,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 #content{display:flex;align-items:flex-start;position:relative;}
 #timelineCol{display:none;} #timeline{display:none;}
 
-/* ---------- FRAMES (unchanged) ---------- */
+/* ---------- FRAMES ---------- */
 #framesContainer{flex:1;min-width:0;}
 .frame{
   border:1px solid var(--clrPanelBorder);border-radius:6px;margin-bottom:14px;background:#fff;
@@ -109,7 +109,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .frame[data-frame="6"]{border-left:4px solid var(--f-evening);}
 .frame[data-frame="7"]{border-left:4px solid var(--f-lateev);}
 
-/* ---------- ROWS (unchanged) ---------- */
+/* ---------- ROWS ---------- */
 .row{display:flex;align-items:center;margin:8px 0;padding:4px 6px 4px 0;border-radius:var(--radiusMd);transition:background var(--transFast),box-shadow var(--transFast),outline var(--transFast);}
 .row.focused{background:var(--clrInputBgAlt);box-shadow:0 0 0 2px rgba(33,150,243,.25);}
 .row:hover:not(.focused):not(.selected){background:rgba(0,0,0,.04);}
@@ -246,7 +246,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .gm-style .app-viewcard-strip{ display:none !important; }
 
 /* ===========================================================
-   RIGHT DRAWER + SLIM TAB (updated styling)
+   RIGHT DRAWER + SLIM TAB (with accent color)
    =========================================================== */
 #areasBtn{
   position:absolute; right:0; top:50%; transform:translateY(-50%);
@@ -302,23 +302,31 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 }
 #secFilterTop button:hover{ background:#f3f4f6; }
 
-/* Grouped polygon list */
+/* Grouped polygon list – with soft accent */
 .group{
+  --accent:#3B82F6; /* default; per-group overridden inline via style */
   border:1px solid #eaeaea; border-radius:12px; margin:10px 0; overflow:hidden; background:#fff;
+  box-shadow:0 1px 2px rgba(0,0,0,.03);
 }
 .group-header{
   display:grid; grid-template-columns: 28px 1fr; align-items:center; gap:6px;
-  padding:8px 10px; background:#fafafa; border-bottom:1px solid #eee;
+  padding:8px 10px;
+  background:linear-gradient(90deg, color-mix(in srgb, var(--accent) 10%, #fff), #fafafa 60%);
+  border-bottom:1px solid #eee;
+  border-left:4px solid color-mix(in srgb, var(--accent) 55%, transparent);
 }
 .group-header .toggle{
-  width:28px; height:28px; border-radius:8px; border:1px solid #ddd; background:#fff; cursor:pointer;
+  width:28px; height:28px; border-radius:8px; border:1px solid color-mix(in srgb, var(--accent) 45%, #ddd); background:#fff; cursor:pointer;
   display:inline-flex; align-items:center; justify-content:center;
 }
 .group-header .toggle .material-icons{ font-size:18px; transition:transform .18s ease; }
 .group.collapsed .group-header .toggle .material-icons{ transform:rotate(-90deg); }
 
 .group-header .gname{
-  width:100%; height:30px; padding:4px 8px; border:1px solid #cfcfcf; border-radius:8px; background:#fff; font-weight:600;
+  width:100%; height:30px; padding:4px 8px;
+  border:1px solid #cfcfcf; border-radius:8px;
+  background:color-mix(in srgb, var(--accent) 6%, #fff);
+  font-weight:700;
 }
 .group-body{ padding:8px 10px; display:flex; flex-direction:column; gap:8px; }
 .group.collapsed .group-body{ display:none; }
@@ -329,8 +337,14 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   gap:8px; padding:6px 8px; border:1px solid #e8e8e8; border-radius:10px;
   background:#ffffff; transition:box-shadow .12s, border-color .12s;
 }
-.poly-row:hover{ box-shadow:0 2px 10px rgba(0,0,0,.06); border-color:#dfdfdf; }
-.poly-row:focus-within{ box-shadow:0 0 0 3px rgba(59,130,246,.16); border-color:#3B82F6; }
+.group .poly-row:hover{
+  box-shadow:0 2px 10px rgba(0,0,0,.06);
+  border-color:color-mix(in srgb, var(--accent) 35%, #dfdfdf);
+}
+.poly-row:focus-within{
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 20%, #3B82F6);
+  border-color:color-mix(in srgb, var(--accent) 45%, #3B82F6);
+}
 .poly-row .ck input[type="checkbox"]{ width:18px; height:18px; margin:0; }
 
 .poly-row .name input{
@@ -394,7 +408,7 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 <!-- ---------- OUR dropdown root ---------- -->
 <div id="sgRoot" class="sg"><ul></ul></div>
 
-<!-- ---------- RIGHT DRAWER TAB + PANEL (updated) ---------- -->
+<!-- ---------- RIGHT DRAWER TAB + PANEL ---------- -->
 <button id="areasBtn" type="button" aria-label="Open Areas drawer" title="Areas">
   <span class="material-icons">chevron_left</span>
 </button>
@@ -497,7 +511,7 @@ function hideAllAutocompleteUIs(){
   });
 }
 
-/* ---------- Suggestion dropdown (unchanged) ---------- */
+/* ---------- Suggestion dropdown ---------- */
 const SG = (function(){
   const root = document.getElementById('sgRoot');
   const list = root.querySelector('ul');
@@ -587,7 +601,7 @@ const fetchPredictions = debounce((text, cb)=>{
 /* Focus helper */
 function safeFocus(el){ if(!el) return; try{ el.focus({preventScroll:true}); }catch{} setTimeout(()=>{ try{ el.focus({preventScroll:true}); }catch{} },0); }
 
-/* ---------- FRAMES (unchanged) ---------- */
+/* ---------- FRAMES ---------- */
 const FRAMES=[
   {id:0,key:'early',     name:'AM Early',     start:'07:00', end:'09:00',  color:'var(--f-early)',     shift:'day'},
   {id:1,key:'late',      name:'AM Late',      start:'09:00', end:'11:00',  color:'var(--f-late)',      shift:'day'},
@@ -599,7 +613,7 @@ const FRAMES=[
   {id:7,key:'lateev',    name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--f-lateev)',    shift:'night'}
 ];
 
-/* ---------- TIMELINE (unchanged) ---------- */
+/* ---------- TIMELINE ---------- */
 const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);};
 const pad=n=>n.toString().padStart(2,'0');
@@ -623,13 +637,10 @@ function pickAccentFromName(name=''){
   return accents[h % accents.length];
 }
 
-/**
- * Define RegionLabelOverlay only once, and only after google.maps is available.
- * Call this from routePlannerInit() right after you create the map.
- */
+/* Define RegionLabelOverlay only after google.maps is ready. */
 function initRegionLabelOverlay(){
-  if (window.RegionLabelOverlay) return;            // already defined
-  if (!window.google || !google.maps) return;       // guard (shouldn't happen inside routePlannerInit)
+  if (window.RegionLabelOverlay) return;
+  if (!window.google || !google.maps) return;
 
   class RegionLabelOverlay extends google.maps.OverlayView{
     constructor(position, title, accent){
@@ -670,11 +681,8 @@ function initRegionLabelOverlay(){
     }
   }
 
-  // expose globally so your click handler can "new RegionLabelOverlay(...)"
   window.RegionLabelOverlay = RegionLabelOverlay;
 }
-
-function initRegionLabelOverlay(){ /* no-op now that class is defined */ }
 
 /* =================== UI BUILD (frames/rows) =================== */
 function setFrameCollapsed(id, collapse){
@@ -1409,7 +1417,7 @@ async function buildDrivingMatrixAll(points){
   // Build full NxN driving-distance matrix using Google DistanceMatrixService, chunked.
   const n = points.length;
   const D = Array.from({length:n},()=>Array(n).fill(0));
-  const MAX = 25; // API limit per dimension
+  const MAX = 25; // API limit per call dimension
 
   async function getBlock(oStart, oEnd, dStart, dEnd){
     return new Promise((resolve)=>{
@@ -1518,6 +1526,34 @@ function shortestHamiltonianPaths(D){
   return {cost, path};
 }
 
+/* =================== PRUNE EMPTY ROWS & FRAMES (after optimize) =================== */
+function pruneEmptyRowsAndFrames(){
+  if (flatMode){
+    const list = document.getElementById('addrList');
+    [...list.querySelectorAll('.row')].forEach(r=>{
+      const v=(r.querySelector('.stop').value||'').trim();
+      if(!v) r.remove();
+    });
+    renumber();
+    return;
+  }
+  // In framed view: remove empties; collapse frames with no rows left
+  FRAMES.forEach(fr=>{
+    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
+    const visible=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
+    if(!visible || sec.style.display==='none') return;
+    const list=document.getElementById('frame-'+fr.id);
+    [...list.querySelectorAll('.row')].forEach(r=>{
+      const v=(r.querySelector('.stop').value||'').trim();
+      if(!v) r.remove();
+    });
+    const any=list.querySelector('.row');
+    setFrameCollapsed(fr.id, !any); // collapse if now empty
+  });
+  renumber();
+  scheduleTimelineBuild();
+}
+
 /* =================== OPTIMIZE BY FRAMES (exact with DP across frames) =================== */
 async function optimizeByFrames(){
   if (flatMode){ return; }
@@ -1536,12 +1572,12 @@ async function optimizeByFrames(){
     return {fr, rows};
   });
   const allRows = perFrame.flatMap(x=>x.rows);
-  if(allRows.length<=1){ renumber(); scheduleAutoCompute(0,true); return; }
+  if(allRows.length<=1){ pruneEmptyRowsAndFrames(); renumber(); scheduleAutoCompute(0,true); return; }
 
   const ok = await ensureCoords(allRows,{parallel:true});
   if(!ok){ document.getElementById('msg').textContent='One or more stops can’t be located – please edit.'; return; }
 
-  // Gather all points (global) and mapping
+  // Gather all points and map to global indices
   const allPoints = [];
   perFrame.forEach((pf)=>{
     pf.globalIdxs = [];
@@ -1564,7 +1600,6 @@ async function optimizeByFrames(){
     if(n===1){
       return { ...pf, n, candidates:[{s:0,t:0,order:[0],cost:0}] };
     }
-    // Extract submatrix for this frame
     const idxs = pf.globalIdxs;
     const D = Array.from({length:n},()=>Array(n).fill(0));
     for(let i=0;i<n;i++){
@@ -1632,6 +1667,9 @@ async function optimizeByFrames(){
     const orderedRows = cand.order.map(i=>plan.rows[i]);
     orderedRows.forEach(r=>list.appendChild(r));
   }
+
+  // NEW: tidy view after optimize
+  pruneEmptyRowsAndFrames();
 
   renumber();
   scheduleAutoCompute(0,true);
@@ -1773,7 +1811,14 @@ function applyVisibility(){
   });
 }
 
-/* Drawer UI with groups (unchanged) */
+/* Drawer UI with groups (accent colors applied) */
+const GROUP_ACCENTS = {
+  kel_central:'#3B82F6',  // blue
+  kel_south:'#6B8E23',    // olive
+  rut_lc:'#2A9D8F',       // teal
+  west_kel:'#9C27B0'      // purple
+};
+
 function buildDrawerUI(){
   const btn = document.getElementById('areasBtn');
   const drawer = document.getElementById('areasDrawer');
@@ -1793,6 +1838,7 @@ function buildDrawerUI(){
     const gWrap = document.createElement('div');
     gWrap.className = 'group' + (GROUP_STATE[gkey]?.expanded===false ? ' collapsed':'');
     gWrap.dataset.group = gkey;
+    gWrap.style.setProperty('--accent', GROUP_ACCENTS[gkey] || '#3B82F6');
 
     const gHead = document.createElement('div');
     gHead.className = 'group-header';
@@ -1921,7 +1967,7 @@ function reattachData(){
   map.data.setMap(map); dataAttached=true;
 }
 
-/* ============ F1..F4 keyboard shortcuts (RESTORED) ============ */
+/* ============ F1..F4 keyboard shortcuts ============ */
 function initHotkeys(){
   document.addEventListener('keydown', (e)=>{
     if (e.altKey || e.ctrlKey || e.metaKey) return;
@@ -1965,7 +2011,7 @@ window.routePlannerInit=()=>{
     mapTypeControl:false,streetViewControl:true,fullscreenControl:true,tilt:0
   });
 
-  // --- FIX: provide the overlay init + class before use ---
+  // Provide the overlay class after Maps loads
   initRegionLabelOverlay();
 
   OK_BOUNDS = new google.maps.LatLngBounds(
@@ -1988,7 +2034,7 @@ window.routePlannerInit=()=>{
     currentRegionOverlay=null; currentRegionId=null;
   }
 
-  loadGeoLayers(); // async; builds drawer after load
+  loadGeoLayers(); // async; builds drawer UI after load
 
   map.data.addListener('click', (e)=>{
     const name = e.feature.getProperty('__name') || e.feature.getProperty('name') || 'Region';
@@ -2029,11 +2075,12 @@ window.routePlannerInit=()=>{
 /* If Maps loaded before this script, init() already ran and set the flag. */
 if (window.__mapsApiReady) { window.routePlannerInit(); }
 
-/* --------- Flat-view optimizer (kept simple) --------- */
+/* --------- Flat-view optimizer (exact) --------- */
 async function globalOptimizeRoute(){
   if(!flatMode){ return; }
   const list=document.getElementById('addrList');
 
+  // Remove blanks first (also ensures no dangling empties)
   [...list.querySelectorAll('.row')].forEach(r=>{
     if(!r.querySelector('.stop').value.trim()) r.remove();
   });
@@ -2046,7 +2093,7 @@ async function globalOptimizeRoute(){
 
   const pts=rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
 
-  // Use driving matrix for better parity with framed optimizer
+  // Use driving matrix for parity with framed optimizer
   const D = await buildDrivingMatrixAll(pts);
   const {cost, path} = shortestHamiltonianPaths(D);
   // choose best path among all start/end pairs
@@ -2060,6 +2107,9 @@ async function globalOptimizeRoute(){
   const ord = path[bestS][bestT] || [...rows.keys()];
   const ordered=ord.map(i=>rows[i]);
   ordered.forEach(r=>list.appendChild(r));
+
+  // NEW: tidy (remove any remaining empties)
+  pruneEmptyRowsAndFrames();
 
   renumber();
   scheduleAutoCompute(0,true);
