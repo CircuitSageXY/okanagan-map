@@ -38,7 +38,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 #map{backface-visibility:hidden;transform:translateZ(0);}
 .hidden{display:none!important;}
 
-/* Hide Google’s default autocomplete popup – we render our own */
+/* Hide Google’s own autocomplete popup (we render our own) */
 .pac-container{ display:none !important; }
 
 /* ---------- SIDE PANEL ---------- */
@@ -245,12 +245,11 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 
 <script>
 /* =================== CONFIG / CONSTANTS =================== */
-const PX_PER_MIN = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxPerMin'));
 const BASE_EMPTY_PER_FRAME = 4;
-const INITIAL_FLAT_ROWS   = 2;
+const INITIAL_FLAT_ROWS    = 2;
 
-const TOL_PCT = 0.03;  // 3%
-const TOL_KM  = 0.30;  // 0.3 km
+const TOL_PCT = 0.03;
+const TOL_KM  = 0.30;
 
 let map,dirSvc,dirRend,geocoder,acService,placeSvc;
 let previewPins=[],routeMarkers=[];
@@ -261,7 +260,14 @@ let OK_BOUNDS;
 let suppressTopUpOnce = false;
 let __noTopUpUntil = 0;
 
-/* Hide any native Google popups (we don't use them) */
+/* Per‑frame “top‑up allowed?” switch.
+   false  => allow initial 4 placeholders
+   true   => user has deleted; do NOT auto‑add placeholders in this frame */
+const userManagedTopUp = {};
+function disableTopUp(frameId){ userManagedTopUp[frameId] = true; }
+function isTopUpAllowed(frameId){ return !userManagedTopUp[frameId]; }
+
+/* Hide any native Google autocomplete UI (we render our own) */
 function hideAllAutocompleteUIs(){
   document.querySelectorAll('.pac-container').forEach(el=>{
     el.style.display='none';
@@ -274,7 +280,7 @@ const SG = (function(){
   const root = document.getElementById('sgRoot');
   const list = root.querySelector('ul');
   let boundInput = null;
-  let items = [];   // {pred, text}
+  let items = [];
   let hot = -1;
 
   function openFor(input, predictions){
@@ -291,18 +297,23 @@ const SG = (function(){
       li.dataset.idx = i;
       if(i===hot) li.classList.add('active');
       li.addEventListener('mousedown', ev=>{ ev.preventDefault(); ev.stopPropagation(); }, {capture:true});
-      li.addEventListener('click', ev=>{ ev.preventDefault(); choose(i); });
+      li.addEventListener('click', ()=> choose(i));
       list.appendChild(li);
     });
   }
   function position(){
     if(!boundInput) return;
     const r = boundInput.getBoundingClientRect();
-    root.style.top = (r.bottom + window.scrollY + 4)+'px';
-    root.style.left = (r.left + window.scrollX)+'px';
+    const top = r.bottom + window.scrollY + 4;
+    const left = r.left + window.scrollX;
+    root.style.top = top+'px';
+    root.style.left = left+'px';
     root.style.minWidth = Math.max(260, r.width)+'px';
   }
-  function hide(){ root.style.display='none'; boundInput=null; items=[]; hot=-1; list.innerHTML=''; }
+  function hide(){
+    root.style.display='none';
+    boundInput=null; items=[]; hot=-1; list.innerHTML='';
+  }
   function isOpen(){ return root.style.display==='block'; }
   function choose(idx){
     if(!boundInput || !items[idx]){ hide(); return; }
@@ -316,54 +327,44 @@ const SG = (function(){
           delete boundInput.dataset.dirty;
           scheduleAutoCompute(0, true);
         }
-        hide(); safeFocus(boundInput);
+        hide();
+        safeFocus(boundInput);
       });
   }
   function move(delta){
     if(!isOpen() || !items.length) return;
-    hot = (hot + delta + items.length) % items.length;
+    hot = ( (hot + delta + items.length) % items.length );
     render();
   }
   function chooseHot(){ if(hot<0) hot = 0; choose(hot); }
 
   window.addEventListener('scroll', ()=>{ if(isOpen()) position(); }, true);
   window.addEventListener('resize', ()=>{ if(isOpen()) position(); });
+
   return {openFor, hide, isOpen, move, chooseHot};
 })();
 
-/* Debounced predictions */
+/* debounce helper */
 function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+
+/* Central Okanagan filter */
 const OK_DESC = /(Kelowna|West Kelowna|Lake Country|Peachland)/i;
+
+/* get predictions */
 const fetchPredictions = debounce((text, cb)=>{
   if(!text || text.trim().length<3){ cb([]); return; }
   acService.getPlacePredictions(
     { input:text, types:['address'], componentRestrictions:{country:'ca'}, locationBias: OK_BOUNDS },
     (preds, status)=>{
       if(status !== google.maps.places.PlacesServiceStatus.OK || !preds){ cb([]); return; }
-      cb(preds.filter(p=>OK_DESC.test(p.description)).slice(0,5));
+      const filtered = preds.filter(p=>OK_DESC.test(p.description)).slice(0,5);
+      cb(filtered);
     }
   );
 }, 120);
 
-/* ---------- Focus helpers + queued focus ---------- */
-function safeFocus(el){
-  if(!el) return;
-  try{ el.focus({preventScroll:true}); }catch{}
-  setTimeout(()=>{ try{ el.focus({preventScroll:true}); }catch{} },0);
-  requestAnimationFrame(()=>{ try{ el.focus({preventScroll:true}); }catch{} });
-}
-let pendingFocusEl = null;
-let suppressAutoSelectUntil = 0;
-function queueFocus(el){
-  if(!el) return;
-  pendingFocusEl = el;
-  suppressAutoSelectUntil = Date.now() + 400;
-  [0,10,30,80,160].forEach(d => setTimeout(() => {
-    if(pendingFocusEl === el) safeFocus(el);
-  }, d));
-}
-function clearPendingFocus(el){ if(pendingFocusEl === el) pendingFocusEl = null; }
-document.addEventListener('mousedown', ()=>{ pendingFocusEl = null; }, true);
+/* Focus helpers */
+function safeFocus(el){ if(!el) return; try{ el.focus({preventScroll:true}); }catch{} setTimeout(()=>{ try{ el.focus({preventScroll:true}); }catch{} },0); }
 
 /* ---------- FRAMES ---------- */
 const FRAMES=[
@@ -377,11 +378,10 @@ const FRAMES=[
   {id:7,key:'lateev',    name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--f-lateev)',    shift:'night'}
 ];
 
-/* ---------- TIME / timeline guards ---------- */
+/* ---------- Timeline guards ---------- */
 const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);};
 const pad=n=>n.toString().padStart(2,'0');
-
 let __buildingTimeline = false;
 let __tl_req = 0, __tl_to = 0;
 function scheduleTimelineBuild(){
@@ -389,28 +389,12 @@ function scheduleTimelineBuild(){
   __tl_req = requestAnimationFrame(() => { __tl_req = 0; buildTimelineFromDOM(); });
 }
 
-/* Close & blur any input + kill popups */
+/* Close & blur any input + close popups */
 function forceCloseAutocomplete(inp){
   try{ inp.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); }catch(e){}
-  inp.blur(); hideAllAutocompleteUIs(); SG.hide();
-}
-
-/* block adding placeholders during quick key nav */
-function canAddPlaceholders(list, frameId, hasFilled, isLastUsed){
-  if (Date.now() < __noTopUpUntil) return false;
-  const active = document.activeElement;
-  if (active && active.classList && active.classList.contains('stop')){
-    const row = active.closest('.row');
-    if (row && +row.dataset.frame === frameId){
-      const rows=[...list.querySelectorAll('.row')];
-      const idx=rows.indexOf(row);
-      const hasEmptyAfter = rows.slice(idx+1).some(r => !r.querySelector('.stop').value.trim());
-      if (hasEmptyAfter) return false;
-    }
-  }
-  const allowAdd = isLastUsed ? !suppressTopUpOnce : false;
-  if (hasFilled) return allowAdd;
-  return (Date.now() >= __noTopUpUntil) && !suppressTopUpOnce;
+  inp.blur();
+  hideAllAutocompleteUIs();
+  SG.hide();
 }
 
 /* =================== UI BUILD (frames/rows) =================== */
@@ -428,6 +412,7 @@ function buildFrameBuckets(){
   const container=document.getElementById('framesContainer');
 
   FRAMES.forEach(fr=>{
+    userManagedTopUp[fr.id] = false;           // allow initial placeholders
     const sec=document.createElement('div');
     sec.className='frame';sec.dataset.frame=fr.id;sec.dataset.shift=fr.shift;
 
@@ -458,7 +443,7 @@ function buildFrameBuckets(){
     const addBtn=document.createElement('button');
     addBtn.className='addRowBtn';addBtn.textContent='+ Add stop';
     addBtn.style.display='none';
-    addBtn.onclick=()=>addRowToFrame(fr.id,true,false);
+    addBtn.onclick=()=>{ disableTopUp(fr.id); addRowToFrame(fr.id,true,false); };
     sec.appendChild(addBtn);
 
     container.appendChild(sec);
@@ -466,9 +451,11 @@ function buildFrameBuckets(){
     Sortable.create(list,{
       group:'stops', handle:'.drag', animation:150,
       onEnd:evt=>{
-       evt.item.dataset.frame=list.parentElement.parentElement.dataset.frame;
-       renumber(); normalizeShiftLayout(FRAMES.find(f=>f.id==evt.item.dataset.frame).shift);
-       scheduleAutoCompute(120,false); scheduleTimelineBuild();
+        evt.item.dataset.frame=list.parentElement.parentElement.dataset.frame;
+        renumber();
+        normalizeShiftLayout(FRAMES.find(f=>f.id==evt.item.dataset.frame).shift);
+        scheduleAutoCompute(120,false);
+        scheduleTimelineBuild();
       }
     });
   });
@@ -481,6 +468,7 @@ function buildFrameBuckets(){
   const mo=new MutationObserver(()=>{ clearTimeout(__tl_to); __tl_to=setTimeout(scheduleTimelineBuild,50); });
   document.querySelectorAll('.frame-list').forEach(fl=>mo.observe(fl,{childList:true,subtree:true}));
 }
+
 function rebalanceFrameHeights(){ if(flatMode) return; scheduleTimelineBuild(); }
 
 function makeRow(frameId){
@@ -491,11 +479,20 @@ function makeRow(frameId){
     <input class="stop" placeholder="Enter stop" autocomplete="off" autocorrect="off" spellcheck="false">
     <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
     <span class="remove" title="Remove stop">×</span>`;
-  d.querySelector('.remove').onclick=()=>{
-    const fid=+d.dataset.frame; const sh=FRAMES.find(f=>f.id===fid).shift;
-    d.remove(); renumber(); normalizeShiftLayout(sh);
-    scheduleAutoCompute(120,false); scheduleTimelineBuild(); showDeleteBtns();
-  };
+  const del=d.querySelector('.remove');
+  del.addEventListener('mousedown', e=>{ e.preventDefault(); e.stopPropagation(); }, true);
+  del.addEventListener('click', e=>{
+    e.preventDefault(); e.stopPropagation();
+    const fid=+d.dataset.frame;
+    disableTopUp(fid);               // <- stop any automatic “4 more” after delete
+    const sh=FRAMES.find(f=>f.id===fid).shift;
+    d.remove();
+    renumber();
+    normalizeShiftLayout(sh);
+    scheduleAutoCompute(120,false);
+    scheduleTimelineBuild();
+    showDeleteBtns();
+  });
   d.addEventListener('click',rowSelectToggle);
   attachInputEvents(d.querySelector('.stop'));
   return d;
@@ -516,22 +513,14 @@ function insertRowAfter(currentRow){
   return newRow;
 }
 function ensurePlaceholdersForFrame(frameId){
+  // Only for initial display; once user deletes in this frame, do not add.
+  if(!isTopUpAllowed(frameId)) return;
   const list=document.getElementById('frame-'+frameId); if(!list) return;
   const sec=list.closest('.frame');
   const visible = sec.style.display!=='none' && !flatMode && !sec.classList.contains('collapsed');
   if(!visible) return;
   if (Date.now() < __noTopUpUntil) return;
 
-  const active = document.activeElement;
-  if (active && active.classList.contains('stop')){
-    const row = active.closest('.row');
-    if (row && +row.dataset.frame === frameId){
-      const rows=[...list.querySelectorAll('.row')];
-      const idx=rows.indexOf(row);
-      const hasEmptyAfter = rows.slice(idx+1).some(r => !r.querySelector('.stop').value.trim());
-      if (hasEmptyAfter) return;
-    }
-  }
   const empties=[...list.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());
   for(let i=empties.length;i<BASE_EMPTY_PER_FRAME;i++) addRowToFrame(frameId,false,false);
 }
@@ -607,7 +596,9 @@ function showDeleteBtns(){
   if(flatDel) flatDel.style.display=any&&flatMode?'inline-block':'none';
 }
 function deleteSelected(){
-  document.querySelectorAll('.row.selected').forEach(r=>r.remove());
+  const affected = new Set();
+  document.querySelectorAll('.row.selected').forEach(r=>{ affected.add(+r.dataset.frame); r.remove();});
+  affected.forEach(fid=>disableTopUp(fid));
   showDeleteBtns();renumber();normalizeShiftLayoutVisible();scheduleAutoCompute(120,false);scheduleTimelineBuild();
 }
 document.addEventListener('keydown',e=>{
@@ -626,8 +617,6 @@ document.addEventListener('click',e=>{
 }, true);
 
 function idxToLabel(i){let s='',n=i+1;while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;}
-
-/* Global renumber across visible frames */
 function renumber(){
   if(flatMode){
     const rows=[...document.querySelectorAll('#addrList .row')];
@@ -656,17 +645,13 @@ function attachInputEvents(inp){
   inp.addEventListener('mousedown',ev=>{
     if(document.activeElement!==inp){ ev.preventDefault(); safeFocus(inp); setTimeout(()=>inp.select(),0); }
   });
-
   inp.addEventListener('focus', e=>{
     inp.closest('.row').classList.add('focused');
-    // Only select text when this input is the queued target OR enough time has passed.
-    const okToSelect = (pendingFocusEl === inp) || (Date.now() >= suppressAutoSelectUntil);
-    if(okToSelect){ setTimeout(()=>e.target.select(),0); }
+    setTimeout(()=>e.target.select(),0);
     if(!inp.dataset.lat && (inp.value||'').trim().length>=3){
       fetchPredictions(inp.value, preds => SG.openFor(inp, preds));
     }
   });
-
   inp.addEventListener('blur',()=>{
     inp.closest('.row').classList.remove('focused');
     setTimeout(()=>{ if(document.activeElement!==inp) SG.hide(); }, 150);
@@ -675,29 +660,21 @@ function attachInputEvents(inp){
   inp.addEventListener('input',()=>{
     inp.dataset.dirty='1'; inp.dataset.lat=''; inp.dataset.lng='';
     scheduleAutoCompute(200,false);
-    if((inp.value||'').trim().length>=3){ fetchPredictions(inp.value, preds => SG.openFor(inp, preds)); }
-    else{ SG.hide(); }
-  });
-
-  // Keyboard navigation within our dropdown
-  inp.addEventListener('keydown', e=>{
-    if(SG.isOpen()){
-      if(e.key==='ArrowDown'){ e.preventDefault(); SG.move(+1); }
-      if(e.key==='ArrowUp'){   e.preventDefault(); SG.move(-1); }
-    }
-  });
-
-  // Shift+Tab = go to previous
-  inp.addEventListener('keydown', e=>{
-    if(e.key==='Tab' && e.shiftKey){
-      e.preventDefault(); forceCloseAutocomplete(inp);
-      suppressTopUpOnce = true; __noTopUpUntil = Date.now()+350;
+    if((inp.value||'').trim().length>=3){
+      fetchPredictions(inp.value, preds => SG.openFor(inp, preds));
+    }else{
       SG.hide();
-      if(flatMode) focusPrevInFlat(inp); else focusPrevInFrame(inp);
     }
   });
 
-  // Tab/Enter = accept top + go next
+  // Arrow navigation within our dropdown
+  inp.addEventListener('keydown', e=>{
+    if(!SG.isOpen()) return;
+    if(e.key==='ArrowDown'){ e.preventDefault(); SG.move(+1); }
+    if(e.key==='ArrowUp'){   e.preventDefault(); SG.move(-1); }
+  });
+
+  // Enter / Tab → accept + advance
   inp.addEventListener('keydown', e => {
     const isAdvanceKey = (e.key === 'Enter') || (e.key === 'Tab' && !e.shiftKey);
     if (!isAdvanceKey) return;
@@ -711,16 +688,13 @@ function attachInputEvents(inp){
     suppressTopUpOnce = true;
     __noTopUpUntil = Date.now() + 350;
 
-    // If our dropdown is open and Enter was pressed, choose highlighted/first.
     if(SG.isOpen() && e.key==='Enter'){ SG.chooseHot(); return; }
 
-    // Pre-calc target and queue focus (survives DOM churn)
-    if (flatMode) { focusNextInFlatOrCreate(inp, /*queueOnly*/ true); }
-    else          { focusNextInFrameOrCreate(inp, /*queueOnly*/ true); }
+    // Move focus immediately (we run accept in the background)
+    if (flatMode) { focusNextInFlatOrCreate(inp, true); }
+    else          { focusNextInFrameOrCreate(inp, true); }
 
-    // Headless accept of the top prediction
     acceptTopPrediction(inp, { advance:false });
-
     SG.hide();
     scheduleAutoCompute(150, true);
   });
@@ -728,21 +702,48 @@ function attachInputEvents(inp){
   inp.addEventListener('paste',multiPaste);
 }
 
-function focusPrevInFrame(currentInput){
-  const row=currentInput.closest('.row');
-  const list=row.parentElement;
-  const rows=[...list.querySelectorAll('.row')];
-  const idx=rows.indexOf(row);
-  const prevEmpty=rows.slice(0,idx).reverse().find(r=>!r.querySelector('.stop').value.trim());
-  safeFocus((prevEmpty||rows[idx-1]||row).querySelector('.stop'));
+/* ---------- Focus helpers for next/prev ---------- */
+function focusNextInFrameOrCreate(currentInput, queueOnly=false){
+  const currentRow = currentInput.closest('.row');
+  const frameId    = +currentRow.dataset.frame;
+  const list       = document.getElementById('frame-'+frameId);
+  const rows       = [...list.querySelectorAll('.row')];
+  const idx        = rows.indexOf(currentRow);
+
+  const firstEmptyAfter = rows.slice(idx+1).find(r => !r.querySelector('.stop').value.trim());
+  let target;
+  if(firstEmptyAfter){
+    suppressTopUpOnce = true; __noTopUpUntil = Date.now() + 350;
+    target = firstEmptyAfter.querySelector('.stop');
+  }else if(rows[idx+1]){
+    const newRow = insertRowAfter(currentRow);
+    target = newRow.querySelector('.stop');
+  }else{
+    const added = addRowToFrame(frameId, false, false);
+    target = added.querySelector('.stop');
+  }
+  if(queueOnly) setTimeout(()=>safeFocus(target),0); else safeFocus(target);
 }
-function focusPrevInFlat(currentInput){
-  const row=currentInput.closest('.row');
-  const list=document.getElementById('addrList');
-  const rows=[...list.querySelectorAll('.row')];
-  const idx=rows.indexOf(row);
-  const prevEmpty=rows.slice(0,idx).reverse().find(r=>!r.querySelector('.stop').value.trim());
-  safeFocus((prevEmpty||rows[idx-1]||row).querySelector('.stop'));
+function focusNextInFlatOrCreate(currentInput, queueOnly=false){
+  const currentRow = currentInput.closest('.row');
+  const list       = document.getElementById('addrList');
+  const rows       = [...list.querySelectorAll('.row')];
+  const idx        = rows.indexOf(currentRow);
+
+  let target;
+  const firstEmptyAfter = rows.slice(idx+1).find(r => !r.querySelector('.stop').value.trim());
+  if(firstEmptyAfter){
+    target = firstEmptyAfter.querySelector('.stop');
+  }else if(rows[idx+1]){
+    const newRow = makeRow(0);
+    currentRow.insertAdjacentElement('afterend', newRow);
+    renumber();
+    target = newRow.querySelector('.stop');
+  }else{
+    const newRow = addRowToAddrBar(false,false);
+    target = newRow.querySelector('.stop');
+  }
+  if(queueOnly) setTimeout(()=>safeFocus(target),0); else safeFocus(target);
 }
 
 /* ---------- Compaction / pruning ---------- */
@@ -752,7 +753,7 @@ function compactFrameList(list){
   const empties=rows.filter(r=>!r.querySelector('.stop').value.trim());
   [...filled,...empties].forEach(r=>list.appendChild(r));
 }
-function pruneListGaps(list, placeholdersAtEnd, addPlaceholders=true){
+function pruneListGaps(list, placeholdersAtEnd, addPlaceholders){
   const rows=[...list.querySelectorAll('.row')];
   let lastFilled=-1;
   for(let i=rows.length-1;i>=0;i--){ if(rows[i].querySelector('.stop').value.trim()){ lastFilled=i; break; } }
@@ -771,7 +772,7 @@ function pruneListGaps(list, placeholdersAtEnd, addPlaceholders=true){
   }
 }
 
-/* Normalize shift so there are NO empties between filled frames */
+/* Normalize shift – but respect userManagedTopUp (no growth) */
 function normalizeShiftLayout(shift){
   if(flatMode) return;
   const framesInShift=FRAMES.filter(f=>f.shift===shift);
@@ -790,18 +791,19 @@ function normalizeShiftLayout(shift){
     const list=document.getElementById('frame-'+f.id);
     const hasFilled=[...list.querySelectorAll('.row')].some(r=>r.querySelector('.stop').value.trim());
     const isLastUsed = (idx===lastUsed);
-    const targetPlaceholders = hasFilled ? (isLastUsed?BASE_EMPTY_PER_FRAME:0) : BASE_EMPTY_PER_FRAME;
+
+    // If user deleted in this frame, never add placeholders.
+    const allowTopUp = isTopUpAllowed(f.id) && (isLastUsed ? !suppressTopUpOnce : false);
+    const targetPlaceholders = isTopUpAllowed(f.id)
+      ? (hasFilled ? (isLastUsed?BASE_EMPTY_PER_FRAME:0) : BASE_EMPTY_PER_FRAME)
+      : 0;
 
     compactFrameList(list);
-    const addPH = canAddPlaceholders(list, f.id, hasFilled, isLastUsed);
-    pruneListGaps(list, targetPlaceholders, addPH);
+    pruneListGaps(list, targetPlaceholders, allowTopUp);
   });
 
   suppressTopUpOnce = false;
   renumber();
-
-  // Re-apply queued focus after DOM tweaks
-  if(pendingFocusEl){ safeFocus(pendingFocusEl); }
 }
 function normalizeShiftLayoutVisible(){
   if(dayVisible) normalizeShiftLayout('day');
@@ -866,7 +868,7 @@ async function multiPaste(e){
 
   touchedLists.forEach(list=>{
     compactFrameList(list);
-    pruneListGaps(list, BASE_EMPTY_PER_FRAME, false);
+    pruneListGaps(list, 0, false);       // never grow during paste
   });
 
   renumber();
@@ -876,10 +878,8 @@ async function multiPaste(e){
   __noTopUpUntil = Date.now() + 250;
 
   normalizeShiftLayout(shift);
-
   autoResolveNext=true;
   await rebuildRoute();
-
   collapseEmptyFramesInShift(shift);
 }
 
@@ -906,6 +906,7 @@ function acceptTopPrediction(input, { advance = true } = {}){
         scheduleAutoCompute(0, false);
         return;
       }
+      // Take first
       placeSvc.getDetails({ placeId: preds[0].place_id, fields: ['formatted_address','geometry'] },
         (place, st) => {
           if (st === google.maps.places.PlacesServiceStatus.OK && place?.geometry){
@@ -923,50 +924,6 @@ function acceptTopPrediction(input, { advance = true } = {}){
       );
     }
   );
-}
-
-/* Robust next-focus (queues target) */
-function focusNextInFrameOrCreate(currentInput, queueOnly=false){
-  const currentRow = currentInput.closest('.row');
-  const frameId    = +currentRow.dataset.frame;
-  const list       = document.getElementById('frame-'+frameId);
-  const rows       = [...list.querySelectorAll('.row')];
-  const idx        = rows.indexOf(currentRow);
-
-  const firstEmptyAfter = rows.slice(idx+1).find(r => !r.querySelector('.stop').value.trim());
-  let target;
-  if(firstEmptyAfter){
-    suppressTopUpOnce = true; __noTopUpUntil = Date.now() + 350;
-    target = firstEmptyAfter.querySelector('.stop');
-  }else if(rows[idx+1]){
-    const newRow = insertRowAfter(currentRow);
-    target = newRow.querySelector('.stop');
-  }else{
-    const added = addRowToFrame(frameId, false, false);
-    target = added.querySelector('.stop');
-  }
-  if(queueOnly) queueFocus(target); else safeFocus(target);
-}
-function focusNextInFlatOrCreate(currentInput, queueOnly=false){
-  const currentRow = currentInput.closest('.row');
-  const list       = document.getElementById('addrList');
-  const rows       = [...list.querySelectorAll('.row')];
-  const idx        = rows.indexOf(currentRow);
-
-  let target;
-  const firstEmptyAfter = rows.slice(idx+1).find(r => !r.querySelector('.stop').value.trim());
-  if(firstEmptyAfter){
-    target = firstEmptyAfter.querySelector('.stop');
-  }else if(rows[idx+1]){
-    const newRow = makeRow(0);
-    currentRow.insertAdjacentElement('afterend', newRow);
-    renumber();
-    target = newRow.querySelector('.stop');
-  }else{
-    const newRow = addRowToAddrBar(false,false);
-    target = newRow.querySelector('.stop');
-  }
-  if(queueOnly) queueFocus(target); else safeFocus(target);
 }
 
 /* =================== SHIFT / FLAT =================== */
@@ -1044,11 +1001,15 @@ function clearAllStops(){
     row.classList.remove('invalid','selected','focused');
     if(inp){inp.value='';inp.dataset.lat='';inp.dataset.lng='';inp.placeholder='Enter stop'; delete inp.dataset.dirty;}
   });
+  // reset per‑frame policy so fresh 4 blanks show again
+  FRAMES.forEach(fr=>{ userManagedTopUp[fr.id] = false; });
   clearPreviewPins();clearDirections();clearLegDisplays();
   document.getElementById('msg').textContent='';
-  document.getElementById('flatMsg').textContent='';
+  document.getElementById('flatMsg')?.textContent='';
   showDeleteBtns(); scheduleTimelineBuild(); renumber();
   SG.hide();
+  // make sure each visible frame has the starter inputs again
+  FRAMES.forEach(fr=>ensurePlaceholdersForFrame(fr.id));
 }
 
 /* =================== ROUTING / OPTIMIZATION =================== */
@@ -1137,7 +1098,7 @@ async function ensureCoords(rows,{parallel=false}={}){
     return true;
   }else{
     const CONC=4; let i=0, okAll=true;
-    await Promise.all(Array.from({length:CONC},async ()=> {
+    await Promise.all(Array.from({length:CONC},async ()=>{
       while(i<tasks.length){ const my=i++; const ok=await tasks[my](); if(!ok) okAll=false; }
     }));
     return okAll;
@@ -1163,7 +1124,7 @@ async function autoCompute(){
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
 
   if(rows.filter(r=>r.querySelector('.stop').value.trim()).length===0){
-    clearPreviewPins();clearLegDisplays();msg.textContent='';flatMsg.textContent='';clearDirections();return;
+    clearPreviewPins();clearLegDisplays();msg.textContent=''; if(flatMsg) flatMsg.textContent=''; clearDirections();return;
   }
 
   if(rows.some(r=>!r.querySelector('.stop').dataset.lat)){
@@ -1177,7 +1138,7 @@ async function autoCompute(){
     clearDirections();clearLegDisplays();clearPreviewPins();
     const inp=rows[0].querySelector('.stop');
     addPreviewPin({lat:+inp.dataset.lat,lng:+inp.dataset.lng},'A');
-    msg.textContent='';flatMsg.textContent='';
+    msg.textContent=''; if(flatMsg) flatMsg.textContent='';
   }else{
     clearPreviewPins(); await rebuildRoute();
   }
@@ -1188,9 +1149,9 @@ async function rebuildRoute(){
   const rows=getOrderedRows();
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
   clearLegDisplays();clearRouteMarkers();
-  if(rows.length<2){msg.textContent='';flatMsg.textContent='';clearDirections();return;}
+  if(rows.length<2){msg.textContent=''; if(flatMsg) flatMsg.textContent=''; clearDirections();return;}
   const ok=await ensureCoords(rows,{parallel:true});
-  if(!ok){msg.textContent='One or more stops can’t be located – please edit.';flatMsg.textContent=msg.textContent;return;}
+  if(!ok){msg.textContent='One or more stops can’t be located – please edit.'; if(flatMsg) flatMsg.textContent=msg.textContent;return;}
   const locs=rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
   return new Promise(resolve=>{
     dirSvc.route({
@@ -1211,7 +1172,7 @@ async function rebuildRoute(){
 /* Leg summaries */
 function displayLegs(res,stat){
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
-  if(stat!=='OK'){msg.textContent='Route error: '+stat;flatMsg.textContent=msg.textContent;clearDirections();return;}
+  if(stat!=='OK'){msg.textContent='Route error: '+stat; if(flatMsg) flatMsg.textContent=msg.textContent; clearDirections();return;}
   dirRend.setDirections(res);
   const rows=getOrderedRows();
   let kmTot=0,minTot=0;clearLegDisplays();
@@ -1225,20 +1186,20 @@ function displayLegs(res,stat){
     rows[i].after(div);
   });
   const text=`Total Distance ${kmTot.toFixed(1)} km | ≈ ${minTot} min`;
-  msg.textContent=text; flatMsg.textContent=text;
+  msg.textContent=text; if(flatMsg) flatMsg.textContent=text;
 }
 function clearLegDisplays(){document.querySelectorAll('.leg-display').forEach(d=>d.remove());}
 
-/* =================== TSP / Optimizers (kept simple here) =================== */
-function buildDistanceMatrix(points){const n=points.length;const D=Array.from({length:n},()=>Array(n).fill(0));for(let i=0;i<n;i++){for(let j=i+1;j<n;j++){const d=haversine(points[i],points[j]);D[i][j]=D[j][i]=d;}}return D;}
+/* =================== TSP helpers (unchanged) =================== */
+function buildDistanceMatrix(points){const n=points.length;const D=Array.from({length:n},()=>Array(n).fill(0));for(let i=0;i<n;i++){for(let j=i+1;j<n;j++){const d=haversine(points[i],points[j]);D[i][j]=D[j][i]=d;} }return D;}
 function haversine(a,b){const R=6371;const toRad=x=>x*Math.PI/180;const dLat=toRad(b.lat-a.lat);const dLng=toRad(b.lng-a.lng);const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(s));}
 function orderCost(order,D){let c=0; for(let i=0;i<order.length-1;i++) c+=D[order[i]][order[i+1]]; return c;}
 function nearestNeighbour(D,start=0){const n=D.length; const visited=Array(n).fill(false); const ord=[start]; visited[start]=true; for(let k=1;k<n;k++){const last=ord[ord.length-1]; let best=Infinity,idx=-1; for(let j=0;j<n;j++){ if(!visited[j] && D[last][j]<best){best=D[last][j]; idx=j;} } ord.push(idx); visited[idx]=true;} return ord;}
 function twoOpt(order,D){const n=order.length; let improved=true; while(improved){improved=false; for(let i=1;i<n-2;i++){for(let j=i+1;j<n-1;j++){const a=order[i-1],b=order[i],c=order[j],d=order[j+1]; if(D[a][b]+D[c][d] > D[a][c]+D[b][d]){ order.splice(i,j-i+1,...order.slice(i,j+1).reverse()); improved=true; }}}} return order;}
 function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){const n=D.length; let start=fixedStart!=null?fixedStart:0; let ord=nearestNeighbour(D,start); ord=twoOpt(ord,D); if(fixedEnd!=null && ord[ord.length-1]!==fixedEnd){let best=ord,bestCost=orderCost(ord,D); for(let s=0;s<n;s++){const r=[...ord.slice(s),...ord.slice(0,s)]; if(r[r.length-1]!==fixedEnd) continue; const c=orderCost(r,D); if(c<bestCost){best=r; bestCost=c;}} ord=best;} if(fixedStart!=null && ord[0]!==fixedStart){const idx=ord.indexOf(fixedStart); if(idx>-1) ord=[...ord.slice(idx),...ord.slice(0,idx)];} return ord;}
-async function optimizeByFramesTwoPass(){ /* no-op fallback (kept to avoid reference errors) */ }
+async function optimizeByFramesTwoPass(){ /* no-op stub kept for F4 hotkey */ }
 
-/* collapse empty frames */
+/* collapse empty frames in a shift */
 function collapseEmptyFramesInShift(shift){
   FRAMES.filter(f=>f.shift===shift).forEach(f=>{
     const list=document.getElementById('frame-'+f.id);
@@ -1259,9 +1220,14 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)
   );
 
-  // Region overlay + KML
+  // Region overlay + KML (unchanged)
   function nameToAccent(name){ let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i)) % 360; } return `hsl(${h} 70% 70%)`; }
-  class RegionLabelOverlay extends google.maps.OverlayView{ constructor(pos,text,accent){super();this.position=pos;this.text=text||'';this.accent=accent||'#9ecfff';this.container=null;} onAdd(){const div=document.createElement('div');div.className='region-label';div.innerHTML=`<div class="region-card"><div class="region-accent" style="border-color:${this.accent}"></div><div class="region-title">${this.text}</div><span class="region-close material-icons" title="Close">close</span></div>`;div.querySelector('.region-close').onclick=()=>this.setMap(null);this.container=div;this.getPanes().floatPane.appendChild(div);requestAnimationFrame(()=>div.classList.add('show'));} draw(){const proj=this.getProjection(); if(!proj||!this.container) return; const pt=proj.fromLatLngToDivPixel(this.position); this.container.style.left=pt.x+'px'; this.container.style.top=pt.y+'px';} onRemove(){if(!this.container) return; const el=this.container; el.classList.remove('show'); setTimeout(()=>{ if(el&&el.parentNode) el.parentNode.removeChild(el); }, 120); this.container=null; } }
+  class RegionLabelOverlay extends google.maps.OverlayView{
+    constructor(pos,text,accent){super();this.position=pos;this.text=text||'';this.accent=accent||'#9ecfff';this.container=null;}
+    onAdd(){const div=document.createElement('div');div.className='region-label';div.innerHTML=`<div class="region-card"><div class="region-accent" style="border-color:${this.accent}"></div><div class="region-title">${this.text}</div><span class="region-close material-icons" title="Close">close</span></div>`;div.querySelector('.region-close').onclick=()=>this.setMap(null);this.container=div;this.getPanes().floatPane.appendChild(div);requestAnimationFrame(()=>div.classList.add('show')); }
+    draw(){const proj=this.getProjection(); if(!proj||!this.container) return; const pt=proj.fromLatLngToDivPixel(this.position); this.container.style.left=pt.x+'px'; this.container.style.top=pt.y+'px';}
+    onRemove(){if(!this.container) return; const el=this.container; el.classList.remove('show'); setTimeout(()=>{ if(el&&el.parentNode) el.parentNode.removeChild(el); }, 120); this.container=null;}
+  }
   let currentRegionOverlay=null;
   function showRegionLabel(pos,name){ if(currentRegionOverlay){ currentRegionOverlay.setMap(null); currentRegionOverlay=null; } currentRegionOverlay=new RegionLabelOverlay(pos,name,nameToAccent(name)); currentRegionOverlay.setMap(map); }
   function hideRegionLabel(){ if(currentRegionOverlay){ currentRegionOverlay.setMap(null); currentRegionOverlay=null; } }
@@ -1313,10 +1279,10 @@ window.routePlannerInit=()=>{
 
   window.addEventListener('resize', ()=>{ clearTimeout(window.__rb); window.__rb=setTimeout(()=>{rebalanceFrameHeights();},150); });
 
-  if(window.__mapsApiReady){ /* no-op */ }
+  if(window.__mapsApiReady){ /* maps already loaded */ }
 };
 
-/* --------- Flat‑view optimizer --------- */
+/* --------- Flat‑view optimizer (same as before) --------- */
 async function globalOptimizeRoute(){
   if(!flatMode){ return; }
   const list=document.getElementById('addrList');
