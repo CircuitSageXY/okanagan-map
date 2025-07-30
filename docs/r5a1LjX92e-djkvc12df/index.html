@@ -262,7 +262,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 #areasBtn.open .material-icons{ transform:rotate(180deg); }
 
 #areasDrawer{
-  position:absolute; right:12px; top:58px; z-index:8; width:340px;
+  position:absolute; right:12px; top:58px; z-index:8; width:360px;
   max-height:calc(100% - 70px); overflow:auto;
   background:#fff; border:1px solid #d7d7d7; border-radius:14px;
   box-shadow:0 8px 24px rgba(0,0,0,.22);
@@ -272,51 +272,68 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 #areasDrawer.open{ transform:translateX(0); }
 #areasDrawer header{
   position:sticky; top:0; background:linear-gradient(#f7f7f7,#efefef);
-  border-bottom:1px solid #e2e2e2; padding:12px 14px;
+  border-bottom:1px solid #e2e2e2; padding:10px 14px;
   font-weight:800; color:#1f2937; letter-spacing:.2px;
   border-top-left-radius:14px; border-top-right-radius:14px;
+  display:flex; align-items:center; gap:8px;
 }
+#drawerTitle{ flex:1; }
+#drawerClose{
+  width:30px; height:30px; border-radius:8px; border:1px solid #d7d7d7; background:#fff; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+}
+#drawerClose .material-icons{ font-size:20px; }
+#drawerClose:hover{ background:#f3f4f6; }
 
 /* generic sections */
-#areasDrawer .sec{ padding:12px 14px; border-bottom:1px dashed #ececec; }
+#areasDrawer .sec{ padding:10px 14px; border-bottom:1px dashed #ececec; }
 #areasDrawer .sec:last-child{ border-bottom:none; }
-#areasDrawer h4{ margin:0 0 10px 0; font-size:13.5px; color:#374151; text-transform:uppercase; letter-spacing:.35px; }
+#areasDrawer h4{ margin:0 0 8px 0; font-size:13.5px; color:#374151; text-transform:uppercase; letter-spacing:.35px; }
 #areasDrawer .row{ display:flex; align-items:center; gap:8px; margin:6px 0; padding:0; }
-#areasDrawer .hint{ font-size:12.5px; color:#6b7280; }
+#areasDrawer .hint{ font-size:11.5px; color:#6b7280; }
 
-/* Filter on top */
+/* Filter on top (slimmer) */
 #secFilterTop .row{ gap:8px; }
 #secFilterTop input[type="text"]{
-  height:34px; border-radius:10px; border:1px solid #cfcfcf;
-  padding:6px 10px; font-size:14px; flex:1;
+  height:30px; border-radius:10px; border:1px solid #cfcfcf;
+  padding:4px 10px; font-size:14px; flex:1;
 }
 #secFilterTop button{
-  border:1px solid #cfcfcf; border-radius:10px; padding:7px 10px; background:#fafafa; cursor:pointer;
+  border:1px solid #cfcfcf; border-radius:10px; padding:6px 10px; background:#fafafa; cursor:pointer;
 }
 #secFilterTop button:hover{ background:#f3f4f6; }
 
-/* Single Polygons list */
-#polysList{ display:flex; flex-direction:column; gap:8px; }
+/* Grouped polygon list */
+.group{
+  border:1px solid #eaeaea; border-radius:12px; margin:10px 0; overflow:hidden; background:#fff;
+}
+.group-header{
+  display:grid; grid-template-columns: 28px 1fr; align-items:center; gap:6px;
+  padding:8px 10px; background:#fafafa; border-bottom:1px solid #eee;
+}
+.group-header .toggle{
+  width:28px; height:28px; border-radius:8px; border:1px solid #ddd; background:#fff; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+}
+.group-header .toggle .material-icons{ font-size:18px; transition:transform .18s ease; }
+.group.collapsed .group-header .toggle .material-icons{ transform:rotate(-90deg); }
+
+.group-header .gname{
+  width:100%; height:30px; padding:4px 8px; border:1px solid #cfcfcf; border-radius:8px; background:#fff; font-weight:600;
+}
+.group-body{ padding:8px 10px; display:flex; flex-direction:column; gap:8px; }
+.group.collapsed .group-body{ display:none; }
+
+/* Single polygon row (no eye icon; single checkbox controls visibility) */
 .poly-row{
-  display:grid; grid-template-columns: 26px 1fr auto 30px; align-items:center;
+  display:grid; grid-template-columns: 24px 1fr 30px; align-items:center;
   gap:8px; padding:6px 8px; border:1px solid #e8e8e8; border-radius:10px;
   background:#ffffff; transition:box-shadow .12s, border-color .12s;
 }
 .poly-row:hover{ box-shadow:0 2px 10px rgba(0,0,0,.06); border-color:#dfdfdf; }
 .poly-row:focus-within{ box-shadow:0 0 0 3px rgba(59,130,246,.16); border-color:#3B82F6; }
+.poly-row .ck input[type="checkbox"]{ width:18px; height:18px; margin:0; }
 
-.poly-row .ck{ width:18px; height:18px; }
-.poly-row .ck input[type="checkbox"]{
-  width:18px; height:18px; margin:0; accent-color: var(--accent-color, #3B82F6);
-}
-
-.badgeCode{
-  display:inline-block; min-width:64px; font-weight:800; font-size:12.5px;
-  padding:3px 8px; border:1px solid #e5e7eb; border-radius:999px;
-  background:#f9fafb; color:#374151; text-align:center;
-}
-
-.poly-row .name{ display:flex; align-items:center; gap:8px; }
 .poly-row .name input{
   width:100%; height:32px; padding:6px 8px;
   border:1px solid #cfcfcf; border-radius:8px; background:#fff;
@@ -325,13 +342,6 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   outline:none; border-color:#3B82F6; box-shadow:0 0 0 3px rgba(59,130,246,.18);
 }
 
-.poly-row .zoom{
-  display:inline-flex; align-items:center; justify-content:center;
-  width:30px; height:30px; border-radius:8px; border:1px solid #e5e7eb; background:#fafafa; cursor:pointer;
-}
-.poly-row .zoom .material-icons{ font-size:18px; color:#4b5563; }
-.poly-row .zoom:hover{ background:#f3f4f6; }
-
 .poly-row .swatch{
   width:26px; height:26px; border-radius:6px; border:1px solid rgba(0,0,0,.18);
   cursor:pointer; box-shadow: inset 0 0 0 1px rgba(255,255,255,.45);
@@ -339,7 +349,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 #areasDrawer input[type="color"]{ width:0; height:0; padding:0; border:none; visibility:hidden; }
 
 /* Style section spacing */
-#secStyle .row{ margin-top:10px; }
+#secStyle .row{ margin-top:6px; }
 #secStyle label{ min-width:90px; color:#374151; }
 #areasDrawer input[type="range"]{ width:100%; }
 </style>
@@ -391,22 +401,24 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 </button>
 
 <div id="areasDrawer" aria-hidden="true">
-  <header>Geo Area Polygon Settings</header>
+  <header>
+    <span id="drawerTitle">Geo Area Polygon Settings</span>
+    <button id="drawerClose" type="button" title="Close"><span class="material-icons">chevron_right</span></button>
+  </header>
 
-  <!-- Filter moved to the top -->
+  <!-- Filter (slim) -->
   <div class="sec" id="secFilterTop">
     <div class="row">
-      <input id="filterText" type="text" placeholder="Type to filter by name or code…">
+      <input id="filterText" type="text" placeholder="Filter groups or areas…">
       <button id="filterClear" type="button">Clear</button>
     </div>
-    <div class="hint">Matches region <b>name</b> or <b>code</b> (e.g., <code>RUT-S</code>, <code>WEST2</code>).</div>
+    <div class="hint">Matches group <b>name</b>, area <b>name</b>, or <b>code</b> (e.g., RUT‑S, WEST2).</div>
   </div>
 
-  <!-- Polygons: single list (✓, editable name, zoom, color) -->
+  <!-- Groups + polygons -->
   <div class="sec" id="secPolys">
     <h4>Polygons</h4>
-    <div class="hint" style="margin-bottom:8px;">Show/hide polygons, edit their labels, zoom to them, and change colors.</div>
-    <div id="polysList"></div>
+    <div id="groupsRoot"></div>
   </div>
 
   <!-- Style -->
@@ -446,7 +458,7 @@ let dayVisible=false, nightVisible=false, flatMode=false;
 let OK_BOUNDS;
 const frameInitialized = new Map();
 
-/* ---------- GEOJSON SOURCES (files to load; no UI toggles) ---------- */
+/* ---------- GEOJSON SOURCES ---------- */
 const LAYERS = [
   { id:'geo_areas',   name:'Geo Areas (all)',                 file:'Geo Areas.geojson' },
   { id:'kel_central', name:'Kelowna – Central',               file:'Kelowna - Central.geojson' },
@@ -468,6 +480,15 @@ const AREA_COLORS = {
 };
 let AREA_FILL_OPACITY = 0.20;
 let AREA_STROKE_WEIGHT = 1.3;
+
+/* ---------- GROUP DEFINITIONS (fixed membership by code) ---------- */
+const GROUP_DEFS = {
+  kel_central: { name:'Kelowna Central',          codes:['CENT-S','GLNMR'] },
+  kel_south:   { name:'Kelowna South',            codes:['MISS1','MISS2'] },
+  rut_lc:      { name:'Rutland & Lake Country',   codes:['RUT-N','RUT-S','RUT-LC'] },
+  west_kel:    { name:'West Kelowna',             codes:['WEST1','WEST2'] }
+};
+const GROUP_STORAGE_KEY = 'geoGroupState_v1';
 
 /* =================== SUGGESTIONS / SEARCH =================== */
 function hideAllAutocompleteUIs(){
@@ -1294,9 +1315,9 @@ function displayLegs(res,stat){
 }
 function clearLegDisplays(){document.querySelectorAll('.leg-display').forEach(d=>d.remove());}
 
-/* =================== TSP helpers (unchanged) =================== */
+/* =================== TSP helpers (unchanged, fixed Math.sin) =================== */
 function buildDistanceMatrix(points){const n=points.length;const D=Array.from({length:n},()=>Array(n).fill(0));for(let i=0;i<n;i++){for(let j=i+1;j<n;j++){const d=haversine(points[i],points[j]);D[i][j]=D[j][i]=d;} }return D;}
-function haversine(a,b){const R=6371;const toRad=x=>x*Math.PI/180;const dLat=toRad(b.lat-a.lat);const dLng=toRad(b.lng-a.lng);const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(s));}
+function haversine(a,b){const R=6371;const toRad=x=>x*Math.PI/180;const dLat=toRad(b.lat-a.lat);const dLng=toRad(b.lng-a.lng);const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(s));}
 function orderCost(order,D){let c=0; for(let i=0;i<order.length-1;i++) c+=D[order[i]][order[i+1]]; return c;}
 function nearestNeighbour(D,start=0){const n=D.length; const visited=Array(n).fill(false); const ord=[start]; visited[start]=true; for(let k=1;k<n;k++){const last=ord[ord.length-1]; let best=Infinity,idx=-1; for(let j=0;j<n;j++){ if(!visited[j] && D[last][j]<best){best=D[last][j]; idx=j;} } ord.push(idx); visited[idx]=true;} return ord;}
 function twoOpt(order,D){const n=order.length; let improved=true; while(improved){improved=false; for(let i=1;i<n-2;i++){for(let j=i+1;j<n-1;j++){const a=order[i-1],b=order[i],c=order[j],d=order[j+1]; if(D[a][b]+D[c][d] > D[a][c]+D[b][d]){ order.splice(i,j-i+1,...order.slice(i,j+1).reverse()); improved=true; }}}} return order;}
@@ -1355,10 +1376,11 @@ function initRegionLabelOverlay(){
   };
 }
 
-/* =================== GEOJSON + POLYGON PANEL (NEW) =================== */
+/* =================== GEOJSON + GROUPED POLYGON PANEL =================== */
 const ALL_FEATURES = [];                 // all features across files
-const POLY_STORAGE_KEY = 'geoPolyState_v1';
+const POLY_STORAGE_KEY = 'geoPolyState_v2';
 let POLY_STATE = {};                     // { code: { visible, name, color } }
+let GROUP_STATE = {};                    // { groupKey: { name, expanded } }
 let dataAttached = true, deferWhileInteract = false, reattachTO = 0;
 
 function areaCodeFromFeature(feat){
@@ -1383,17 +1405,17 @@ function styleFeature(feature){
   };
 }
 
-function loadSavedPolyState(){
-  try{ const v = JSON.parse(localStorage.getItem(POLY_STORAGE_KEY)||'{}'); if(v && typeof v==='object') return v; }catch(_){}
-  return {};
-}
-function savePolyState(){ try{ localStorage.setItem(POLY_STORAGE_KEY, JSON.stringify(POLY_STATE)); }catch(_){ } }
+/* --- persistence --- */
+function loadSaved(key, fallback){ try{ const v = JSON.parse(localStorage.getItem(key)||'null'); return v && typeof v==='object' ? v : fallback; }catch(_){ return fallback; } }
+function saveSaved(key, obj){ try{ localStorage.setItem(key, JSON.stringify(obj)); }catch(_){ } }
 
+/* helpers */
 function getFeaturesByCode(code){ return ALL_FEATURES.filter(f => (f.getProperty('__code')||'') === code); }
 
 async function loadGeoLayers(){
   map.data.setStyle(styleFeature);
-  const saved = loadSavedPolyState();
+  const savedPolys  = loadSaved(POLY_STORAGE_KEY, {});
+  const savedGroups = loadSaved(GROUP_STORAGE_KEY, {});
 
   for (const layer of LAYERS){
     try{
@@ -1404,7 +1426,7 @@ async function loadGeoLayers(){
       feats.forEach(f=>{
         const code = areaCodeFromFeature(f);
         const fallbackName = f.getProperty('name') || f.getProperty('Name') || code || '';
-        const savedRow = code ? saved[code] : null;
+        const savedRow = code ? savedPolys[code] : null;
 
         f.setProperty('__layer', layer.id);
         f.setProperty('__code', code);
@@ -1434,15 +1456,26 @@ async function loadGeoLayers(){
       color:   any?.getProperty('__color') || AREA_COLORS[code] || '#607d8b'
     };
   });
-  savePolyState();
+  saveSaved(POLY_STORAGE_KEY, POLY_STATE);
+
+  // groups: start with definitions, then apply saved names/expansion
+  GROUP_STATE = {};
+  Object.keys(GROUP_DEFS).forEach(k=>{
+    GROUP_STATE[k] = {
+      name: savedGroups?.[k]?.name || GROUP_DEFS[k].name,
+      expanded: savedGroups?.[k]?.expanded !== false   // default expanded
+    };
+  });
+  saveSaved(GROUP_STORAGE_KEY, GROUP_STATE);
 
   buildDrawerUI();
   applyVisibility();
 }
 
-/* visibility + filter */
+/* visibility + filter (groups + rows) */
 function applyVisibility(){
-  const q = (document.getElementById('filterText')?.value || '').trim().toUpperCase();
+  const qRaw = (document.getElementById('filterText')?.value || '').trim();
+  const q = qRaw.toUpperCase();
 
   ALL_FEATURES.forEach(f=>{
     const code = (f.getProperty('__code') || '').toUpperCase();
@@ -1454,124 +1487,94 @@ function applyVisibility(){
   });
   map.data.setStyle(styleFeature);
 
-  // also filter list rows
-  const list = document.getElementById('polysList');
-  if(!list) return;
-  [...list.querySelectorAll('.poly-row')].forEach(row=>{
-    const code = row.dataset.code;
-    const nm = (POLY_STATE[code]?.name || code).toUpperCase();
-    const match = !q || code.toUpperCase().includes(q) || nm.includes(q);
-    row.style.display = match ? '' : 'none';
+  // filter UI
+  const root = document.getElementById('groupsRoot');
+  if(!root) return;
+  [...root.querySelectorAll('.group')].forEach(g=>{
+    const gkey = g.dataset.group;
+    const gName = (GROUP_STATE[gkey]?.name || '').toUpperCase();
+    const rows  = [...g.querySelectorAll('.poly-row')];
+
+    // Decide which rows match
+    let anyRowMatch = false;
+    rows.forEach(r=>{
+      const code = r.dataset.code;
+      const nm = (POLY_STATE[code]?.name || code).toUpperCase();
+      const match = !q || code.toUpperCase().includes(q) || nm.includes(q);
+      r.style.display = match ? '' : 'none';
+      if(match) anyRowMatch = true;
+    });
+
+    // Group matches if name matches OR a child matches
+    const groupMatches = !q || gName.includes(q) || anyRowMatch;
+
+    g.style.display = groupMatches ? '' : 'none';
+
+    // If only group name matches (no child rows), show all rows in that group
+    if(q && gName.includes(q) && !anyRowMatch){
+      rows.forEach(r=> r.style.display='');
+    }
   });
 }
 
-/* Drawer UI */
+/* Drawer UI with groups */
 function buildDrawerUI(){
   const btn = document.getElementById('areasBtn');
   const drawer = document.getElementById('areasDrawer');
+  const closeBtn = document.getElementById('drawerClose');
   const setOpen = (open) => {
     drawer.classList.toggle('open', open);
     drawer.setAttribute('aria-hidden', open ? 'false':'true');
     btn.classList.toggle('open', open);
   };
   btn.onclick = ()=> setOpen(!drawer.classList.contains('open'));
+  closeBtn.onclick = ()=> setOpen(false);
 
-  // rows
-  const list = document.getElementById('polysList');
-  list.innerHTML = '';
-  const sortedCodes = Object.keys(POLY_STATE).sort((a,b)=>{
-    const na=(POLY_STATE[a]?.name||a).toUpperCase();
-    const nb=(POLY_STATE[b]?.name||b).toUpperCase();
-    return na.localeCompare(nb);
-  });
+  // groups/root
+  const root = document.getElementById('groupsRoot');
+  root.innerHTML = '';
 
-  const makeRow = (code)=>{
-    const st = POLY_STATE[code];
-    const row = document.createElement('div');
-    row.className='poly-row';
-    row.dataset.code = code;
+  // Build groups in the order defined in GROUP_DEFS
+  Object.keys(GROUP_DEFS).forEach(gkey=>{
+    const gWrap = document.createElement('div');
+    gWrap.className = 'group' + (GROUP_STATE[gkey]?.expanded===false ? ' collapsed':'');
+    gWrap.dataset.group = gkey;
 
-    // checkbox
-    const ckWrap = document.createElement('div');
-    ckWrap.className = 'ck';
-    ckWrap.innerHTML = `<input type="checkbox" ${st.visible?'checked':''} aria-label="Toggle ${st.name}">`;
-    ckWrap.querySelector('input').style.setProperty('--accent-color', st.color);
-    ckWrap.querySelector('input').style.accentColor = st.color;
+    const gHead = document.createElement('div');
+    gHead.className = 'group-header';
+    gHead.innerHTML = `
+      <button class="toggle" type="button" title="Expand/Collapse">
+        <span class="material-icons">expand_more</span>
+      </button>
+      <input type="text" class="gname" value="${(GROUP_STATE[gkey]?.name||GROUP_DEFS[gkey].name).replace(/"/g,'&quot;')}" spellcheck="false">
+    `;
 
-    // name input + badge
-    const nameWrap = document.createElement('div');
-    nameWrap.className = 'name';
-    const tag = document.createElement('span');
-    tag.className = 'badgeCode';
-    tag.textContent = code;
-    const nameInput = document.createElement('input');
-    nameInput.type = 'text';
-    nameInput.value = st.name || code;
-    nameInput.placeholder = code;
-    nameInput.spellcheck = false;
-    nameInput.setAttribute('data-code', code);
-    nameWrap.appendChild(tag);
-    nameWrap.appendChild(nameInput);
+    const gBody = document.createElement('div');
+    gBody.className = 'group-body';
 
-    // zoom (eye)
-    const zoomBtn = document.createElement('button');
-    zoomBtn.className = 'zoom';
-    zoomBtn.title = `Zoom to ${st.name || code}`;
-    zoomBtn.innerHTML = `<span class="material-icons">visibility</span>`;
+    // Add rows for codes in this group (only those present)
+    GROUP_DEFS[gkey].codes
+      .filter(code => code in POLY_STATE)
+      .forEach(code => gBody.appendChild(makePolyRow(code)));
 
-    // color swatch + hidden color input
-    const swatch = document.createElement('button');
-    swatch.className = 'swatch';
-    swatch.title = `Change color for ${st.name || code}`;
-    swatch.style.background = st.color;
+    gWrap.appendChild(gHead);
+    gWrap.appendChild(gBody);
+    root.appendChild(gWrap);
 
-    const colorInput = document.createElement('input');
-    colorInput.type = 'color';
-    colorInput.value = st.color;
-    colorInput.setAttribute('data-code', code);
-
-    // assemble
-    row.appendChild(ckWrap);
-    row.appendChild(nameWrap);
-    row.appendChild(zoomBtn);
-    row.appendChild(swatch);
-    row.appendChild(colorInput);
-    list.appendChild(row);
-
-    // events
-    ckWrap.querySelector('input').addEventListener('change', (e)=>{
-      POLY_STATE[code].visible = !!e.target.checked; savePolyState();
-      getFeaturesByCode(code).forEach(f=> f.setProperty('__visible', POLY_STATE[code].visible));
-      applyVisibility();
+    // events for header
+    gHead.querySelector('.toggle').addEventListener('click', ()=>{
+      const now = !gWrap.classList.contains('collapsed');
+      gWrap.classList.toggle('collapsed', now);
+      GROUP_STATE[gkey].expanded = !now;
+      saveSaved(GROUP_STORAGE_KEY, GROUP_STATE);
     });
-
-    nameInput.addEventListener('input', debounce(()=>{
-      POLY_STATE[code].name = (nameInput.value||'').trim() || code; savePolyState();
-      getFeaturesByCode(code).forEach(f=> f.setProperty('__name', POLY_STATE[code].name));
+    const nameInp = gHead.querySelector('.gname');
+    nameInp.addEventListener('input', debounce(()=>{
+      GROUP_STATE[gkey].name = (nameInp.value||'').trim() || GROUP_DEFS[gkey].name;
+      saveSaved(GROUP_STORAGE_KEY, GROUP_STATE);
       applyVisibility();
     }, 120));
-
-    zoomBtn.addEventListener('click', ()=>{
-      const feats = getFeaturesByCode(code); if(!feats.length) return;
-      const b = new google.maps.LatLngBounds();
-      feats.forEach(f=>{
-        try{ f.getGeometry().forEachLatLng(latlng => b.extend(latlng)); }catch(_){}
-      });
-      if(!b.isEmpty()) map.fitBounds(b, {top:80,right:20,bottom:20,left:20});
-    });
-
-    swatch.addEventListener('click', ()=> colorInput.click());
-    colorInput.addEventListener('input', ()=>{
-      const hex = colorInput.value;
-      POLY_STATE[code].color = hex; savePolyState();
-      swatch.style.background = hex;
-      ckWrap.querySelector('input').style.accentColor = hex;
-      getFeaturesByCode(code).forEach(f=> f.setProperty('__color', hex));
-      map.data.setStyle(styleFeature);
-    });
-  };
-
-  sortedCodes.forEach(makeRow);
+  });
 
   // style sliders
   const op = document.getElementById('opacityRange');
@@ -1598,6 +1601,70 @@ function buildDrawerUI(){
   const ft = document.getElementById('filterText');
   document.getElementById('filterClear').onclick=()=>{ ft.value=''; applyVisibility(); };
   ft.addEventListener('input', debounce(applyVisibility, 80));
+}
+
+/* create one polygon row (single checkbox visibility + editable name + color) */
+function makePolyRow(code){
+  const st = POLY_STATE[code];
+  const row = document.createElement('div');
+  row.className='poly-row';
+  row.dataset.code = code;
+
+  // checkbox
+  const ckWrap = document.createElement('div');
+  ckWrap.className = 'ck';
+  ckWrap.innerHTML = `<input type="checkbox" ${st.visible?'checked':''} aria-label="Toggle ${st.name}">`;
+
+  // name input (only one editable — no duplicate label)
+  const nameWrap = document.createElement('div');
+  nameWrap.className = 'name';
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.value = st.name || code;
+  nameInput.placeholder = code;
+  nameInput.spellcheck = false;
+  nameInput.setAttribute('data-code', code);
+  nameWrap.appendChild(nameInput);
+
+  // color swatch + hidden color input
+  const swatch = document.createElement('button');
+  swatch.className = 'swatch';
+  swatch.title = `Change color for ${st.name || code}`;
+  swatch.style.background = st.color;
+  const colorInput = document.createElement('input');
+  colorInput.type = 'color';
+  colorInput.value = st.color;
+  colorInput.setAttribute('data-code', code);
+
+  // assemble
+  row.appendChild(ckWrap);
+  row.appendChild(nameWrap);
+  row.appendChild(swatch);
+  row.appendChild(colorInput);
+
+  // events
+  ckWrap.querySelector('input').addEventListener('change', (e)=>{
+    POLY_STATE[code].visible = !!e.target.checked; saveSaved(POLY_STORAGE_KEY, POLY_STATE);
+    getFeaturesByCode(code).forEach(f=> f.setProperty('__visible', POLY_STATE[code].visible));
+    applyVisibility();
+  });
+
+  nameInput.addEventListener('input', debounce(()=>{
+    POLY_STATE[code].name = (nameInput.value||'').trim() || code; saveSaved(POLY_STORAGE_KEY, POLY_STATE);
+    getFeaturesByCode(code).forEach(f=> f.setProperty('__name', POLY_STATE[code].name));
+    applyVisibility();
+  }, 120));
+
+  swatch.addEventListener('click', ()=> colorInput.click());
+  colorInput.addEventListener('input', ()=>{
+    const hex = colorInput.value;
+    POLY_STATE[code].color = hex; saveSaved(POLY_STORAGE_KEY, POLY_STATE);
+    swatch.style.background = hex;
+    getFeaturesByCode(code).forEach(f=> f.setProperty('__color', hex));
+    map.data.setStyle(styleFeature);
+  });
+
+  return row;
 }
 
 /* Optional helpers kept (no UI toggle) */
