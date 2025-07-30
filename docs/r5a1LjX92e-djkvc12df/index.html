@@ -174,11 +174,23 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 #addrBarHeader{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:500;font-size:15px;}
 #addrTitle{flex:1;}
 #addrToggles{display:flex;gap:6px;}
-.toggleChip{padding:3px 10px;border-radius:14px;border:1px solid #bbb;font-size:12px;cursor:pointer;user-select:none;line-height:16px;display:inline-block;min-width:46px;text-align:center;}
+/* add transitions so hover feels snappy */
+.toggleChip{
+  padding:3px 10px;border-radius:14px;border:1px solid #bbb;font-size:12px;cursor:pointer;user-select:none;line-height:16px;display:inline-block;min-width:46px;text-align:center;
+  transition: background var(--transFast), color var(--transFast), border-color var(--transFast), box-shadow var(--transFast);
+}
 .toggleChip.day  {border-color:var(--f-afternoon);color:var(--f-afternoon);}
 .toggleChip.night{border-color:var(--f-evening);color:var(--f-evening);}
 .toggleChip.active.day  {background:var(--f-afternoon);color:#fff;}
 .toggleChip.active.night{background:var(--f-evening);color:#fff;}
+
+/* Hover feedback for Day/Night to match Optimize */
+.toggleChip.day:hover, .toggleChip.day:focus-visible{
+  background:var(--f-afternoon); color:#fff;
+}
+.toggleChip.night:hover, .toggleChip.night:focus-visible{
+  background:var(--f-evening); color:#fff;
+}
 
 #addrAdd{display:none;}
 #addrList .row{margin:6px 0;}
@@ -225,7 +237,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   color:var(--label-ink);
   border:1px solid var(--label-border);
   border-radius:16px;
-  box-shadow:0 2px 5px rgba(0,0,0,.06);
+  box-shadow:0 2px 8px rgba(0,0,0,.10); /* slightly softer shadow */
 }
 
 /* subtle halo */
@@ -252,13 +264,23 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.5), 0 0 0 1px rgba(0,0,0,.05);
 }
 
+/* accent pill that wraps the title */
+.titlewrap{
+  display:inline-block;
+  padding:3px 10px;
+  border-radius:12px;
+  background: color-mix(in srgb, var(--accent) 16%, #fff);
+  border:1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.6);
+}
+
 /* title */
 .title{
   font-weight:800; letter-spacing:.35px; text-transform:uppercase;
   white-space:nowrap; font-size:14px;
 }
 
-/* close button */
+/* close button (kept for compatibility, not used) */
 .close{
   margin-left:6px; width:22px; height:22px; border-radius:50%;
   display:inline-flex; align-items:center; justify-content:center;
@@ -332,6 +354,10 @@ const INITIAL_FLAT_ROWS    = 2;
 
 /* color mode: 'hash' or 'uniform' */
 const LABEL_COLOR_MODE = 'hash';
+
+/* label animation settings */
+const LABEL_USE_ANIM = false;   // false: instant show/hide; true: animate
+const LABEL_ANIM_MS  = 30;      // animation duration when enabled
 
 const TOL_PCT = 0.03, TOL_KM = 0.30;
 
@@ -1344,8 +1370,8 @@ function initRegionLabelOverlay(){
         {opacity:1, transform:'translate(-50%,-112%) scale(1.00)'},
         {opacity:0, transform:'translate(-50%,-100%) scale(.96)'}
       ];
-      this.optIn  = {duration:90,  easing:'cubic-bezier(.2,.9,.2,1)', fill:'forwards'};
-      this.optOut = {duration:80,  easing:'cubic-bezier(.2,.7,.2,1)', fill:'forwards'};
+      this.optIn  = {duration:LABEL_ANIM_MS,  easing:'cubic-bezier(.2,.9,.2,1)', fill:'forwards'};
+      this.optOut = {duration:LABEL_ANIM_MS,  easing:'cubic-bezier(.2,.7,.2,1)', fill:'forwards'};
     }
     onAdd(){
       const div=document.createElement('div');
@@ -1353,15 +1379,13 @@ function initRegionLabelOverlay(){
       div.innerHTML =
         `<div class="badge" style="--accent:${this.accent}">
            <span class="accent"></span>
-           <span class="title">${this.text}</span>
-           <span class="close material-icons" title="Close">close</span>
+           <span class="titlewrap"><span class="title">${this.text}</span></span>
          </div>`;
-      div.querySelector('.close').onclick=()=>this.setMap(null);
 
       this.container=div;
       this.getPanes().floatPane.appendChild(div);
 
-      if(typeof div.animate === 'function'){
+      if(LABEL_USE_ANIM && typeof div.animate === 'function'){
         div.animate(this.kfIn, this.optIn);
       }else{
         div.style.opacity='1';
@@ -1378,8 +1402,7 @@ function initRegionLabelOverlay(){
       if(!this.container) return;
       const el=this.container;
       this.container=null;
-      const can = typeof el.animate === 'function';
-      if(can){
+      if(LABEL_USE_ANIM && typeof el.animate === 'function'){
         try{ el.getAnimations().forEach(a=>a.cancel()); }catch(_){}
         el.animate(this.kfOut, this.optOut).finished.then(()=>el.remove()).catch(()=>el.remove());
       }else{
