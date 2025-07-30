@@ -246,15 +246,24 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .gm-style .app-viewcard-strip{ display:none !important; }
 
 /* ===========================================================
-   NEW: RIGHT DRAWER FOR AREAS (layers/colors/filter/perf)
+   NEW: RIGHT DRAWER + SLIM TAB (doesn't block fullscreen)
    =========================================================== */
+/* Slim tab on right edge */
 #areasBtn{
-  position:absolute; right:12px; top:12px; z-index:8;
-  background:#fff; border:1px solid #d7d7d7; border-radius:10px; padding:8px 10px;
-  box-shadow:0 2px 6px rgba(0,0,0,.25); cursor:pointer; font-weight:600;
+  position:absolute; right:0; top:50%; transform:translateY(-50%);
+  z-index:8;
+  background:#fff;
+  border:1px solid #d7d7d7; border-right:none;
+  border-top-left-radius:10px; border-bottom-left-radius:10px;
+  padding:8px 10px;
+  width:38px; height:auto; cursor:pointer; font-weight:600; box-shadow:0 2px 6px rgba(0,0,0,.25);
+  display:flex; align-items:center; justify-content:center;
 }
+#areasBtn .material-icons{font-size:22px; line-height:22px; transition:transform .18s ease;}
+#areasBtn.open .material-icons{ transform:rotate(180deg); }
+
 #areasDrawer{
-  position:absolute; right:12px; top:58px; z-index:8; width:320px;
+  position:absolute; right:12px; top:58px; z-index:8; width:340px;
   max-height:calc(100% - 70px); overflow:auto;
   background:#fff; border:1px solid #d7d7d7; border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,.18);
   transform:translateX(calc(100% + 16px)); transition:transform .18s ease;
@@ -272,6 +281,23 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .badgeCode{ display:inline-block; min-width:60px; font-weight:700; font-size:12px; padding:2px 6px; border:1px solid #ddd; border-radius:6px; }
 .switch{ display:flex; align-items:center; gap:8px; }
 .switch input{ transform:scale(1.1); }
+
+/* Polygons section layout */
+#polysGrid{
+  display:grid;
+  grid-template-columns: auto 1fr auto;
+  align-items:center;
+  gap:6px 8px;
+}
+.polyRow{ display:contents; } /* let the three cells participate in the grid */
+.polyRow label{ display:flex; align-items:center; gap:8px; font-size:13px; }
+.polyRow input[type="text"]{
+  width:100%; border:1px solid #ccc; border-radius:6px; padding:6px 8px; font-size:13px;
+}
+.polyRow .eye{
+  cursor:pointer; font-size:20px; line-height:20px; color:#666; user-select:none;
+}
+.polyRow .eye.off{ color:#bbb; }
 </style>
 
 <script>
@@ -315,15 +341,24 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 <!-- ---------- OUR dropdown root ---------- -->
 <div id="sgRoot" class="sg"><ul></ul></div>
 
-<!-- ---------- RIGHT DRAWER BUTTON + PANEL ---------- -->
-<button id="areasBtn" type="button">Areas</button>
+<!-- ---------- RIGHT DRAWER TAB + PANEL ---------- -->
+<button id="areasBtn" type="button" aria-label="Open Areas drawer" title="Areas">
+  <span class="material-icons">chevron_left</span>
+</button>
+
 <div id="areasDrawer" aria-hidden="true">
-  <header>Areas: Layers • Colors • Filter</header>
+  <header>Areas: Layers • Polygons • Colors • Filter</header>
 
   <div class="sec" id="secLayers">
     <h4>Layers</h4>
     <!-- checkboxes inserted by JS -->
     <div id="layersGrid" class="grid"></div>
+  </div>
+
+  <div class="sec" id="secPolys">
+    <h4>Polygons</h4>
+    <div class="hint">Show/hide individual polygons & rename their labels.</div>
+    <div id="polysGrid"></div>
   </div>
 
   <div class="sec" id="secFilter">
@@ -406,6 +441,10 @@ const AREA_COLORS = {
 };
 let AREA_FILL_OPACITY = 0.20;
 let AREA_STROKE_WEIGHT = 1.3;
+
+/* ---------- PER‑CODE VISIBILITY + RENAMES ---------- */
+const codeState  = {};   // code -> visible (default true)
+const codeNames  = {};   // code -> override display name (optional)
 
 function hideAllAutocompleteUIs(){
   document.querySelectorAll('.pac-container').forEach(el=>{
@@ -1343,8 +1382,16 @@ async function loadGeoLayers(){
       console.warn('GeoJSON load failed for', layer.file, err);
     }
   }
+  // Initialize codeState & names based on features present
+  collectCodes().forEach(code => { if(!(code in codeState)) codeState[code] = true; });
   buildDrawerUI();     // now we know layers & codes
   applyVisibility();   // ensure filters/visibility consistent
+}
+
+function collectCodes(){
+  const set = new Set(Object.keys(AREA_COLORS));
+  ALL_FEATURES.forEach(f=>{ const c=f.getProperty('__code'); if(c) set.add(c); });
+  return Array.from(set).sort();
 }
 
 /* ---------- Visibility & filtering ---------- */
@@ -1355,21 +1402,23 @@ function applyVisibility(){
     const code = (f.getProperty('__code') || '').toUpperCase();
     const name = (f.getProperty('__name') || '').toUpperCase();
     const match = !q || code.includes(q) || name.includes(q);
-    f.setProperty('__visible', inLayer && match);
+    const codeVisible = (code in codeState) ? !!codeState[code] : true;
+    f.setProperty('__visible', inLayer && codeVisible && match);
   });
   map.data.setStyle(styleFeature);
 }
 
 /* ---------- Drawer UI ---------- */
 function buildDrawerUI(){
-  // Button open/close
+  // Button open/close (slim tab)
   const btn = document.getElementById('areasBtn');
   const drawer = document.getElementById('areasDrawer');
-  btn.onclick = ()=>{
-    const open = !drawer.classList.contains('open');
+  const setOpen = (open) => {
     drawer.classList.toggle('open', open);
     drawer.setAttribute('aria-hidden', open ? 'false':'true');
+    btn.classList.toggle('open', open);
   };
+  btn.onclick = ()=> setOpen(!drawer.classList.contains('open'));
 
   // Layers
   const lg = document.getElementById('layersGrid');
@@ -1385,6 +1434,71 @@ function buildDrawerUI(){
     const cb = e.target.closest('input[type="checkbox"]');
     if(!cb) return;
     layerState[cb.dataset.layer] = cb.checked;
+    applyVisibility();
+  });
+
+  // Polygons (per‑code visibility + rename)
+  const pg = document.getElementById('polysGrid');
+  pg.innerHTML = '';
+  const codes = collectCodes();
+  codes.forEach(code=>{
+    // left: checkbox + code badge
+    const left = document.createElement('div');
+    left.className='polyRow';
+    left.innerHTML = `
+      <label style="grid-column:1/2;">
+        <input type="checkbox" data-poly="${code}" ${ (codeState[code]??true) ? 'checked':'' }>
+        <span class="badgeCode">${code}</span>
+      </label>
+      <div style="grid-column:2/3;">
+        <input type="text" class="polyName" data-poly="${code}" placeholder="Label for ${code}">
+      </div>
+      <div style="grid-column:3/4; display:flex; justify-content:flex-end;">
+        <span class="material-icons eye ${ (codeState[code]??true) ? '' : 'off'}" data-eye="${code}" title="Show/Hide">visibility</span>
+      </div>`;
+    pg.appendChild(left);
+  });
+
+  // Seed name inputs with current names
+  codes.forEach(code=>{
+    const inp = pg.querySelector(`.polyName[data-poly="${code}"]`);
+    if(!inp) return;
+    const f = ALL_FEATURES.find(ff => (ff.getProperty('__code')||'') === code);
+    const nm = (code in codeNames) ? codeNames[code] : (f ? (f.getProperty('__name')||code) : code);
+    inp.value = nm;
+  });
+
+  pg.addEventListener('change', (e)=>{
+    const cb = e.target.closest('input[type="checkbox"][data-poly]');
+    if(!cb) return;
+    const code = cb.dataset.poly;
+    codeState[code] = cb.checked;
+    const eye = pg.querySelector(`.eye[data-eye="${code}"]`);
+    if(eye) eye.classList.toggle('off', !cb.checked);
+    applyVisibility();
+  });
+  pg.addEventListener('input', debounce((e)=>{
+    const inp = e.target.closest('input.polyName[data-poly]');
+    if(!inp) return;
+    const code = inp.dataset.poly;
+    const val  = (inp.value||'').trim();
+    codeNames[code] = val;
+    // Push name to all features for this code
+    ALL_FEATURES.forEach(f=>{
+      if((f.getProperty('__code')||'') === code){
+        f.setProperty('__name', val || code);
+      }
+    });
+  }, 120));
+  pg.addEventListener('click', (e)=>{
+    const eye = e.target.closest('.eye[data-eye]');
+    if(!eye) return;
+    const code = eye.dataset.eye;
+    const next = !(codeState[code] ?? true);
+    codeState[code] = next;
+    const cb = pg.querySelector(`input[type="checkbox"][data-poly="${code}"]`);
+    if(cb) cb.checked = next;
+    eye.classList.toggle('off', !next);
     applyVisibility();
   });
 
@@ -1568,7 +1682,7 @@ window.routePlannerInit=()=>{
       if(e.key==='F1') toggleShift('day');
       else if(e.key==='F2') toggleShift('night');
       else if(e.key==='F3') clearAllStops();
-      else if(e.key==='F4'){ if(!flatMode){ autoResolveNext=true; optimizeByFramesTwoPass(); } }
+      else if(e.key==='F4'){ if(!flatMode){ autoResolveNext=true; optimizeByFramesTwoPass?.(); } }
     }
     function onUp(e){
       if(!['F1','F2','F3','F4'].includes(e.key)) return;
