@@ -173,7 +173,6 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .toggleChip.active.day  {background:var(--f-afternoon);color:#fff;}
 .toggleChip.active.night{background:var(--f-evening);color:#fff;}
 
-/* Make Optimize look like a chip */
 #flatButtons{display:flex;gap:8px;align-items:center;}
 #flatOpt{all:unset;}
 #flatOpt{display:inline-block; padding:3px 10px; border-radius:14px; border:1px solid #bbb; font-size:12px; line-height:16px; cursor:pointer; user-select:none; color:var(--clrB); border-color:var(--clrB); background:#fff;}
@@ -191,7 +190,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .sg li:hover,.sg li.active{background:#e8f1fe;}
 .sg small{opacity:.7;margin-left:6px;}
 
-/* ---------- REGION LABEL OVERLAY (snappy + fun) ---------- */
+/* ---------- REGION LABEL OVERLAY ---------- */
 .region-label{
   position:absolute; transform:translate(-50%,-100%); z-index:1000; pointer-events:auto;
   opacity:0;
@@ -217,7 +216,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   padding:9px 12px;
   color:#131418;
 }
-.region-card::after{ /* pointer */
+.region-card::after{
   content:""; position:absolute; left:24px; bottom:-8px;
   width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid rgba(255,255,255,0.95);
   filter:drop-shadow(0 2px 2px rgba(0,0,0,.12));
@@ -230,12 +229,6 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 }
 .region-close{ margin-left:auto; cursor:pointer; color:#444; font-size:18px; line-height:18px; }
 .region-close:hover{ color:#000; }
-
-/* CSS‑level attempt to hide Visual‑Search when not in shadow DOM */
-.gm-style [aria-label*="Visual"],
-.gm-style [title*="Visual"],
-.gm-style [aria-label*="Lens"],
-.gm-style [title*="Lens"]{ display:none !important; }
 </style>
 
 <script>
@@ -285,8 +278,6 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 /* =================== CONFIG / CONSTANTS =================== */
 const BASE_EMPTY_PER_FRAME = 4;
 const INITIAL_FLAT_ROWS    = 2;
-
-/* label color mode: 'uniform' => use --label-accent; 'hash' => per‑name hues */
 const LABEL_COLOR_MODE = 'uniform';
 
 const TOL_PCT = 0.03, TOL_KM = 0.30;
@@ -1155,7 +1146,7 @@ function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){const n=D.leng
 /* -------- Optimize by Frames (F4) -------- */
 async function optimizeByFramesTwoPass(){
   if (flatMode) return;  // Only for Day/Night view
-  clearLegDisplays(); // avoid duplicate leg lines during reorder
+  clearLegDisplays();
 
   const dist = (a,b)=>{
     if(!a||!b) return 0;
@@ -1361,71 +1352,6 @@ window.routePlannerInit=()=>{
   const sv = map.getStreetView();
   sv.addListener('visible_changed', () => enforcePanelVisibility());
   enforcePanelVisibility();
-
-  /* ---------- Robust Visual‑Search / Lens hider ---------- */
-  (function robustHideLens(){
-    const CSS_TEXT = `
-      [aria-label*="Visual"],[title*="Visual"],
-      [aria-label*="Lens"],[title*="Lens"],
-      .widget-visual-search,.scene-viewcard-button,.app-viewcard-strip{ display:none !important; }`;
-
-    const styleOn = (root)=>{
-      try{
-        if(!root) return;
-        if(root.__lensStyleApplied) return;
-        const st=document.createElement('style'); st.textContent=CSS_TEXT;
-        root.appendChild(st); root.__lensStyleApplied=true;
-      }catch(_){}
-    };
-
-    const isTarget = (el)=>{
-      try{
-        const aria=(el.getAttribute?.('aria-label')||'').toLowerCase();
-        const title=(el.getAttribute?.('title')||'').toLowerCase();
-        const txt=(el.textContent||'').toLowerCase();
-        return (aria.includes('visual')||aria.includes('lens')||
-                title.includes('visual')||title.includes('lens')||
-                txt.includes('visual search'));
-      }catch(_){return false;}
-    };
-
-    const hideNode = (el)=>{
-      try{
-        let target=el;
-        const host = el.closest('[role="toolbar"],[class*="strip"],[class*="control"],[class*="viewcard"],[class*="immersive"],[jslog]');
-        if(host) target=host;
-        target.style.display='none'; target.hidden=true; target.setAttribute('aria-hidden','true');
-      }catch(_){}
-    };
-
-    const walk = (node)=>{
-      if(!node) return;
-      const S = [node];
-      while(S.length){
-        const n=S.pop();
-        if(!n) continue;
-        if(n instanceof ShadowRoot){ styleOn(n); Array.from(n.children).forEach(ch=>S.push(ch)); continue; }
-        if(n.nodeType===1){
-          const el=n;
-          if(el.shadowRoot){ styleOn(el.shadowRoot); S.push(el.shadowRoot); }
-          if(isTarget(el)) hideNode(el);
-          Array.from(el.children).forEach(ch=>S.push(ch));
-        }
-      }
-    };
-
-    const run = ()=>walk(document.body);
-    run();
-    const mo = new MutationObserver(()=>run());
-    mo.observe(document.body, {subtree:true, childList:true, attributes:true});
-
-    // also try on typical map state changes
-    ['idle','dragend','zoom_changed'].forEach(evt=>map.addListener(evt, run));
-    map.getStreetView().addListener('visible_changed', run);
-
-    // burst a few times during first seconds (when Maps injects controls)
-    let burst=0; const id=setInterval(()=>{ run(); if(++burst>12) clearInterval(id); }, 300);
-  })();
 
   (function attachFunctionKeyTrap(){
     function onDown(e){
