@@ -1114,7 +1114,7 @@ function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){const n=D.leng
 async function optimizeByFramesTwoPass(){
   if (flatMode) return;  // Only for Day/Night view
 
-  // --- Helper distance (km) with lat/lng objects
+  // --- Helper distance (km) with {lat,lng} objects (null-safe)
   const dist = (a,b)=>{
     if(!a||!b) return 0;
     const R=6371, toRad=x=>x*Math.PI/180;
@@ -1130,35 +1130,41 @@ async function optimizeByFramesTwoPass(){
            !sec.classList.contains('collapsed') &&
            sec.style.display!=='none';
   });
-
-  // No work to do
   if(!frames.length) return;
 
-  // Build per-frame options (all possible endpoint choices and orientation)
+  // --- Build per-frame options (all possible endpoint choices and orientation)
+  //     Each option: { internalCost, startPt, endPt, sequenceRows[] }
   const perFrameOptions = [];
 
   for (const fr of frames){
     const list   = document.getElementById('frame-'+fr.id);
     const rows   = [...list.querySelectorAll('.row')];
     const filled = rows.filter(r=>r.querySelector('.stop').value.trim());
-    const empties= rows.filter(r=>!r.querySelector('.stop').value.trim());
 
-    // 0 or 1 address: single option (no internal cost)
+    // 0 or 1 address → single option (no internal cost)
     if (filled.length <= 1){
       const only = filled[0] || null;
       const pt   = only ? {lat:+only.querySelector('.stop').dataset.lat, lng:+only.querySelector('.stop').dataset.lng} : null;
       perFrameOptions.push([{
         internalCost: 0,
         startPt: pt, endPt: pt,
-        sequenceRows: only ? [only] : [],
-        apply: ()=>{ if(only) list.appendChild(only); empties.forEach(r=>list.appendChild(r)); }
+        sequenceRows: only ? [only] : []
       }]);
       continue;
     }
 
-    // Ensure coords
+    // Ensure coordinates for all filled rows in this frame
     const ok = await ensureCoords(filled, {parallel:true});
-    if(!ok) continue;
+    if(!ok){
+      // Fallback: keep current order as the only option
+      const ptsNow = filled.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
+      perFrameOptions.push([{
+        internalCost: 0,
+        startPt: ptsNow[0], endPt: ptsNow[ptsNow.length-1],
+        sequenceRows: filled
+      }]);
+      continue;
+    }
 
     // Points and matrix
     const pts = filled.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
@@ -1178,60 +1184,42 @@ async function optimizeByFramesTwoPass(){
     const m = tour.length;
 
     for(let cut=0; cut<m; cut++){
-      const a = tour[cut];            // ... -> a
-      const b = tour[(cut+1)%m];      // b -> ...
+      const a = tour[cut];            // ... → a
+      const b = tour[(cut+1)%m];      // b → ...
       const removedEdgeCost = D[a][b];
       const internalCost    = tourCost - removedEdgeCost;
 
-      // Build "normal" sequence (start at b, go forward until a)
+      // Forward sequence: start at b, go to a
       const forwardIdx = [];
       for(let t=0;t<m;t++) forwardIdx.push( tour[(cut+1+t)%m] );
-
-      const seqRowsForward = forwardIdx.map(i=>filled[i]);
+      const seqRowsF = forwardIdx.map(i=>filled[i]);
       const startPtF = pts[b], endPtF = pts[a];
 
-      // "reversed" (start at a, go backward until b)
-      const backwardIdx = [...forwardIdx].reverse();
-      const seqRowsBack = backwardIdx.map(i=>filled[i]);
+      // Reverse sequence: start at a, go to b
+      const backIdx  = [...forwardIdx].reverse();
+      const seqRowsB = backIdx.map(i=>filled[i]);
       const startPtB = pts[a], endPtB = pts[b];
 
       options.push({
-        internalCost, startPt:startPtF, endPt:endPtF, sequenceRows:seqRowsForward,
-        apply: ()=>{
-          seqRowsForward.forEach(r=>list.appendChild(r));
-          empties.forEach(r=>list.appendChild(r));
-        }
+        internalCost, startPt:startPtF, endPt:endPtF, sequenceRows:seqRowsF
       });
-
       options.push({
-        internalCost, startPt:startPtB, endPt:endPtB, sequenceRows:seqRowsBack,
-        apply: ()=>{
-          seqRowsBack.forEach(r=>list.appendChild(r));
-          empties.forEach(r=>list.appendChild(r));
-        }
+        internalCost, startPt:startPtB, endPt:endPtB, sequenceRows:seqRowsB
       });
     }
 
     perFrameOptions.push(options);
   }
 
-  // If only one frame, pick its cheapest internal option
-  if (perFrameOptions.length === 1){
-    const best = perFrameOptions[0].reduce((b,o)=> o.internalCost < b.internalCost ? o : b, perFrameOptions[0][0]);
-    best.apply();
-    renumber(); scheduleAutoCompute(0,true);
-    return;
-  }
-
-  // Dynamic programming across frames: choose option per frame to minimize total
+  // --- Dynamic programming across frames: choose option per frame to minimize total
   const N = perFrameOptions.length;
   const dp  = perFrameOptions.map(opts => new Array(opts.length).fill(Infinity));
   const prv = perFrameOptions.map(opts => new Array(opts.length).fill(-1));
 
-  // Init: cost = internalCost of first frame
+  // Init
   perFrameOptions[0].forEach((opt,k)=>{ dp[0][k]=opt.internalCost; });
 
-  // Transition
+  // Transitions
   for(let i=1;i<N;i++){
     perFrameOptions[i].forEach((optK,k)=>{
       let bestCost = Infinity, bestJ = -1;
@@ -1244,7 +1232,7 @@ async function optimizeByFramesTwoPass(){
     });
   }
 
-  // Backtrack
+  // Backtrack best choices
   let lastK = dp[N-1].reduce((bestIdx, v, idx)=> v < dp[N-1][bestIdx] ? idx : bestIdx, 0);
   const chosen = new Array(N);
   for(let i=N-1;i>=0;i--){
@@ -1252,16 +1240,29 @@ async function optimizeByFramesTwoPass(){
     lastK = i>0 ? prv[i][lastK] : -1;
   }
 
-  // Apply chosen orders to DOM
+  // --- Apply chosen orders to DOM, then strip all empties and hide empty frames
   frames.forEach((fr, i)=>{
     const list = document.getElementById('frame-'+fr.id);
     const opt  = perFrameOptions[i][ chosen[i] ];
-    // Re‑append in selected order
+
+    // Re‑append filled rows in selected order (this reorders in the DOM)
     opt.sequenceRows.forEach(r=>list.appendChild(r));
-    // Keep empties at end — they were appended in opt.apply() but we didn’t call it here:
-    const empties = [...list.querySelectorAll('.row')].filter(r=>!r.querySelector('.stop').value.trim());
-    empties.forEach(r=>list.appendChild(r));
+
+    // Move any empties to the end, then remove all empties
+    compactFrameList(list);
+    pruneListGaps(list, /*placeholdersAtEnd*/ 0, /*addPlaceholders*/ false);
+
+    // Prevent the automatic “top-up 4 empties” from resurrecting here
+    if (typeof disableTopUp === 'function') disableTopUp(fr.id);
   });
+
+  // Collapse any visible frames that now have zero filled rows
+  if(dayVisible && typeof collapseEmptyFramesInShift === 'function'){
+    collapseEmptyFramesInShift('day');
+  }
+  if(nightVisible && typeof collapseEmptyFramesInShift === 'function'){
+    collapseEmptyFramesInShift('night');
+  }
 
   renumber();
   scheduleAutoCompute(0,true);
