@@ -37,9 +37,7 @@
 html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 #map{backface-visibility:hidden;transform:translateZ(0);}
 .hidden{display:none!important;}
-
-/* Kill the Google popup UI (we render our own) */
-.pac-container{ display:none !important; }
+.pac-container{ display:none !important; }  /* hide Google popup (we render our own) */
 
 /* ---------- SIDE PANEL ---------- */
 #panel{
@@ -248,18 +246,20 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 const BASE_EMPTY_PER_FRAME = 4;
 const INITIAL_FLAT_ROWS    = 2;
 
+/* tolerances kept (used by earlier versions and available if needed) */
+const TOL_PCT = 0.03;   // 3%
+const TOL_KM  = 0.30;   // 0.3 km
+
 let map,dirSvc,dirRend,geocoder,acService,placeSvc;
 let previewPins=[],routeMarkers=[];
 let autoTimer=null, autoResolveNext=false;
-let dayVisible=true, nightVisible=true, flatMode=false;   // <- visible by default
+
+/* Default view must be FLAT */
+let dayVisible=false, nightVisible=false, flatMode=false;
+
 let OK_BOUNDS;
-
-let __noTopUpUntil = 0;
-
-/* Per‑frame “initialized?” */
 const frameInitialized = new Map();
 
-/* Hide Google’s UI */
 function hideAllAutocompleteUIs(){
   document.querySelectorAll('.pac-container').forEach(el=>{
     el.style.display='none';
@@ -369,7 +369,7 @@ const FRAMES=[
   {id:7,key:'lateev',    name:'Late Evening', start:'21:00', end:'22:30',  color:'var(--f-lateev)',    shift:'night'}
 ];
 
-/* ---------- Timeline helpers ---------- */
+/* ---------- TIMELINE ---------- */
 const mins=(h,m)=>h*60+m;
 const parseHM=t=>{const [h,m]=t.split(':').map(Number);return mins(h,m);};
 const pad=n=>n.toString().padStart(2,'0');
@@ -379,17 +379,13 @@ function scheduleTimelineBuild(){
   if(__tl_req) return;
   __tl_req = requestAnimationFrame(() => { __tl_req = 0; buildTimelineFromDOM(); });
 }
-
-/* Close & blur any input + kill popups */
 function forceCloseAutocomplete(inp){
   try{ inp.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); }catch(e){}
-  inp.blur();
-  hideAllAutocompleteUIs();
-  SG.hide();
+  inp.blur(); hideAllAutocompleteUIs(); SG.hide();
 }
 
 /* =================== UI BUILD (frames/rows) =================== */
-function setFrameCollapsed(id, collapse, source='user'){
+function setFrameCollapsed(id, collapse){
   const el=document.querySelector(`.frame[data-frame="${id}"]`);
   if(!el) return;
   if(collapse) el.classList.add('collapsed'); else el.classList.remove('collapsed');
@@ -411,7 +407,7 @@ function buildFrameBuckets(){
     hideBtn.className='material-icons frame-hide';
     hideBtn.textContent='visibility_off';
     hideBtn.title='Hide / show this time frame';
-    hideBtn.onclick=()=>setFrameCollapsed(fr.id, !sec.classList.contains('collapsed'), 'user');
+    hideBtn.onclick=()=>setFrameCollapsed(fr.id, !sec.classList.contains('collapsed'));
     head.appendChild(hideBtn);
     sec.appendChild(head);
 
@@ -440,15 +436,12 @@ function buildFrameBuckets(){
       group:'stops', handle:'.drag', animation:150,
       onEnd:evt=>{
         evt.item.dataset.frame=list.parentElement.parentElement.dataset.frame;
-        renumber();
-        scheduleAutoCompute(120,false);
-        scheduleTimelineBuild();
+        renumber(); scheduleAutoCompute(120,false); scheduleTimelineBuild();
       }
     });
   });
 
-  // seed visible frames with 4 empties once
-  FRAMES.forEach(fr=>ensurePlaceholdersForFrame(fr.id, {force:true}));
+  // seed (only when a frame becomes visible)
   renumber();
 
   const ro=new ResizeObserver(()=>scheduleTimelineBuild());
@@ -471,7 +464,6 @@ function makeRow(frameId){
   del.addEventListener('mousedown', e=>{ e.preventDefault(); e.stopPropagation(); }, true);
   del.addEventListener('click', e=>{
     e.preventDefault(); e.stopPropagation();
-    const fid=+d.dataset.frame;
     d.remove();
     renumber();
     scheduleAutoCompute(120,false);
@@ -502,12 +494,11 @@ function ensurePlaceholdersForFrame(frameId,{force=false}={}){
   const sec=list.closest('.frame');
   const visible = sec.style.display!=='none' && !flatMode && !sec.classList.contains('collapsed');
   if(!visible) return;
+  if(frameInitialized.get(frameId) && !force) return;
 
-  if(!frameInitialized.get(frameId) || force){
-    frameInitialized.set(frameId,true);
-    const cur=list.querySelectorAll('.row').length;
-    for(let i=cur;i<BASE_EMPTY_PER_FRAME;i++) addRowToFrame(frameId,false,false);
-  }
+  frameInitialized.set(frameId,true);
+  const cur=list.querySelectorAll('.row').length;
+  for(let i=cur;i<BASE_EMPTY_PER_FRAME;i++) addRowToFrame(frameId,false,false);
 }
 
 /* =================== TIMELINE (per-frame; fused) =================== */
@@ -572,8 +563,7 @@ function rowSelectToggle(e){
 }
 function setSelected(row,on){
   document.querySelectorAll('.row.selected').forEach(r=>r.classList.remove('selected'));
-  if(on) row.classList.add('selected');
-  showDeleteBtns();
+  if(on) row.classList.add('selected'); showDeleteBtns();
 }
 function showDeleteBtns(){
   const any=document.querySelector('.row.selected');
@@ -623,7 +613,7 @@ function renumber(){
   });
 }
 
-/* =================== INPUT / AUTOCOMPLETE (with our dropdown) =================== */
+/* =================== INPUT / AUTOCOMPLETE =================== */
 function attachInputEvents(inp){
   inp.addEventListener('mousedown',ev=>{
     if(document.activeElement!==inp){ ev.preventDefault(); safeFocus(inp); setTimeout(()=>inp.select(),0); }
@@ -639,7 +629,6 @@ function attachInputEvents(inp){
     inp.closest('.row').classList.remove('focused');
     setTimeout(()=>{ if(document.activeElement!==inp) SG.hide(); }, 150);
   });
-
   inp.addEventListener('input',()=>{
     inp.dataset.dirty='1'; inp.dataset.lat=''; inp.dataset.lng='';
     scheduleAutoCompute(200,false);
@@ -650,7 +639,7 @@ function attachInputEvents(inp){
     }
   });
 
-  // Arrow navigation within our dropdown
+  // Arrow nav inside our dropdown
   inp.addEventListener('keydown', e=>{
     if(!SG.isOpen()) return;
     if(e.key==='ArrowDown'){ e.preventDefault(); SG.move(+1); }
@@ -662,15 +651,11 @@ function attachInputEvents(inp){
     const isAdvanceKey = (e.key === 'Enter') || (e.key === 'Tab' && !e.shiftKey);
     if (!isAdvanceKey) return;
 
-    e.preventDefault();
-    e.stopPropagation();
-    e.stopImmediatePropagation();
-
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
     forceCloseAutocomplete(inp);
 
     if(SG.isOpen() && e.key==='Enter'){ SG.chooseHot(); return; }
 
-    // Move focus immediately (we run accept in the background)
     if (flatMode) { focusNextInFlatOrCreate(inp, true); }
     else          { focusNextInFrameOrCreate(inp, true); }
 
@@ -682,7 +667,7 @@ function attachInputEvents(inp){
   inp.addEventListener('paste',multiPaste);
 }
 
-/* ---------- Focus helpers for next/prev ---------- */
+/* ---------- Focus helpers ---------- */
 function focusNextInFrameOrCreate(currentInput, queueOnly=false){
   const currentRow = currentInput.closest('.row');
   const frameId    = +currentRow.dataset.frame;
@@ -695,7 +680,6 @@ function focusNextInFrameOrCreate(currentInput, queueOnly=false){
   if(firstEmptyAfter){
     target = firstEmptyAfter.querySelector('.stop');
   }else{
-    // if there is a next row, insert after the current; otherwise append a new one
     if(rows[idx+1]){
       const newRow = insertRowAfter(currentRow);
       target = newRow.querySelector('.stop');
@@ -706,20 +690,17 @@ function focusNextInFrameOrCreate(currentInput, queueOnly=false){
   }
   if(queueOnly) setTimeout(()=>safeFocus(target),0); else safeFocus(target);
 }
-
 function focusNextInFlatOrCreate(currentInput, queueOnly=false){
   const currentRow = currentInput.closest('.row');
   const list       = document.getElementById('addrList');
   const rows       = [...list.querySelectorAll('.row')];
   const idx        = rows.indexOf(currentRow);
 
-  // Try to jump to the first empty after current row
   const firstEmptyAfter = rows.slice(idx+1).find(r => !r.querySelector('.stop').value.trim());
   let target;
   if(firstEmptyAfter){
     target = firstEmptyAfter.querySelector('.stop');
   }else{
-    // No row after or next is filled => create a new one at the end
     const newRow = makeRow(0);
     list.appendChild(newRow);
     renumber();
@@ -728,7 +709,7 @@ function focusNextInFlatOrCreate(currentInput, queueOnly=false){
   if(queueOnly) setTimeout(()=>safeFocus(target),0); else safeFocus(target);
 }
 
-/* ====== Multi‑paste ====== */
+/* =================== MULTI‑PASTE (restored & working for both views) =================== */
 async function multiPaste(e){
   const clip=(e.clipboardData||window.clipboardData).getData('text');
   const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -738,23 +719,79 @@ async function multiPaste(e){
 
   const startRow=e.target.closest('.row');
 
+  /* ---- Flat view ---- */
   if(flatMode){
-    const container=document.getElementById('addrList');
-    let rows=[...container.querySelectorAll('.row')];
+    const list=document.getElementById('addrList');
+    let rows=[...list.querySelectorAll('.row')];
     const startIdx=rows.indexOf(startRow);
+
+    // ensure enough rows
     const need=Math.max(0,startIdx+lines.length-rows.length);
-    for(let i=0;i<need;i++){
-      const r=makeRow(0); container.appendChild(r);
-    }
-    rows=[...container.querySelectorAll('.row')];
-    lines.forEach((addr,i)=>{const r=rows[startIdx+i]; if(!r) return; const el=r.querySelector('.stop'); el.value=addr; el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1';});
+    for(let i=0;i<need;i++){ list.appendChild(makeRow(0)); }
+    rows=[...list.querySelectorAll('.row')];
+
+    // fill lines
+    lines.forEach((addr,i)=>{
+      const r=rows[startIdx+i]; if(!r) return;
+      const el=r.querySelector('.stop');
+      el.value=addr; el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1';
+    });
+
     renumber();
+    autoResolveNext=true;
     await ensureCoords(lines.map((_,i)=>rows[startIdx+i]).filter(Boolean),{parallel:true});
-    autoResolveNext=true; await rebuildRoute();
+    await rebuildRoute();
     return;
   }
 
-  // (frames paste unchanged from earlier – omitted for brevity)
+  /* ---- Day/Night frames: distribute forward within the same shift ---- */
+  const firstFrameId=+startRow.dataset.frame;
+  const frMeta=FRAMES.find(f=>f.id===firstFrameId);
+  const shift=frMeta.shift;
+  const framesInShift = FRAMES.filter(f=>f.shift===shift);
+  const startIndexInShift = framesInShift.findIndex(f=>f.id===firstFrameId);
+
+  const targets=[];
+  const touchedLists=new Set();
+
+  for(let k=startIndexInShift; k<framesInShift.length; k++){
+    const fid=framesInShift[k].id;
+    const list=document.getElementById('frame-'+fid);
+    touchedLists.add(list);
+
+    // make sure the frame has at least 4 placeholders when first shown
+    ensurePlaceholdersForFrame(fid);
+
+    const rows=[...list.querySelectorAll('.row')];
+    let startAt=0;
+    if(fid===firstFrameId) startAt=rows.indexOf(startRow);
+
+    for(let i=startAt;i<rows.length;i++){
+      const inp=rows[i].querySelector('.stop');
+      if(!inp.value.trim()) targets.push(inp);
+    }
+
+    // if not enough room, add rows at the end of the last used frame
+    while(targets.length < lines.length && k===framesInShift.length-1){
+      const added=addRowToFrame(fid,false,false);
+      targets.push(added.querySelector('.stop'));
+    }
+    if(targets.length>=lines.length) break;
+  }
+
+  // fill targets
+  let i=0;
+  while(i<lines.length && i<targets.length){
+    const inp=targets[i];
+    inp.value=lines[i]; inp.dataset.lat=''; inp.dataset.lng=''; inp.dataset.dirty='1';
+    i++;
+  }
+
+  renumber();
+
+  autoResolveNext=true;
+  await ensureCoords(getOrderedRows(true),{parallel:true});
+  await rebuildRoute();
 }
 
 /* Accept top prediction on Tab/Enter */
@@ -873,13 +910,12 @@ function clearAllStops(){
     row.classList.remove('invalid','selected','focused');
     if(inp){inp.value='';inp.dataset.lat='';inp.dataset.lng='';inp.placeholder='Enter stop'; delete inp.dataset.dirty;}
   });
-  frameInitialized.clear();                               // reset so each frame seeds 4 again
+  frameInitialized.clear();
   clearPreviewPins();clearDirections();clearLegDisplays();
   document.getElementById('msg').textContent='';
   const fm=document.getElementById('flatMsg'); if(fm) fm.textContent='';
   showDeleteBtns(); scheduleTimelineBuild(); renumber();
   SG.hide();
-  FRAMES.forEach(fr=>ensurePlaceholdersForFrame(fr.id, {force:true}));
 }
 
 /* =================== ROUTING / OPTIMIZATION =================== */
@@ -1068,7 +1104,9 @@ function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){const n=D.leng
 
 /* -------- Optimize by Frames (F4) -------- */
 async function optimizeByFramesTwoPass(){
-  if(flatMode) return;                       // frames only
+  if(flatMode) return;   // only in Day/Night mode
+
+  // PASS 1: optimize *inside* each visible frame
   const visibleFrames = FRAMES.filter(fr=>{
     const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
     return ((fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible)) &&
@@ -1076,12 +1114,15 @@ async function optimizeByFramesTwoPass(){
            sec.style.display!=='none';
   });
 
+  const frameInfo = []; // {id, list, rowsFilled, order, firstEl, lastEl}
+
   for(const fr of visibleFrames){
     const list=document.getElementById('frame-'+fr.id);
     const allRows=[...list.querySelectorAll('.row')];
     const filled=allRows.filter(r=>r.querySelector('.stop').value.trim());
     const empties=allRows.filter(r=>!r.querySelector('.stop').value.trim());
-    if(filled.length<=2) continue;
+    if(filled.length===0){ frameInfo.push({id:fr.id,list,rowsFilled:[],firstEl:null,lastEl:null}); continue; }
+    if(filled.length===1){ frameInfo.push({id:fr.id,list,rowsFilled:filled,firstEl:filled[0],lastEl:filled[0]}); continue; }
 
     const ok=await ensureCoords(filled,{parallel:true});
     if(!ok) continue;
@@ -1090,17 +1131,64 @@ async function optimizeByFramesTwoPass(){
     const D=buildDistanceMatrix(pts);
     const ord=solveTSPWithMatrix(D);
 
-    // Reorder: append filled in new order, then append empties back
+    // apply order (keep empties at end)
     ord.map(i=>filled[i]).forEach(r=>list.appendChild(r));
     empties.forEach(r=>list.appendChild(r));
+
+    const orderedFilled=ord.map(i=>filled[i]);
+    frameInfo.push({id:fr.id,list,rowsFilled:orderedFilled,firstEl:orderedFilled[0],lastEl:orderedFilled[orderedFilled.length-1]});
+  }
+
+  // PASS 2: choose orientation (normal/reversed) to minimize links between frames
+  // reversing a path preserves its internal cost, so this doesn't harm pass‑1 optimum.
+  const n=frameInfo.length;
+  if(n>=2){
+    const getPt=(row)=>row?{lat:+row.querySelector('.stop').dataset.lat,lng:+row.querySelector('.stop').dataset.lng}:null;
+    const dist=(a,b)=>a&&b?haversine(a,b):0;
+
+    const startEnd = frameInfo.map(fi=>{
+      const a=getPt(fi.firstEl), b=getPt(fi.lastEl);
+      return {a,b,fi};
+    });
+
+    // dp[i][ori] = min cost up to i, ori=0 normal (a->b), 1 reversed (b->a)
+    const dp=Array.from({length:n},()=>[Infinity,Infinity]);
+    const choose=Array.from({length:n},()=>[0,0]);
+
+    dp[0][0]=0; dp[0][1]=0; // first frame orientation free
+
+    for(let i=1;i<n;i++){
+      for(let oi=0;oi<2;oi++){
+        const start_i = oi===0 ? startEnd[i].a : startEnd[i].b;
+        for(let op=0;op<2;op++){
+          const end_prev = op===0 ? startEnd[i-1].b : startEnd[i-1].a;
+          const link = dist(end_prev,start_i);
+          const cand = dp[i-1][op] + link;
+          if(cand < dp[i][oi]){ dp[i][oi]=cand; choose[i][oi]=op; }
+        }
+      }
+    }
+    // backtrack orientations
+    const ori=new Array(n).fill(0);
+    ori[n-1] = dp[n-1][0] <= dp[n-1][1] ? 0 : 1;
+    for(let i=n-1;i>0;i--){
+      ori[i-1]=choose[i][ori[i]];
+    }
+
+    // apply reversals where needed
+    for(let i=0;i<n;i++){
+      if(ori[i]===1){
+        const fi=frameInfo[i];
+        if(fi.rowsFilled.length>1){
+          [...fi.rowsFilled].reverse().forEach(r=>fi.list.appendChild(r));
+        }
+      }
+    }
   }
 
   renumber();
   scheduleAutoCompute(0,true);
 }
-
-/* collapse empty frames helper (kept but unused) */
-function collapseEmptyFramesInShift(_shift){ /* intentionally no-op now */ }
 
 /* =================== INIT =================== */
 window.routePlannerInit=()=>{
@@ -1139,10 +1227,11 @@ window.routePlannerInit=()=>{
   acService=new google.maps.places.AutocompleteService();
   placeSvc=new google.maps.places.PlacesService(map);
 
-  buildFrameBuckets(); scheduleTimelineBuild(); buildAddrBar();
+  buildFrameBuckets();
+  buildAddrBar();
 
-  // Default: both shifts visible (requested)
-  applyShiftVisibility();
+  // Default = FLAT view
+  applyShiftVisibility();   // dayVisible=false & nightVisible=false -> enterFlatMode()
 
   document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; autoCompute();};
   document.getElementById('flatDelSel').onclick=deleteSelected;
