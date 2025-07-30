@@ -32,13 +32,13 @@
 
   --pxPerMin:2;
 
-  /* Label theme — change this to #333 for grey/black or any hex you like */
-  --label-accent:#5b46ff; /* dark purple */
+  /* Label accent — set this to #333 (grey/black) or any hex you prefer */
+  --label-accent:#5b46ff; /* dark purple default */
 }
 
 /* ---------- BASICS ---------- */
 html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
-#map{backface-visibility:hidden;transform:translateZ(0);}
+#map{backface-visibility:hidden;transform:translateZ(0);} /* keep GPU compositing */
 .hidden{display:none!important;}
 .pac-container{ display:none !important; }  /* hide Google popup (we render our own) */
 
@@ -59,7 +59,7 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   border:1px solid var(--clrPanelBorder);border-radius:6px;margin-bottom:14px;background:#fff;
   box-shadow:0 1px 2px rgba(0,0,0,.08);position:relative;display:flex;flex-direction:column;
 }
-/* not sticky so timeline/inputs never get covered */
+/* Headings are not sticky so they won’t cover content */
 .frame-header{
   position:relative;top:auto;z-index:1;display:flex;align-items:center;gap:8px;padding:6px 10px;
   font-size:15px;font-weight:500;color:#000;border-bottom:1px solid #e0e0e0;background:#fafafa;
@@ -167,17 +167,22 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 #addrBarHeader{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:500;font-size:15px;}
 #addrTitle{flex:1;}
 #addrToggles{display:flex;gap:6px;}
-.toggleChip{padding:3px 10px;border-radius:14px;border:1px solid #bbb;font-size:12px;cursor:pointer;user-select:none;line-height:16px;display:inline-block;min-width:46px;text-align:center; background:#fff;}
+.toggleChip{padding:3px 10px;border-radius:14px;border:1px solid #bbb;font-size:12px;cursor:pointer;user-select:none;line-height:16px;display:inline-block;min-width:46px;text-align:center;}
 .toggleChip.day  {border-color:var(--f-afternoon);color:var(--f-afternoon);}
 .toggleChip.night{border-color:var(--f-evening);color:var(--f-evening);}
 .toggleChip.active.day  {background:var(--f-afternoon);color:#fff;}
 .toggleChip.active.night{background:var(--f-evening);color:#fff;}
 
-#flatButtons{display:flex;gap:8px;align-items:center;}
-#flatOpt{all:unset;}
-#flatOpt{display:inline-block; padding:3px 10px; border-radius:14px; border:1px solid #bbb; font-size:12px; line-height:16px; cursor:pointer; user-select:none; color:var(--clrB); border-color:var(--clrB); background:#fff;}
-#flatOpt:hover{background:var(--clrB); color:#fff;}
-#flatDelSel{background:#db4437;color:#fff;display:none;padding:6px 12px;border-radius:6px;border:none;cursor:pointer;}
+#addrAdd{display:none;}
+#addrList .row{margin:6px 0;}
+
+#addrFooter{margin-top:10px;border-top:1px solid #dadada;padding-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+#flatMsg{font-size:16px;font-weight:700;color:#0066cc;flex:1 1 100%;}
+#flatButtons{display:flex;gap:8px;}
+#flatButtons button{padding:6px 12px;font-size:13px;border-radius:6px;cursor:pointer;border:none;}
+#flatRoute{display:none;}
+#flatOpt{background:var(--clrB);color:#fff;}
+#flatDelSel{background:#db4437;color:#fff;display:none;}
 
 /* ---------- OUR suggestion dropdown ---------- */
 .sg{
@@ -190,45 +195,48 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .sg li:hover,.sg li.active{background:#e8f1fe;}
 .sg small{opacity:.7;margin-left:6px;}
 
-/* ---------- REGION LABEL OVERLAY ---------- */
+/* ---------- REGION LABEL OVERLAY (compact, fast) ---------- */
 .region-label{
-  position:absolute; transform:translate(-50%,-100%); z-index:1000; pointer-events:auto;
+  position:absolute; transform:translate(-50%, -100%) scale(.98);
+  z-index:1000; pointer-events:auto;
+  transition:opacity .06s cubic-bezier(.2,.7,.2,1), transform .06s cubic-bezier(.2,.7,.2,1);
   opacity:0;
 }
-@keyframes popIn {
-  0%   { opacity:0; transform:translate(-50%,-96%) scale(.72); filter:saturate(0.9) }
-  60%  { opacity:1; transform:translate(-50%,-114%) scale(1.05) }
-  100% { opacity:1; transform:translate(-50%,-112%) scale(1.0) }
-}
-@keyframes popOut {
-  0%   { opacity:1; transform:translate(-50%,-112%) scale(1) }
-  100% { opacity:0; transform:translate(-50%,-96%) scale(.8) }
-}
-.region-label.show{ animation:popIn .15s cubic-bezier(.25,.85,.25,1.0) forwards; }
-.region-label.leaving{ animation:popOut .11s cubic-bezier(.2,.7,.2,1) forwards; }
+.region-label.show{ opacity:1; transform:translate(-50%, -112%) scale(1); }
 
 .region-card{
-  position:relative; display:flex; align-items:center; gap:10px;
-  background:linear-gradient(135deg, var(--accent, var(--label-accent)) 0%, #ffffff 68%);
-  border:1px solid rgba(0,0,0,.10);
-  border-radius:16px;
+  position:relative;
+  display:flex; align-items:center; gap:10px;
+  background: linear-gradient(135deg, var(--accent, var(--label-accent)) 0%, #ffffff 62%);
+  border:1px solid rgba(0,0,0,.12);
+  border-radius:14px;
   box-shadow:0 12px 26px rgba(0,0,0,.22);
-  padding:9px 12px;
-  color:#131418;
+  padding:8px 12px;
+  font-size:14px; color:#1e1f23;
 }
-.region-card::after{
-  content:""; position:absolute; left:24px; bottom:-8px;
+.region-card::after{ /* pointer */
+  content:""; position:absolute; left:22px; bottom:-8px;
   width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid rgba(255,255,255,0.95);
   filter:drop-shadow(0 2px 2px rgba(0,0,0,.12));
 }
-.region-accent{ width:9px; height:24px; border-left:9px solid var(--accent, var(--label-accent)); border-radius:5px;}
+.region-accent{ width:8px; height:22px; border-left:8px solid var(--accent, var(--label-accent)); border-radius:4px;}
 .region-title{
-  font-weight:900; letter-spacing:.35px; text-transform:uppercase;
-  font-size:14px; padding:3px 10px; border-radius:999px;
-  background:rgba(255,255,255,.78); border:1px solid rgba(0,0,0,.06);
+  font-weight:800; letter-spacing:.35px; text-transform:uppercase;
+  font-family: var(--fontMain);
+  background:rgba(255,255,255,.7); padding:2px 8px; border-radius:999px;
+  border:1px solid rgba(0,0,0,.06);
 }
 .region-close{ margin-left:auto; cursor:pointer; color:#444; font-size:18px; line-height:18px; }
 .region-close:hover{ color:#000; }
+
+/* Hide Google “Visual Search / Lens” bubble + friends (CSS level; JS also enforces) */
+.gm-style [aria-label*="Visual"],
+.gm-style [title*="Visual"],
+.gm-style [aria-label*="Lens"],
+.gm-style [title*="Lens"],
+.gm-style .widget-visual-search,
+.gm-style .scene-viewcard-button,
+.gm-style .app-viewcard-strip{ display:none !important; }
 </style>
 
 <script>
@@ -278,6 +286,8 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 /* =================== CONFIG / CONSTANTS =================== */
 const BASE_EMPTY_PER_FRAME = 4;
 const INITIAL_FLAT_ROWS    = 2;
+
+/* label color mode: 'uniform' => use --label-accent; 'hash' => per‑name hues */
 const LABEL_COLOR_MODE = 'uniform';
 
 const TOL_PCT = 0.03, TOL_KM = 0.30;
@@ -299,7 +309,7 @@ function hideAllAutocompleteUIs(){
   });
 }
 
-/* ---------- Suggestion dropdown ---------- */
+/* ---------- Suggestion dropdown (our component) ---------- */
 const SG = (function(){
   const root = document.getElementById('sgRoot');
   const list = root.querySelector('ul');
@@ -532,7 +542,7 @@ function ensurePlaceholdersForFrame(frameId,{force=false}={}){
   for(let i=cur;i<BASE_EMPTY_PER_FRAME;i++) addRowToFrame(frameId,false,false);
 }
 
-/* =================== TIMELINE =================== */
+/* =================== TIMELINE (per-frame; fused) =================== */
 function buildTimelineFromDOM(){
   if(flatMode) return;
   if(__buildingTimeline) return;
@@ -670,12 +680,14 @@ function attachInputEvents(inp){
     }
   });
 
+  // Arrow nav inside our dropdown
   inp.addEventListener('keydown', e=>{
     if(!SG.isOpen()) return;
     if(e.key==='ArrowDown'){ e.preventDefault(); SG.move(+1); }
     if(e.key==='ArrowUp'){   e.preventDefault(); SG.move(-1); }
   });
 
+  // Enter / Tab → accept + advance
   inp.addEventListener('keydown', e => {
     const isAdvanceKey = (e.key === 'Enter') || (e.key === 'Tab' && !e.shiftKey);
     if (!isAdvanceKey) return;
@@ -738,7 +750,7 @@ function focusNextInFlatOrCreate(currentInput, queueOnly=false){
   if(queueOnly) setTimeout(()=>safeFocus(target),0); else safeFocus(target);
 }
 
-/* =================== MULTI‑PASTE =================== */
+/* =================== MULTI‑PASTE (both views) =================== */
 async function multiPaste(e){
   const clip=(e.clipboardData||window.clipboardData).getData('text');
   const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -903,7 +915,7 @@ function applyShiftVisibility(){
   hideAllAutocompleteUIs();
   scheduleAutoCompute(120,false);
 
-  enforcePanelVisibility();
+  enforcePanelVisibility(); /* ← make sure only one panel is visible */
 }
 
 function buildAddrBar(){
@@ -1146,7 +1158,7 @@ function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){const n=D.leng
 /* -------- Optimize by Frames (F4) -------- */
 async function optimizeByFramesTwoPass(){
   if (flatMode) return;  // Only for Day/Night view
-  clearLegDisplays();
+  clearLegDisplays(); // avoid duplicated leg displays during reorder
 
   const dist = (a,b)=>{
     if(!a||!b) return 0;
@@ -1174,14 +1186,18 @@ async function optimizeByFramesTwoPass(){
     if (filled.length <= 1){
       const only = filled[0] || null;
       const pt   = only ? {lat:+only.querySelector('.stop').dataset.lat, lng:+only.querySelector('.stop').dataset.lng} : null;
-      perFrameOptions.push([{ internalCost: 0, startPt: pt, endPt: pt, sequenceRows: only ? [only] : [] }]);
+      perFrameOptions.push([{
+        internalCost: 0, startPt: pt, endPt: pt, sequenceRows: only ? [only] : []
+      }]);
       continue;
     }
 
     const ok = await ensureCoords(filled, {parallel:true});
     if(!ok){
       const ptsNow = filled.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
-      perFrameOptions.push([{ internalCost: 0, startPt: ptsNow[0], endPt: ptsNow[ptsNow.length-1], sequenceRows: filled }]);
+      perFrameOptions.push([{
+        internalCost: 0, startPt: ptsNow[0], endPt: ptsNow[ptsNow.length-1], sequenceRows: filled
+      }]);
       continue;
     }
 
@@ -1199,18 +1215,23 @@ async function optimizeByFramesTwoPass(){
     const m = tour.length;
 
     for(let cut=0; cut<m; cut++){
-      const a = tour[cut], b = tour[(cut+1)%m];
+      const a = tour[cut];
+      const b = tour[(cut+1)%m];
       const internalCost = tourCost - D[a][b];
 
-      const forwardIdx=[]; for(let t=0;t<m;t++) forwardIdx.push( tour[(cut+1+t)%m] );
-      const seqRowsF = forwardIdx.map(i=>filled[i]); const startPtF = pts[b], endPtF = pts[a];
+      const forwardIdx = [];
+      for(let t=0;t<m;t++) forwardIdx.push( tour[(cut+1+t)%m] );
+      const seqRowsF = forwardIdx.map(i=>filled[i]);
+      const startPtF = pts[b], endPtF = pts[a];
 
       const backIdx  = [...forwardIdx].reverse();
-      const seqRowsB = backIdx.map(i=>filled[i]); const startPtB = pts[a], endPtB = pts[b];
+      const seqRowsB = backIdx.map(i=>filled[i]);
+      const startPtB = pts[a], endPtB = pts[b];
 
       options.push({ internalCost, startPt:startPtF, endPt:endPtF, sequenceRows:seqRowsF });
       options.push({ internalCost, startPt:startPtB, endPt:endPtB, sequenceRows:seqRowsB });
     }
+
     perFrameOptions.push(options);
   }
 
@@ -1234,7 +1255,10 @@ async function optimizeByFramesTwoPass(){
 
   let lastK = dp[N-1].reduce((bestIdx, v, idx)=> v < dp[N-1][bestIdx] ? idx : bestIdx, 0);
   const chosen = new Array(N);
-  for(let i=N-1;i>=0;i--){ chosen[i]=lastK; lastK = i>0 ? prv[i][lastK] : -1; }
+  for(let i=N-1;i>=0;i--){
+    chosen[i] = lastK;
+    lastK = i>0 ? prv[i][lastK] : -1;
+  }
 
   frames.forEach((fr, i)=>{
     const list = document.getElementById('frame-'+fr.id);
@@ -1262,7 +1286,7 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)
   );
 
-  /* ---------- Region overlay + KML ---------- */
+  /* ---------- Region overlay + KML (toggle + uniform color) ---------- */
   function nameToAccent(name){
     if(LABEL_COLOR_MODE==='uniform') return getComputedStyle(document.documentElement).getPropertyValue('--label-accent').trim()||'#5b46ff';
     let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i)) % 360; }
@@ -1271,7 +1295,9 @@ window.routePlannerInit=()=>{
 
   class RegionLabelOverlay extends google.maps.OverlayView{
     constructor(pos,text,accent){
-      super(); this.position=pos; this.text=text||''; this.accent=accent||'#9ecfff'; this.container=null;
+      super();
+      this.position=pos; this.text=text||''; this.accent=accent||'#9ecfff';
+      this.container=null;
     }
     onAdd(){
       const div=document.createElement('div');
@@ -1298,8 +1324,7 @@ window.routePlannerInit=()=>{
       if(!this.container) return;
       const el=this.container;
       el.classList.remove('show');
-      el.classList.add('leaving');
-      setTimeout(()=>{ if(el&&el.parentNode) el.parentNode.removeChild(el); }, 115);
+      setTimeout(()=>{ if(el&&el.parentNode) el.parentNode.removeChild(el); }, 60);
       this.container=null;
     }
   }
@@ -1328,6 +1353,8 @@ window.routePlannerInit=()=>{
     const pos=e.latLng || e.featureData?.position || map.getCenter();
     showRegionLabel(pos, name, id);
   });
+
+  // close label when clicking any non‑KML part of the map or the panel
   map.addListener('click', hideRegionLabel);
   document.getElementById('panel').addEventListener('click', hideRegionLabel, true);
 
@@ -1342,7 +1369,7 @@ window.routePlannerInit=()=>{
   buildAddrBar();
 
   // Default = FLAT view
-  applyShiftVisibility();
+  applyShiftVisibility();   // dayVisible=false & nightVisible=false -> enterFlatMode()
 
   // Flat Optimize removes empties first, then optimizes
   document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; globalOptimizeRoute();};
@@ -1352,6 +1379,49 @@ window.routePlannerInit=()=>{
   const sv = map.getStreetView();
   sv.addListener('visible_changed', () => enforcePanelVisibility());
   enforcePanelVisibility();
+
+  // Aggressive “Visual Search / Lens” remover — walks DOM + shadow roots
+  (function robustHideLens(){
+    const isTarget = (el)=>{
+      try{
+        const aria=(el.getAttribute?.('aria-label')||'').toLowerCase();
+        const title=(el.getAttribute?.('title')||'').toLowerCase();
+        return (aria.includes('visual') || aria.includes('lens') ||
+                title.includes('visual') || title.includes('lens'));
+      }catch(_){return false;}
+    };
+    const hideEl = (el)=>{
+      try{
+        el.style.display='none'; el.hidden=true; el.setAttribute('aria-hidden','true');
+        if(el.parentElement && el.parentElement.childElementCount<=4){
+          el.parentElement.style.display='none';
+          el.parentElement.hidden=true;
+        }
+      }catch(_){}
+    };
+    const walk = (root)=>{
+      if(!root) return;
+      const stack=[root];
+      while(stack.length){
+        const node=stack.pop();
+        if(node.nodeType!==1 && !(node instanceof ShadowRoot)) continue;
+        const el=node;
+        if(el.nodeType===1 && isTarget(el)) hideEl(el);
+        // iterate children
+        if(el.children) for(const c of el.children) stack.push(c);
+        // shadow root
+        if(el.shadowRoot) stack.push(el.shadowRoot);
+        // ShadowRoot children
+        if(el instanceof ShadowRoot) for(const c of el.children) stack.push(c);
+      }
+    };
+    const hideAll = ()=>walk(document.body);
+    hideAll();
+    const mo = new MutationObserver(()=>hideAll());
+    mo.observe(document.body, {subtree:true, childList:true, attributes:true});
+    // also run on SV visibility changes
+    map.getStreetView().addListener('visible_changed', hideAll);
+  })();
 
   (function attachFunctionKeyTrap(){
     function onDown(e){
