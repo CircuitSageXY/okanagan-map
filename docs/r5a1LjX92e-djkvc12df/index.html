@@ -32,8 +32,15 @@
 
   --pxPerMin:2;
 
-  /* Label accent — set this to #333 (grey/black) or any hex you prefer */
-  --label-accent:#5b46ff; /* dark purple default */
+  /* Legacy label accent (still used if LABEL_COLOR_MODE='uniform') */
+  --label-accent:#5b46ff;
+
+  /* Folded‑map label theme */
+  --map-paper-1:#fdfcf7;        /* paper top */
+  --map-paper-2:#f5f1e6;        /* paper bottom */
+  --map-stroke:#cfc9bb;         /* paper edge / border */
+  --map-grid:#c3d6c6;           /* faint grid */
+  --map-accent:#2a9d8f;         /* default accent when uniform */
 }
 
 /* ---------- BASICS ---------- */
@@ -198,97 +205,77 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .sg li:hover,.sg li.active{background:#e8f1fe;}
 .sg small{opacity:.7;margin-left:6px;}
 
-/* ---------- REGION LABEL OVERLAY (ultra‑fast + fun) ---------- */
+/* ---------- FOLDED‑MAP REGION LABEL (fast + clear) ---------- */
 .region-label{
-  position:absolute;
-  left:0; top:0;
-  transform:translate(-50%,-100%) scale(.94);
-  will-change: transform, opacity;
-  z-index:1000;
-  pointer-events:auto;
-  opacity:0;           /* start transparent; WAAPI drives to 1 */
+  position:absolute; left:0; top:0;
+  transform:translate(-50%,-100%);         /* map-projected anchor */
+  will-change:transform,opacity;
+  z-index:1000; pointer-events:auto; opacity:0;
 }
 
-.region-card{
-  position:relative;
-  display:flex; align-items:center; gap:10px;
-
-  /* playful gradient that fades into white for contrast */
-  background:linear-gradient(135deg, var(--accent, var(--label-accent)) 0%, #ffffff 62%);
-  border:1px solid rgba(0,0,0,.10);
-  border-radius:16px;                    /* “squircle” */
-  padding:9px 12px;
-
-  /* deep, soft shadow so it reads on any basemap */
-  box-shadow:
-    0 12px 26px rgba(0,0,0,.22),
-    0 2px 6px rgba(0,0,0,.18);
-  color:#131418;
-  font-size:clamp(13px, 1.6vw, 15px);
+/* wrapper with perspective so side panels can swing */
+.map-card{
+  position:relative; display:flex; align-items:center; gap:0; padding:0;
+  perspective:900px;
+  filter:drop-shadow(0 12px 26px rgba(0,0,0,.22)) drop-shadow(0 2px 6px rgba(0,0,0,.18));
 }
 
-.region-card::after{  /* pointer nub */
-  content:"";
-  position:absolute; left:22px; bottom:-8px;
-  width:0; height:0;
-  border-left:8px solid transparent;
-  border-right:8px solid transparent;
-  border-top:8px solid rgba(255,255,255,0.98);
+/* pointer nub under center */
+.map-card::after{
+  content:""; position:absolute; left:50%; bottom:-8px; transform:translateX(-50%);
+  width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid var(--map-paper-1);
   filter:drop-shadow(0 2px 2px rgba(0,0,0,.12));
 }
 
-.region-accent{
-  width:9px; height:24px;
-  border-left:9px solid var(--accent, var(--label-accent));
-  border-radius:5px;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.35);
+/* individual panels */
+.panel{
+  height:36px; display:flex; align-items:center; position:relative;
+  border:1px solid var(--map-stroke);
+  background:
+    linear-gradient(180deg, var(--map-paper-1), var(--map-paper-2));
+}
+.panel::before{ /* faint map grid */
+  content:""; position:absolute; inset:0; opacity:.26; pointer-events:none;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 12px, var(--map-grid) 12px 13px),
+    repeating-linear-gradient(90deg, transparent 0 24px, var(--map-grid) 24px 25px);
 }
 
-.region-title{
-  font-weight:900;
-  text-transform:uppercase;
-  letter-spacing:.35px;
-  background:rgba(255,255,255,.78);
+.panel-center{ padding:0 12px; min-width:80px; border-left-color:#d9d4c8; border-right-color:#d9d4c8; }
+.map-title{
+  font-weight:900; text-transform:uppercase; letter-spacing:.35px;
+  font-size:14px; color:#1a1c1e;
+  background:rgba(255,255,255,.85);
   border:1px solid rgba(0,0,0,.06);
-  border-radius:999px;
-  padding:3px 10px;
-  position:relative;
-  overflow:hidden;
+  border-radius:999px; padding:3px 10px;
+  position:relative; overflow:hidden;
+}
+.panel-left,.panel-right{ width:24px; }
+.panel-left { border-top-left-radius:12px; border-bottom-left-radius:12px; transform-origin:right center; }
+.panel-right{ border-top-right-radius:12px; border-bottom-right-radius:12px; transform-origin:left  center; }
+
+/* fold seam shadows */
+.panel-left::after, .panel-right::after{
+  content:""; position:absolute; top:0; bottom:0; width:12px; pointer-events:none;
+}
+.panel-left::after { right:-1px; background:linear-gradient(90deg, rgba(0,0,0,.18), rgba(0,0,0,0)); opacity:.18; }
+.panel-right::after{ left:-1px;  background:linear-gradient(270deg, rgba(0,0,0,.18), rgba(0,0,0,0)); opacity:.18; }
+
+/* accent pill for quick visual grouping */
+.accent-pill{
+  position:absolute; left:-8px; top:6px; width:10px; height:24px;
+  background:var(--map-accent); border-radius:6px;
+  box-shadow:0 0 0 1px rgba(255,255,255,.45) inset, 0 2px 6px rgba(0,0,0,.25);
 }
 
-/* title shine element */
-.region-title .shine{
-  position:absolute; top:0; bottom:0; left:-30%;
-  width:30%;
-  background:linear-gradient(90deg, rgba(255,255,255,0) 0%,
-                                     rgba(255,255,255,.9) 50%,
-                                     rgba(255,255,255,0) 100%);
-  pointer-events:none;
-  mix-blend-mode:soft-light;
-  opacity:0;              /* animated to 1 then back to 0 */
-}
-
+/* close button */
 .region-close{
-  margin-left:auto;
-  cursor:pointer;
-  color:#444;
-  font-size:18px;
-  line-height:18px;
+  margin-left:6px; cursor:pointer; color:#444; font-size:18px; line-height:18px;
+  background:#fff; border:1px solid var(--map-stroke); border-radius:999px; width:22px; height:22px; display:flex; align-items:center; justify-content:center;
 }
 .region-close:hover{ color:#000; }
 
-/* a subtle ripple that expands under the pointer on show */
-.ripple{
-  position:absolute;
-  left:22px; bottom:-8px;               /* origin at the pointer nub */
-  width:12px; height:12px;
-  transform:translate(-50%, 50%);       /* center under pointer */
-  border-radius:50%;
-  background:radial-gradient(closest-side, rgba(91,70,255,.35), rgba(91,70,255,0));
-  opacity:0;
-  pointer-events:none;
-}
-
+/* Motion reduction */
 @media (prefers-reduced-motion: reduce){
   .region-label{ transition:none !important; }
 }
@@ -352,8 +339,8 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 const BASE_EMPTY_PER_FRAME = 4;
 const INITIAL_FLAT_ROWS    = 2;
 
-/* label color mode: 'uniform' => use --label-accent; 'hash' => per‑name hues */
-const LABEL_COLOR_MODE = 'uniform';
+/* label color mode: 'uniform' => use --map-accent; 'palette' => per‑name colors */
+const LABEL_COLOR_MODE = 'palette';
 
 const TOL_PCT = 0.03, TOL_KM = 0.30;
 
@@ -1351,70 +1338,64 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)
   );
 
-  /* ---------- Region overlay + KML (toggle + uniform color) ---------- */
+  /* ---------- Region overlay + KML (toggle + map‑friendly colors) ---------- */
+  const ACCENT_PALETTE = ['#2A9D8F', '#3A6EA5', '#5C7C6D', '#4C6E57', '#5B7DA3', '#5d6a6d'];
+  function hashStr(s){ let h=0; for(let i=0;i<s.length;i++){ h=(h*31 + s.charCodeAt(i))>>>0; } return h; }
   function nameToAccent(name){
-    if(LABEL_COLOR_MODE==='uniform') return getComputedStyle(document.documentElement).getPropertyValue('--label-accent').trim()||'#5b46ff';
-    let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i)) % 360; }
-    return `hsl(${h} 75% 70%)`;
+    if(LABEL_COLOR_MODE==='uniform') return getComputedStyle(document.documentElement).getPropertyValue('--map-accent').trim()||'#2A9D8F';
+    const idx = hashStr(name||'x') % ACCENT_PALETTE.length;
+    return ACCENT_PALETTE[idx];
   }
 
-  /* === New fun/unique label with ripple + shine, WAAPI‑driven === */
+  /* === Folded‑map label overlay (GPU‑only WAAPI) === */
   class RegionLabelOverlay extends google.maps.OverlayView{
     constructor(pos,text,accent){
       super();
-      this.position=pos; this.text=text||''; this.accent=accent||'#5b46ff';
+      this.position=pos; this.text=text||''; this.accent=accent||'#2A9D8F';
       this.container=null;
 
-      // Prebuilt keyframes/options (no per‑click allocations)
-      this.kfIn  = [
-        { opacity:0, transform:'translate(-50%,-96%)  scale(.82) rotate(-6deg)' , filter:'saturate(.9)' },
-        { opacity:1, transform:'translate(-50%,-114%) scale(1.04) rotate(-1deg)' },
-        { opacity:1, transform:'translate(-50%,-112%) scale(1.00) rotate(0deg)'  }
+      /* prebuilt keyframes + timings */
+      this.kfInMain = [
+        { opacity:0, transform:'translate(-50%,-96%) perspective(700px) rotateX(-55deg) scale(.88)' },
+        { opacity:1, transform:'translate(-50%,-112%) perspective(700px) rotateX(0deg)   scale(1.00)' }
       ];
-      this.kfOut = [
-        { opacity:1, transform:'translate(-50%,-112%) scale(1.00) rotate(0deg)' },
-        { opacity:0, transform:'translate(-50%,-96%)  scale(.86)  rotate(3deg)'  }
+      this.kfOutMain = [
+        { opacity:1, transform:'translate(-50%,-112%) perspective(700px) rotateX(0deg)   scale(1.00)' },
+        { opacity:0, transform:'translate(-50%,-96%)  perspective(700px) rotateX(-35deg) scale(.90)' }
       ];
-      this.optIn  = { duration: 120, easing:'cubic-bezier(.2,.9,.2,1)', fill:'forwards' };
-      this.optOut = { duration: 85,  easing:'cubic-bezier(.2,.7,.2,1)', fill:'forwards' };
+      this.optInMain  = { duration:160, easing:'cubic-bezier(.2,.9,.2,1)',  fill:'forwards' };
+      this.optOutMain = { duration:110, easing:'cubic-bezier(.2,.7,.2,1)',  fill:'forwards' };
 
-      this.kfRipple = [
-        { opacity:.0, transform:'translate(-50%,50%) scale(.2)'  },
-        { opacity:.35,transform:'translate(-50%,50%) scale(.9)'  },
-        { opacity:0,  transform:'translate(-50%,50%) scale(1.6)' }
-      ];
-      this.optRipple = { duration: 320, easing:'cubic-bezier(.2,.8,0,1)', fill:'forwards' };
-
-      this.kfShine  = [
-        { opacity:0, transform:'translateX(-30%)' },
-        { opacity:.9,transform:'translateX(110%)' },
-        { opacity:0, transform:'translateX(130%)' }
-      ];
-      this.optShine = { duration: 450, easing:'cubic-bezier(.3,.7,.1,1)', fill:'forwards' };
+      this.kfFoldLeftOpen  = [ { transform:'rotateY(52deg)' }, { transform:'rotateY(18deg)' } ];
+      this.kfFoldRightOpen = [ { transform:'rotateY(-52deg)' }, { transform:'rotateY(-18deg)' } ];
+      this.kfFoldLeftClose = [ { transform:'rotateY(18deg)' },  { transform:'rotateY(62deg)' } ];
+      this.kfFoldRightClose=[ { transform:'rotateY(-18deg)' }, { transform:'rotateY(-62deg)' } ];
+      this.optFold = { duration:160, easing:'cubic-bezier(.2,.9,.2,1)', fill:'forwards' };
+      this.optFoldOut = { duration:110, easing:'cubic-bezier(.2,.7,.2,1)', fill:'forwards' };
     }
     onAdd(){
       const div=document.createElement('div');
       div.className='region-label';
-      div.style.setProperty('--accent', this.accent);
-      div.innerHTML=
-        `<div class="region-card">
-           <div class="region-accent"></div>
-           <div class="region-title">${this.text}<span class="shine"></span></div>
+      div.innerHTML =
+        `<div class="map-card" style="--map-accent:${this.accent}">
+           <span class="accent-pill"></span>
+           <div class="panel panel-left"></div>
+           <div class="panel panel-center">
+             <div class="map-title">${this.text}</div>
+           </div>
+           <div class="panel panel-right"></div>
            <span class="region-close material-icons" title="Close">close</span>
-           <div class="ripple"></div>
          </div>`;
       div.querySelector('.region-close').onclick=()=>this.setMap(null);
       this.container=div;
       this.getPanes().floatPane.appendChild(div);
 
-      // Drive pop‑in + micro‑effects
-      requestAnimationFrame(()=>{
-        div.animate(this.kfIn, this.optIn);
-        const ripple = div.querySelector('.ripple');
-        if(ripple) ripple.animate(this.kfRipple, this.optRipple);
-        const shine  = div.querySelector('.shine');
-        if(shine)  shine.animate(this.kfShine, this.optShine);
-      });
+      const card  = div.firstElementChild;
+      const left  = card.querySelector('.panel-left');
+      const right = card.querySelector('.panel-right');
+      card.animate(this.kfInMain, this.optInMain);
+      left.animate(this.kfFoldLeftOpen, this.optFold);
+      right.animate(this.kfFoldRightOpen, this.optFold);
     }
     draw(){
       const proj=this.getProjection(); if(!proj||!this.container) return;
@@ -1425,11 +1406,15 @@ window.routePlannerInit=()=>{
     onRemove(){
       if(!this.container) return;
       const el=this.container;
-      this.container=null;
-
+      const card  = el.firstElementChild;
+      const left  = card.querySelector('.panel-left');
+      const right = card.querySelector('.panel-right');
       try{ el.getAnimations().forEach(a=>a.cancel()); }catch(_){}
-      const done = el.animate(this.kfOut, this.optOut).finished;
-      (done?.then?.(()=>el.remove()) ?? Promise.resolve().then(()=>el.remove())).catch(()=>{});
+      const a1 = card.animate(this.kfOutMain, this.optOutMain).finished.catch(()=>{});
+      const a2 = left.animate(this.kfFoldLeftClose, this.optFoldOut).finished.catch(()=>{});
+      const a3 = right.animate(this.kfFoldRightClose, this.optFoldOut).finished.catch(()=>{});
+      Promise.all([a1,a2,a3]).then(()=>el.remove()).catch(()=>el.remove());
+      this.container=null;
     }
   }
 
