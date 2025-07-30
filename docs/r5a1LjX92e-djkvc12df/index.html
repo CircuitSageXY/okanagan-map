@@ -31,11 +31,14 @@
   --tick-minor:#9e9e9e; --tick-major:#424242;
 
   --pxPerMin:2;
+
+  /* Uniform label accent (used when LABEL_COLOR_MODE='uniform') */
+  --label-accent:#ff7eb3;
 }
 
 /* ---------- BASICS ---------- */
 html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
-#map{backface-visibility:hidden;transform:translateZ(0);}
+#map{backface-visibility:hidden;transform:translateZ(0);} /* keep GPU compositing */
 .hidden{display:none!important;}
 .pac-container{ display:none !important; }  /* hide Google popup (we render our own) */
 
@@ -56,8 +59,9 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
   border:1px solid var(--clrPanelBorder);border-radius:6px;margin-bottom:14px;background:#fff;
   box-shadow:0 1px 2px rgba(0,0,0,.08);position:relative;display:flex;flex-direction:column;
 }
+/* headings are no longer sticky so they won’t cover content */
 .frame-header{
-  position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:8px;padding:6px 10px;
+  position:relative;top:auto;z-index:1;display:flex;align-items:center;gap:8px;padding:6px 10px;
   font-size:15px;font-weight:500;color:#000;border-bottom:1px solid #e0e0e0;background:#fafafa;
 }
 .frame-header .swatch{width:16px;height:16px;border-radius:3px;flex:none;}
@@ -148,10 +152,6 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   border-top:1px solid #d7d7d7; backdrop-filter:blur(2px);
 }
 
-/* ---------- STREET VIEW BACK ---------- */
-#svBack{position:fixed;bottom:16px;right:16px;z-index:1200;padding:8px 14px;border:none;border-radius:6px;background:#455a64;color:#fff;font-size:14px;cursor:pointer;display:none;box-shadow:0 2px 6px rgba(0,0,0,.35);}
-#svBack:hover{background:#546e7a;}
-
 /* ---------- FLAT MODE ---------- */
 #panel.flat{width:auto;background:transparent;border:none;box-shadow:none;pointer-events:none;}
 #panel.flat #content{display:none;}
@@ -195,7 +195,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .sg li:hover,.sg li.active{background:#e8f1fe;}
 .sg small{opacity:.7;margin-left:6px;}
 
-/* ---------- REGION LABEL OVERLAY (enhanced) ---------- */
+/* ---------- REGION LABEL OVERLAY (fast, uniform color) ---------- */
 .region-label{
   position:absolute; transform:translate(-50%, -100%) scale(.98);
   z-index:1000; pointer-events:auto;
@@ -206,16 +206,14 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 
 .region-card{
   display:flex; align-items:center; gap:10px;
-  background: linear-gradient(135deg, var(--accent, #9ecfff) 0%, #ffffff 58%);
+  background: linear-gradient(135deg, var(--accent, var(--label-accent)) 0%, #ffffff 58%);
   border:1px solid rgba(0,0,0,.10);
   border-radius:12px;
   box-shadow:0 10px 24px rgba(0,0,0,.20);
   padding:8px 12px;
   font-size:14px; color:#1f1f1f;
 }
-.region-accent{
-  width:8px; height:22px; border-left:8px solid var(--accent, #9ecfff); border-radius:4px;
-}
+.region-accent{ width:8px; height:22px; border-left:8px solid var(--accent, var(--label-accent)); border-radius:4px;}
 .region-title{
   font-weight:700; letter-spacing:.3px; text-transform:uppercase;
   background:rgba(255,255,255,.65); padding:2px 8px; border-radius:999px;
@@ -224,11 +222,14 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .region-close{ margin-left:auto; cursor:pointer; color:#555; font-size:18px; line-height:18px; }
 .region-close:hover{ color:#000; }
 
-/* Hide Google's “visual search / Lens” bubble */
-.gm-style [aria-label*="Visual search"],
-.gm-style button[aria-label*="Visual search"],
+/* Hide Google's “Visual search / Lens” bubble + friends */
+.gm-style [aria-label*="Visual"],
+.gm-style [title*="Visual"],
 .gm-style [aria-label*="Lens"],
-.gm-style button[aria-label*="Lens"]{ display:none !important; }
+.gm-style [title*="Lens"],
+.gm-style .widget-visual-search,
+.gm-style .scene-viewcard-button,
+.gm-style .app-viewcard-strip{ display:none !important; }
 </style>
 
 <script>
@@ -239,8 +240,6 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 </head>
 
 <body>
-<button id="svBack">Back to Map</button>
-
 <div id="panel">
   <div id="scroller">
     <div id="content">
@@ -281,9 +280,10 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 const BASE_EMPTY_PER_FRAME = 4;
 const INITIAL_FLAT_ROWS    = 2;
 
-/* tolerances kept (available if needed) */
-const TOL_PCT = 0.03;
-const TOL_KM  = 0.30;
+/* label color mode: 'uniform' => use --label-accent; 'hash' => per‑name hues */
+const LABEL_COLOR_MODE = 'uniform';
+
+const TOL_PCT = 0.03, TOL_KM = 0.30;
 
 let map,dirSvc,dirRend,geocoder,acService,placeSvc;
 let previewPins=[],routeMarkers=[];
@@ -743,7 +743,7 @@ function focusNextInFlatOrCreate(currentInput, queueOnly=false){
   if(queueOnly) setTimeout(()=>safeFocus(target),0); else safeFocus(target);
 }
 
-/* =================== MULTI‑PASTE (restored & working for both views) =================== */
+/* =================== MULTI‑PASTE (both views) =================== */
 async function multiPaste(e){
   const clip=(e.clipboardData||window.clipboardData).getData('text');
   const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -776,7 +776,7 @@ async function multiPaste(e){
     return;
   }
 
-  /* ---- Day/Night frames: distribute forward within the same shift ---- */
+  /* ---- Day/Night frames ---- */
   const firstFrameId=+startRow.dataset.frame;
   const frMeta=FRAMES.find(f=>f.id===firstFrameId);
   const shift=frMeta.shift;
@@ -1127,8 +1127,7 @@ function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){const n=D.leng
 /* -------- Optimize by Frames (F4) -------- */
 async function optimizeByFramesTwoPass(){
   if (flatMode) return;  // Only for Day/Night view
-
-  clearLegDisplays(); // avoid any duplicate leg rows while reordering
+  clearLegDisplays(); // avoid duplicated leg displays during reorder
 
   const dist = (a,b)=>{
     if(!a||!b) return 0;
@@ -1256,15 +1255,17 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)
   );
 
-  /* ---------- Region overlay + KML (enhanced & toggleable) ---------- */
-  function nameToAccent(name){ let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i)) % 360; } return `hsl(${h} 75% 70%)`; }
+  /* ---------- Region overlay + KML (toggle + uniform color) ---------- */
+  function nameToAccent(name){ 
+    if(LABEL_COLOR_MODE==='uniform') return getComputedStyle(document.documentElement).getPropertyValue('--label-accent').trim()||'#ff7eb3';
+    let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i)) % 360; } 
+    return `hsl(${h} 75% 70%)`; 
+  }
 
   class RegionLabelOverlay extends google.maps.OverlayView{
     constructor(pos,text,accent){
       super();
-      this.position=pos;
-      this.text=text||'';
-      this.accent=accent||'#9ecfff';
+      this.position=pos; this.text=text||''; this.accent=accent||'#9ecfff';
       this.container=null;
     }
     onAdd(){
@@ -1273,9 +1274,9 @@ window.routePlannerInit=()=>{
       div.style.setProperty('--accent', this.accent);
       div.innerHTML=
         `<div class="region-card">
-            <div class="region-accent"></div>
-            <div class="region-title">${this.text}</div>
-            <span class="region-close material-icons" title="Close">close</span>
+           <div class="region-accent"></div>
+           <div class="region-title">${this.text}</div>
+           <span class="region-close material-icons" title="Close">close</span>
          </div>`;
       div.querySelector('.region-close').onclick=()=>this.setMap(null);
       this.container=div;
@@ -1283,11 +1284,10 @@ window.routePlannerInit=()=>{
       requestAnimationFrame(()=>div.classList.add('show'));
     }
     draw(){
-      const proj=this.getProjection();
-      if(!proj||!this.container) return;
+      const proj=this.getProjection(); if(!proj||!this.container) return;
       const pt=proj.fromLatLngToDivPixel(this.position);
       this.container.style.left=pt.x+'px';
-      this.container.style.top=pt.y+'px';
+      this.container.style.top =pt.y+'px';
     }
     onRemove(){
       if(!this.container) return;
@@ -1318,15 +1318,13 @@ window.routePlannerInit=()=>{
   kml.addListener('click', (e)=>{
     const name=e.featureData?.name||'';
     const id  = e.featureData?.id || name;
-    // toggle: second click on the same region closes it
     if(currentRegionOverlay && currentRegionId===id){ hideRegionLabel(); return; }
     const pos=e.latLng || e.featureData?.position || map.getCenter();
     showRegionLabel(pos, name, id);
   });
 
-  // Click anywhere not on a KML feature → close label
+  // close label when clicking any non‑KML part of the map or the panel
   map.addListener('click', hideRegionLabel);
-  // Clicking on the panel should always close the label
   document.getElementById('panel').addEventListener('click', hideRegionLabel, true);
 
   /* ---------- Services ---------- */
@@ -1342,15 +1340,36 @@ window.routePlannerInit=()=>{
   // Default = FLAT view
   applyShiftVisibility();   // dayVisible=false & nightVisible=false -> enterFlatMode()
 
-  // Flat Optimize now removes empties and optimizes
+  // Flat Optimize now removes empties first, then optimizes
   document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; globalOptimizeRoute();};
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
+  // Street View: hide/show Flat panel automatically (no back button)
   const sv = map.getStreetView();
   sv.addListener('visible_changed', () => {
-    document.getElementById('svBack').style.display = sv.getVisible() ? 'block' : 'none';
+    const on = sv.getVisible();
+    document.getElementById('addrBar').style.display = on ? 'none' : (flatMode?'block':'none');
   });
-  document.getElementById('svBack').onclick = () => sv.setVisible(false);
+
+  // Aggressive “Visual Search” killer: run once and on DOM changes
+  (function killVisualSearch(){
+    const mapRoot = document.getElementById('map');
+    const hide = ()=>{
+      const sel = [
+        '.gm-style [aria-label*="Visual"]',
+        '.gm-style [title*="Visual"]',
+        '.gm-style [aria-label*="Lens"]',
+        '.gm-style [title*="Lens"]',
+        '.gm-style .widget-visual-search',
+        '.gm-style .scene-viewcard-button',
+        '.gm-style .app-viewcard-strip'
+      ].join(',');
+      document.querySelectorAll(sel).forEach(el=>{ el.style.display='none'; el.hidden=true; });
+    };
+    hide();
+    const mo = new MutationObserver(hide);
+    mo.observe(mapRoot, {subtree:true, childList:true, attributes:true});
+  })();
 
   (function attachFunctionKeyTrap(){
     function onDown(e){
@@ -1381,7 +1400,7 @@ async function globalOptimizeRoute(){
   if(!flatMode){ return; }
   const list=document.getElementById('addrList');
 
-  // Remove all empty rows before optimizing (so A or any blanks are gone)
+  // Remove all empty rows before optimizing
   [...list.querySelectorAll('.row')].forEach(r=>{
     if(!r.querySelector('.stop').value.trim()) r.remove();
   });
