@@ -195,27 +195,40 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .sg li:hover,.sg li.active{background:#e8f1fe;}
 .sg small{opacity:.7;margin-left:6px;}
 
-/* ---------- REGION LABEL OVERLAY (restored) ---------- */
+/* ---------- REGION LABEL OVERLAY (enhanced) ---------- */
 .region-label{
-  position:absolute; transform:translate(-50%, -100%);  /* anchor tip to point */
+  position:absolute; transform:translate(-50%, -100%) scale(.98);
   z-index:1000; pointer-events:auto;
-  transition:opacity .15s ease, transform .15s ease;
+  transition:opacity .08s ease, transform .08s ease;
   opacity:0;
 }
-.region-label.show{ opacity:1; transform:translate(-50%, -108%); }
+.region-label.show{ opacity:1; transform:translate(-50%, -108%) scale(1); }
 
 .region-card{
-  display:flex; align-items:center; gap:8px;
-  background:#fff; border:1px solid #d6d6d6; border-radius:10px;
-  box-shadow:0 6px 18px rgba(0,0,0,.15); padding:8px 10px;
-  font-size:14px; color:#222;
+  display:flex; align-items:center; gap:10px;
+  background: linear-gradient(135deg, var(--accent, #9ecfff) 0%, #ffffff 58%);
+  border:1px solid rgba(0,0,0,.10);
+  border-radius:12px;
+  box-shadow:0 10px 24px rgba(0,0,0,.20);
+  padding:8px 12px;
+  font-size:14px; color:#1f1f1f;
 }
 .region-accent{
-  width:6px; height:18px; border-left:6px solid #9ecfff; border-radius:3px;
+  width:8px; height:22px; border-left:8px solid var(--accent, #9ecfff); border-radius:4px;
 }
-.region-title{ font-weight:600; white-space:nowrap; }
-.region-close{ margin-left:auto; cursor:pointer; color:#666; font-size:18px; line-height:18px; }
+.region-title{
+  font-weight:700; letter-spacing:.3px; text-transform:uppercase;
+  background:rgba(255,255,255,.65); padding:2px 8px; border-radius:999px;
+  border:1px solid rgba(0,0,0,.06);
+}
+.region-close{ margin-left:auto; cursor:pointer; color:#555; font-size:18px; line-height:18px; }
 .region-close:hover{ color:#000; }
+
+/* Hide Google's “visual search / Lens” bubble */
+.gm-style [aria-label*="Visual search"],
+.gm-style button[aria-label*="Visual search"],
+.gm-style [aria-label*="Lens"],
+.gm-style button[aria-label*="Lens"]{ display:none !important; }
 </style>
 
 <script>
@@ -268,7 +281,7 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 const BASE_EMPTY_PER_FRAME = 4;
 const INITIAL_FLAT_ROWS    = 2;
 
-/* tolerances kept */
+/* tolerances kept (available if needed) */
 const TOL_PCT = 0.03;
 const TOL_KM  = 0.30;
 
@@ -730,7 +743,7 @@ function focusNextInFlatOrCreate(currentInput, queueOnly=false){
   if(queueOnly) setTimeout(()=>safeFocus(target),0); else safeFocus(target);
 }
 
-/* =================== MULTI‑PASTE (restored) =================== */
+/* =================== MULTI‑PASTE (restored & working for both views) =================== */
 async function multiPaste(e){
   const clip=(e.clipboardData||window.clipboardData).getData('text');
   const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -763,7 +776,7 @@ async function multiPaste(e){
     return;
   }
 
-  /* ---- Day/Night frames (same shift) ---- */
+  /* ---- Day/Night frames: distribute forward within the same shift ---- */
   const firstFrameId=+startRow.dataset.frame;
   const frMeta=FRAMES.find(f=>f.id===firstFrameId);
   const shift=frMeta.shift;
@@ -1115,10 +1128,8 @@ function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){const n=D.leng
 async function optimizeByFramesTwoPass(){
   if (flatMode) return;  // Only for Day/Night view
 
-  // Remove any old leg summaries before we start reordering so we never see duplicates
-  clearLegDisplays();
+  clearLegDisplays(); // avoid any duplicate leg rows while reordering
 
-  // --- Helper distance (km) with {lat,lng} objects (null-safe)
   const dist = (a,b)=>{
     if(!a||!b) return 0;
     const R=6371, toRad=x=>x*Math.PI/180;
@@ -1127,7 +1138,6 @@ async function optimizeByFramesTwoPass(){
     return 2*R*Math.asin(Math.sqrt(s));
   };
 
-  // Visible, uncollapsed frames in order
   const frames = FRAMES.filter(fr=>{
     const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
     return ((fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible)) &&
@@ -1177,8 +1187,7 @@ async function optimizeByFramesTwoPass(){
     for(let cut=0; cut<m; cut++){
       const a = tour[cut];
       const b = tour[(cut+1)%m];
-      const removedEdgeCost = D[a][b];
-      const internalCost    = tourCost - removedEdgeCost;
+      const internalCost = tourCost - D[a][b];
 
       const forwardIdx = [];
       for(let t=0;t<m;t++) forwardIdx.push( tour[(cut+1+t)%m] );
@@ -1196,7 +1205,6 @@ async function optimizeByFramesTwoPass(){
     perFrameOptions.push(options);
   }
 
-  // Dynamic programming across frames
   const N = perFrameOptions.length;
   const dp  = perFrameOptions.map(opts => new Array(opts.length).fill(Infinity));
   const prv = perFrameOptions.map(opts => new Array(opts.length).fill(-1));
@@ -1226,10 +1234,9 @@ async function optimizeByFramesTwoPass(){
     const list = document.getElementById('frame-'+fr.id);
     const opt  = perFrameOptions[i][ chosen[i] ];
     opt.sequenceRows.forEach(r=>list.appendChild(r));
-    // no placeholders after F4
-    document.querySelectorAll(`#frame-${fr.id} .row`).forEach(r=>{
-      const v = r.querySelector('.stop').value.trim();
-      if(!v) r.remove();
+    // remove empties after optimizing
+    [...list.querySelectorAll('.row')].forEach(r=>{
+      if(!r.querySelector('.stop').value.trim()) r.remove();
     });
   });
 
@@ -1249,8 +1256,8 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)
   );
 
-  /* ---------- Region overlay + KML (restored) ---------- */
-  function nameToAccent(name){ let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i)) % 360; } return `hsl(${h} 70% 70%)`; }
+  /* ---------- Region overlay + KML (enhanced & toggleable) ---------- */
+  function nameToAccent(name){ let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i)) % 360; } return `hsl(${h} 75% 70%)`; }
 
   class RegionLabelOverlay extends google.maps.OverlayView{
     constructor(pos,text,accent){
@@ -1263,9 +1270,10 @@ window.routePlannerInit=()=>{
     onAdd(){
       const div=document.createElement('div');
       div.className='region-label';
+      div.style.setProperty('--accent', this.accent);
       div.innerHTML=
         `<div class="region-card">
-            <div class="region-accent" style="border-color:${this.accent}"></div>
+            <div class="region-accent"></div>
             <div class="region-title">${this.text}</div>
             <span class="region-close material-icons" title="Close">close</span>
          </div>`;
@@ -1285,19 +1293,22 @@ window.routePlannerInit=()=>{
       if(!this.container) return;
       const el=this.container;
       el.classList.remove('show');
-      setTimeout(()=>{ if(el&&el.parentNode) el.parentNode.removeChild(el); }, 120);
+      setTimeout(()=>{ if(el&&el.parentNode) el.parentNode.removeChild(el); }, 90);
       this.container=null;
     }
   }
 
   let currentRegionOverlay=null;
-  function showRegionLabel(pos,name){
-    if(currentRegionOverlay){ currentRegionOverlay.setMap(null); currentRegionOverlay=null; }
+  let currentRegionId=null;
+  function showRegionLabel(pos,name,id){
+    hideRegionLabel();
     currentRegionOverlay=new RegionLabelOverlay(pos,name,nameToAccent(name));
+    currentRegionId=id || name || '';
     currentRegionOverlay.setMap(map);
   }
   function hideRegionLabel(){
-    if(currentRegionOverlay){ currentRegionOverlay.setMap(null); currentRegionOverlay=null; }
+    if(currentRegionOverlay){ currentRegionOverlay.setMap(null); }
+    currentRegionOverlay=null; currentRegionId=null;
   }
 
   const kml=new google.maps.KmlLayer({
@@ -1306,10 +1317,16 @@ window.routePlannerInit=()=>{
   });
   kml.addListener('click', (e)=>{
     const name=e.featureData?.name||'';
+    const id  = e.featureData?.id || name;
+    // toggle: second click on the same region closes it
+    if(currentRegionOverlay && currentRegionId===id){ hideRegionLabel(); return; }
     const pos=e.latLng || e.featureData?.position || map.getCenter();
-    showRegionLabel(pos, name);
+    showRegionLabel(pos, name, id);
   });
+
+  // Click anywhere not on a KML feature → close label
   map.addListener('click', hideRegionLabel);
+  // Clicking on the panel should always close the label
   document.getElementById('panel').addEventListener('click', hideRegionLabel, true);
 
   /* ---------- Services ---------- */
@@ -1325,7 +1342,7 @@ window.routePlannerInit=()=>{
   // Default = FLAT view
   applyShiftVisibility();   // dayVisible=false & nightVisible=false -> enterFlatMode()
 
-  // FIX: call the actual optimizer, not just autoCompute
+  // Flat Optimize now removes empties and optimizes
   document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; globalOptimizeRoute();};
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
@@ -1359,10 +1376,16 @@ window.routePlannerInit=()=>{
   if(window.__mapsApiReady){ /* maps already loaded */ }
 };
 
-/* --------- Flat‑view optimizer --------- */
+/* --------- Flat‑view optimizer (removes empties first) --------- */
 async function globalOptimizeRoute(){
   if(!flatMode){ return; }
   const list=document.getElementById('addrList');
+
+  // Remove all empty rows before optimizing (so A or any blanks are gone)
+  [...list.querySelectorAll('.row')].forEach(r=>{
+    if(!r.querySelector('.stop').value.trim()) r.remove();
+  });
+
   const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
   if(rows.length<=1){ renumber(); scheduleAutoCompute(0,true); return; }
 
