@@ -229,7 +229,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   box-shadow: inset 0 1px 0 rgba(255,255,255,.6); }
 .title{ font-weight:800; letter-spacing:.35px; text-transform:uppercase; white-space:nowrap; font-size:14px; }
 .close{ margin-left:6px; width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center;
-  background:#fff; border:1px solid var(--label-border); box-shadow:0 1px 1px rgba(0,0,0,.06); color:#4b5563; font-size:16px; line-height:16px; cursor:pointer; }
+  background:#fff; border:1px solid #var(--label-border); box-shadow:0 1px 1px rgba(0,0,0,.06); color:#4b5563; font-size:16px; line-height:16px; cursor:pointer; }
 .close:hover{ color:#000; }
 
 @media (prefers-reduced-motion: reduce){
@@ -248,7 +248,6 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 /* ===========================================================
    RIGHT DRAWER + SLIM TAB (updated styling)
    =========================================================== */
-/* Slim tab on right edge so it won't collide with fullscreen */
 #areasBtn{
   position:absolute; right:0; top:50%; transform:translateY(-50%);
   z-index:8;
@@ -1677,6 +1676,53 @@ function reattachData(){
   map.data.setMap(map); dataAttached=true;
 }
 
+/* ============ F1..F4 keyboard shortcuts ============ */
+function initHotkeys(){
+  // Use capture so we beat browser defaults (e.g. F1 Help) and prevent them.
+  document.addEventListener('keydown', (e)=>{
+    if (e.altKey || e.ctrlKey || e.metaKey) return; // don't clash with OS/browser combos
+
+    switch (e.key) {
+      case 'F1': {                           // Toggle Day
+        e.preventDefault();
+        toggleShift('day');
+        break;
+      }
+      case 'F2': {                           // Toggle Night
+        e.preventDefault();
+        toggleShift('night');
+        break;
+      }
+      case 'F3': {                           // Toggle Areas drawer + focus filter
+        e.preventDefault();
+        const drawer = document.getElementById('areasDrawer');
+        const btn    = document.getElementById('areasBtn');
+        const open   = !drawer.classList.contains('open');
+        drawer.classList.toggle('open', open);
+        drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
+        btn.classList.toggle('open', open);
+        if (open) {
+          const ft = document.getElementById('filterText');
+          setTimeout(()=>{ try{ ft && ft.focus(); ft && ft.select(); }catch{} }, 0);
+        }
+        break;
+      }
+      case 'F4': {                           // Optimize in flat, otherwise clear all
+        e.preventDefault();
+        if (flatMode) {
+          autoResolveNext = true;
+          globalOptimizeRoute();
+        } else {
+          clearAllStops();
+        }
+        break;
+      }
+      default: return;
+    }
+  }, true);
+}
+/* =================================================== */
+
 /* =================== INIT =================== */
 window.routePlannerInit=()=>{
   map=new google.maps.Map(document.getElementById('map'),{
@@ -1740,8 +1786,12 @@ window.routePlannerInit=()=>{
   // keep reflow snappiness
   window.addEventListener('resize', ()=>{ clearTimeout(window.__rb); window.__rb=setTimeout(()=>{rebalanceFrameHeights();},150); });
 
-  if(window.__mapsApiReady){ /* maps already loaded */ }
+  // NEW: bind hotkeys
+  initHotkeys();
 };
+
+/* If Maps loaded before this script, init() already ran and set the flag. */
+if (window.__mapsApiReady) { window.routePlannerInit(); }
 
 /* --------- Flat‑view optimizer --------- */
 async function globalOptimizeRoute(){
