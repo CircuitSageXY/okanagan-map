@@ -194,6 +194,28 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .sg li{padding:8px 12px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;}
 .sg li:hover,.sg li.active{background:#e8f1fe;}
 .sg small{opacity:.7;margin-left:6px;}
+
+/* ---------- REGION LABEL OVERLAY (restored) ---------- */
+.region-label{
+  position:absolute; transform:translate(-50%, -100%);  /* anchor tip to point */
+  z-index:1000; pointer-events:auto;
+  transition:opacity .15s ease, transform .15s ease;
+  opacity:0;
+}
+.region-label.show{ opacity:1; transform:translate(-50%, -108%); }
+
+.region-card{
+  display:flex; align-items:center; gap:8px;
+  background:#fff; border:1px solid #d6d6d6; border-radius:10px;
+  box-shadow:0 6px 18px rgba(0,0,0,.15); padding:8px 10px;
+  font-size:14px; color:#222;
+}
+.region-accent{
+  width:6px; height:18px; border-left:6px solid #9ecfff; border-radius:3px;
+}
+.region-title{ font-weight:600; white-space:nowrap; }
+.region-close{ margin-left:auto; cursor:pointer; color:#666; font-size:18px; line-height:18px; }
+.region-close:hover{ color:#000; }
 </style>
 
 <script>
@@ -246,9 +268,9 @@ function init(){ if(window.routePlannerInit) window.routePlannerInit(); else win
 const BASE_EMPTY_PER_FRAME = 4;
 const INITIAL_FLAT_ROWS    = 2;
 
-/* tolerances kept (used by earlier versions and available if needed) */
-const TOL_PCT = 0.03;   // 3%
-const TOL_KM  = 0.30;   // 0.3 km
+/* tolerances kept */
+const TOL_PCT = 0.03;
+const TOL_KM  = 0.30;
 
 let map,dirSvc,dirRend,geocoder,acService,placeSvc;
 let previewPins=[],routeMarkers=[];
@@ -441,7 +463,6 @@ function buildFrameBuckets(){
     });
   });
 
-  // seed (only when a frame becomes visible)
   renumber();
 
   const ro=new ResizeObserver(()=>scheduleTimelineBuild());
@@ -709,7 +730,7 @@ function focusNextInFlatOrCreate(currentInput, queueOnly=false){
   if(queueOnly) setTimeout(()=>safeFocus(target),0); else safeFocus(target);
 }
 
-/* =================== MULTI‑PASTE (restored & working for both views) =================== */
+/* =================== MULTI‑PASTE (restored) =================== */
 async function multiPaste(e){
   const clip=(e.clipboardData||window.clipboardData).getData('text');
   const lines=clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -725,12 +746,10 @@ async function multiPaste(e){
     let rows=[...list.querySelectorAll('.row')];
     const startIdx=rows.indexOf(startRow);
 
-    // ensure enough rows
     const need=Math.max(0,startIdx+lines.length-rows.length);
     for(let i=0;i<need;i++){ list.appendChild(makeRow(0)); }
     rows=[...list.querySelectorAll('.row')];
 
-    // fill lines
     lines.forEach((addr,i)=>{
       const r=rows[startIdx+i]; if(!r) return;
       const el=r.querySelector('.stop');
@@ -744,7 +763,7 @@ async function multiPaste(e){
     return;
   }
 
-  /* ---- Day/Night frames: distribute forward within the same shift ---- */
+  /* ---- Day/Night frames (same shift) ---- */
   const firstFrameId=+startRow.dataset.frame;
   const frMeta=FRAMES.find(f=>f.id===firstFrameId);
   const shift=frMeta.shift;
@@ -752,43 +771,29 @@ async function multiPaste(e){
   const startIndexInShift = framesInShift.findIndex(f=>f.id===firstFrameId);
 
   const targets=[];
-  const touchedLists=new Set();
-
-  for(let k=startIndexInShift; k<framesInShift.length; k++){
+  for(let k=startIndexInShift; k<framesInShift.length && targets.length<lines.length; k++){
     const fid=framesInShift[k].id;
     const list=document.getElementById('frame-'+fid);
-    touchedLists.add(list);
-
-    // make sure the frame has at least 4 placeholders when first shown
     ensurePlaceholdersForFrame(fid);
-
     const rows=[...list.querySelectorAll('.row')];
     let startAt=0;
     if(fid===firstFrameId) startAt=rows.indexOf(startRow);
-
-    for(let i=startAt;i<rows.length;i++){
+    for(let i=startAt;i<rows.length && targets.length<lines.length;i++){
       const inp=rows[i].querySelector('.stop');
       if(!inp.value.trim()) targets.push(inp);
     }
-
-    // if not enough room, add rows at the end of the last used frame
-    while(targets.length < lines.length && k===framesInShift.length-1){
+    while(targets.length<lines.length && k===framesInShift.length-1){
       const added=addRowToFrame(fid,false,false);
       targets.push(added.querySelector('.stop'));
     }
-    if(targets.length>=lines.length) break;
   }
 
-  // fill targets
-  let i=0;
-  while(i<lines.length && i<targets.length){
+  for(let i=0;i<lines.length && i<targets.length;i++){
     const inp=targets[i];
     inp.value=lines[i]; inp.dataset.lat=''; inp.dataset.lng=''; inp.dataset.dirty='1';
-    i++;
   }
 
   renumber();
-
   autoResolveNext=true;
   await ensureCoords(getOrderedRows(true),{parallel:true});
   await rebuildRoute();
@@ -847,17 +852,13 @@ function toggleShift(which){
   applyShiftVisibility();
 }
 function applyShiftVisibility(){
-  // 1) Decide view FIRST, so flatMode is correct before we seed frames
   const wantFlat = !dayVisible && !nightVisible;
   if (wantFlat) enterFlatMode(); else exitFlatMode();
 
-  // 2) Show/hide sections
   FRAMES.forEach(fr=>{
     const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
     const vis = (fr.shift==='day' && dayVisible) || (fr.shift==='night' && nightVisible);
     sec.style.display = vis ? 'block' : 'none';
-
-    // Seed the frame the first time it's shown so you see 4 inputs immediately
     if (vis && !sec.classList.contains('collapsed')) {
       ensurePlaceholdersForFrame(fr.id, { force:true });
     }
@@ -1114,6 +1115,9 @@ function solveTSPWithMatrix(D,{fixedStart=null,fixedEnd=null}={}){const n=D.leng
 async function optimizeByFramesTwoPass(){
   if (flatMode) return;  // Only for Day/Night view
 
+  // Remove any old leg summaries before we start reordering so we never see duplicates
+  clearLegDisplays();
+
   // --- Helper distance (km) with {lat,lng} objects (null-safe)
   const dist = (a,b)=>{
     if(!a||!b) return 0;
@@ -1132,8 +1136,6 @@ async function optimizeByFramesTwoPass(){
   });
   if(!frames.length) return;
 
-  // --- Build per-frame options (all possible endpoint choices and orientation)
-  //     Each option: { internalCost, startPt, endPt, sequenceRows[] }
   const perFrameOptions = [];
 
   for (const fr of frames){
@@ -1141,85 +1143,66 @@ async function optimizeByFramesTwoPass(){
     const rows   = [...list.querySelectorAll('.row')];
     const filled = rows.filter(r=>r.querySelector('.stop').value.trim());
 
-    // 0 or 1 address → single option (no internal cost)
     if (filled.length <= 1){
       const only = filled[0] || null;
       const pt   = only ? {lat:+only.querySelector('.stop').dataset.lat, lng:+only.querySelector('.stop').dataset.lng} : null;
       perFrameOptions.push([{
-        internalCost: 0,
-        startPt: pt, endPt: pt,
-        sequenceRows: only ? [only] : []
+        internalCost: 0, startPt: pt, endPt: pt, sequenceRows: only ? [only] : []
       }]);
       continue;
     }
 
-    // Ensure coordinates for all filled rows in this frame
     const ok = await ensureCoords(filled, {parallel:true});
     if(!ok){
-      // Fallback: keep current order as the only option
       const ptsNow = filled.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
       perFrameOptions.push([{
-        internalCost: 0,
-        startPt: ptsNow[0], endPt: ptsNow[ptsNow.length-1],
-        sequenceRows: filled
+        internalCost: 0, startPt: ptsNow[0], endPt: ptsNow[ptsNow.length-1], sequenceRows: filled
       }]);
       continue;
     }
 
-    // Points and matrix
     const pts = filled.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
     const D   = buildDistanceMatrix(pts);
 
-    // Build a TOUR (cycle): NN + 2-opt
     let tour = nearestNeighbour(D, 0);
     tour = twoOpt(tour, D);
 
-    // tourCost = sum of consecutive edges + close the cycle
     let tourCost = 0;
     for(let i=0;i<tour.length-1;i++) tourCost += D[tour[i]][tour[i+1]];
     tourCost += D[tour[tour.length-1]][tour[0]];
 
-    // For every possible cut (choose endpoints) and both orientations, create an option
     const options = [];
     const m = tour.length;
 
     for(let cut=0; cut<m; cut++){
-      const a = tour[cut];            // ... → a
-      const b = tour[(cut+1)%m];      // b → ...
+      const a = tour[cut];
+      const b = tour[(cut+1)%m];
       const removedEdgeCost = D[a][b];
       const internalCost    = tourCost - removedEdgeCost;
 
-      // Forward sequence: start at b, go to a
       const forwardIdx = [];
       for(let t=0;t<m;t++) forwardIdx.push( tour[(cut+1+t)%m] );
       const seqRowsF = forwardIdx.map(i=>filled[i]);
       const startPtF = pts[b], endPtF = pts[a];
 
-      // Reverse sequence: start at a, go to b
       const backIdx  = [...forwardIdx].reverse();
       const seqRowsB = backIdx.map(i=>filled[i]);
       const startPtB = pts[a], endPtB = pts[b];
 
-      options.push({
-        internalCost, startPt:startPtF, endPt:endPtF, sequenceRows:seqRowsF
-      });
-      options.push({
-        internalCost, startPt:startPtB, endPt:endPtB, sequenceRows:seqRowsB
-      });
+      options.push({ internalCost, startPt:startPtF, endPt:endPtF, sequenceRows:seqRowsF });
+      options.push({ internalCost, startPt:startPtB, endPt:endPtB, sequenceRows:seqRowsB });
     }
 
     perFrameOptions.push(options);
   }
 
-  // --- Dynamic programming across frames: choose option per frame to minimize total
+  // Dynamic programming across frames
   const N = perFrameOptions.length;
   const dp  = perFrameOptions.map(opts => new Array(opts.length).fill(Infinity));
   const prv = perFrameOptions.map(opts => new Array(opts.length).fill(-1));
 
-  // Init
   perFrameOptions[0].forEach((opt,k)=>{ dp[0][k]=opt.internalCost; });
 
-  // Transitions
   for(let i=1;i<N;i++){
     perFrameOptions[i].forEach((optK,k)=>{
       let bestCost = Infinity, bestJ = -1;
@@ -1232,7 +1215,6 @@ async function optimizeByFramesTwoPass(){
     });
   }
 
-  // Backtrack best choices
   let lastK = dp[N-1].reduce((bestIdx, v, idx)=> v < dp[N-1][bestIdx] ? idx : bestIdx, 0);
   const chosen = new Array(N);
   for(let i=N-1;i>=0;i--){
@@ -1240,29 +1222,16 @@ async function optimizeByFramesTwoPass(){
     lastK = i>0 ? prv[i][lastK] : -1;
   }
 
-  // --- Apply chosen orders to DOM, then strip all empties and hide empty frames
   frames.forEach((fr, i)=>{
     const list = document.getElementById('frame-'+fr.id);
     const opt  = perFrameOptions[i][ chosen[i] ];
-
-    // Re‑append filled rows in selected order (this reorders in the DOM)
     opt.sequenceRows.forEach(r=>list.appendChild(r));
-
-    // Move any empties to the end, then remove all empties
-    compactFrameList(list);
-    pruneListGaps(list, /*placeholdersAtEnd*/ 0, /*addPlaceholders*/ false);
-
-    // Prevent the automatic “top-up 4 empties” from resurrecting here
-    if (typeof disableTopUp === 'function') disableTopUp(fr.id);
+    // no placeholders after F4
+    document.querySelectorAll(`#frame-${fr.id} .row`).forEach(r=>{
+      const v = r.querySelector('.stop').value.trim();
+      if(!v) r.remove();
+    });
   });
-
-  // Collapse any visible frames that now have zero filled rows
-  if(dayVisible && typeof collapseEmptyFramesInShift === 'function'){
-    collapseEmptyFramesInShift('day');
-  }
-  if(nightVisible && typeof collapseEmptyFramesInShift === 'function'){
-    collapseEmptyFramesInShift('night');
-  }
 
   renumber();
   scheduleAutoCompute(0,true);
@@ -1280,25 +1249,70 @@ window.routePlannerInit=()=>{
     new google.maps.LatLng(50.20,-119.15)
   );
 
-  // Region overlay + KML
+  /* ---------- Region overlay + KML (restored) ---------- */
   function nameToAccent(name){ let h=0; for(let i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i)) % 360; } return `hsl(${h} 70% 70%)`; }
+
   class RegionLabelOverlay extends google.maps.OverlayView{
-    constructor(pos,text,accent){super();this.position=pos;this.text=text||'';this.accent=accent||'#9ecfff';this.container=null;}
-    onAdd(){const div=document.createElement('div');div.className='region-label';div.innerHTML=`<div class="region-card"><div class="region-accent" style="border-color:${this.accent}"></div><div class="region-title">${this.text}</div><span class="region-close material-icons" title="Close">close</span></div>`;div.querySelector('.region-close').onclick=()=>this.setMap(null);this.container=div;this.getPanes().floatPane.appendChild(div);requestAnimationFrame(()=>div.classList.add('show')); }
-    draw(){const proj=this.getProjection(); if(!proj||!this.container) return; const pt=proj.fromLatLngToDivPixel(this.position); this.container.style.left=pt.x+'px'; this.container.style.top=pt.y+'px';}
-    onRemove(){if(!this.container) return; const el=this.container; el.classList.remove('show'); setTimeout(()=>{ if(el&&el.parentNode) el.parentNode.removeChild(el); }, 120); this.container=null;}
+    constructor(pos,text,accent){
+      super();
+      this.position=pos;
+      this.text=text||'';
+      this.accent=accent||'#9ecfff';
+      this.container=null;
+    }
+    onAdd(){
+      const div=document.createElement('div');
+      div.className='region-label';
+      div.innerHTML=
+        `<div class="region-card">
+            <div class="region-accent" style="border-color:${this.accent}"></div>
+            <div class="region-title">${this.text}</div>
+            <span class="region-close material-icons" title="Close">close</span>
+         </div>`;
+      div.querySelector('.region-close').onclick=()=>this.setMap(null);
+      this.container=div;
+      this.getPanes().floatPane.appendChild(div);
+      requestAnimationFrame(()=>div.classList.add('show'));
+    }
+    draw(){
+      const proj=this.getProjection();
+      if(!proj||!this.container) return;
+      const pt=proj.fromLatLngToDivPixel(this.position);
+      this.container.style.left=pt.x+'px';
+      this.container.style.top=pt.y+'px';
+    }
+    onRemove(){
+      if(!this.container) return;
+      const el=this.container;
+      el.classList.remove('show');
+      setTimeout(()=>{ if(el&&el.parentNode) el.parentNode.removeChild(el); }, 120);
+      this.container=null;
+    }
   }
+
   let currentRegionOverlay=null;
-  function showRegionLabel(pos,name){ if(currentRegionOverlay){ currentRegionOverlay.setMap(null); currentRegionOverlay=null; } currentRegionOverlay=new RegionLabelOverlay(pos,name,nameToAccent(name)); currentRegionOverlay.setMap(map); }
-  function hideRegionLabel(){ if(currentRegionOverlay){ currentRegionOverlay.setMap(null); currentRegionOverlay=null; } }
+  function showRegionLabel(pos,name){
+    if(currentRegionOverlay){ currentRegionOverlay.setMap(null); currentRegionOverlay=null; }
+    currentRegionOverlay=new RegionLabelOverlay(pos,name,nameToAccent(name));
+    currentRegionOverlay.setMap(map);
+  }
+  function hideRegionLabel(){
+    if(currentRegionOverlay){ currentRegionOverlay.setMap(null); currentRegionOverlay=null; }
+  }
+
   const kml=new google.maps.KmlLayer({
     url:'https://circuitsagexy.github.io/okanagan-map/r5a1LjX92e-djkvc12df/okanagan.kmz',
     map, preserveViewport:true, suppressInfoWindows:true, screenOverlays:false, clickable:true, zIndex:0
   });
-  kml.addListener('click', (e)=>{ const name=e.featureData?.name||''; const pos=e.latLng || e.featureData?.position || map.getCenter(); showRegionLabel(pos, name); });
+  kml.addListener('click', (e)=>{
+    const name=e.featureData?.name||'';
+    const pos=e.latLng || e.featureData?.position || map.getCenter();
+    showRegionLabel(pos, name);
+  });
   map.addListener('click', hideRegionLabel);
   document.getElementById('panel').addEventListener('click', hideRegionLabel, true);
 
+  /* ---------- Services ---------- */
   dirSvc=new google.maps.DirectionsService();
   dirRend=new google.maps.DirectionsRenderer({map,suppressMarkers:true});
   geocoder=new google.maps.Geocoder();
@@ -1311,7 +1325,8 @@ window.routePlannerInit=()=>{
   // Default = FLAT view
   applyShiftVisibility();   // dayVisible=false & nightVisible=false -> enterFlatMode()
 
-  document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; autoCompute();};
+  // FIX: call the actual optimizer, not just autoCompute
+  document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; globalOptimizeRoute();};
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
   const sv = map.getStreetView();
@@ -1344,7 +1359,7 @@ window.routePlannerInit=()=>{
   if(window.__mapsApiReady){ /* maps already loaded */ }
 };
 
-/* --------- Flat‑view optimizer (unchanged) --------- */
+/* --------- Flat‑view optimizer --------- */
 async function globalOptimizeRoute(){
   if(!flatMode){ return; }
   const list=document.getElementById('addrList');
