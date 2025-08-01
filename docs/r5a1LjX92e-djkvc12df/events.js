@@ -3,27 +3,28 @@
 /*  Feeds: BC Wildfire Service + DriveBC Open511                             */
 /* ------------------------------------------------------------------------ */
 (() => {
-  /* ──────── CONFIG ──────── */
+  /* ───────── 1.  SETTINGS (tweak if you like) ───────── */
 
-  /* 1.  Where should we pipe the upstream requests?
-         – If you already deployed a Worker, put its HTTPS origin here.
-         – If you’re only testing, use the public helper below
-           (it *will* rate-limit, so don’t rely on it in prod).               */
-  const MY_PROXY = 'https://okanagan-live.<yourname>.workers.dev/?u='; // ← CHANGE ME
-  // const MY_PROXY = 'https://cors.isomorphic-git.org/';              // quick test
+  /* Your own Cloudflare-Worker (recommended, zero CORS issues).            *
+   * Leave blank ('') until you deploy one – everything will still work     *
+   * through the fall-back helpers.                                         *
+   * Format:  'https://my-worker.subdomain.workers.dev/?u='                 */
+  const MY_PROXY = '';          // ← add later, or keep '' for auto-fallback
 
-  /* 2.  Bounding-box for DriveBC (long1,lat1,long2,lat2). */
+  /* Public CORS helpers (rate-limited but fine for casual use). */
+  const FALLBACK_PROXIES = [
+    'https://cors.isomorphic-git.org/',                // no query param
+    'https://r.jina.ai/http://',                       // prepends http(s)://
+  ];
+
+  /* Central-Okanagan bounding-box for DriveBC (long1,lat1,long2,lat2) */
   const OK_BBOX = '-119.8,49.6,-119.15,50.2';
 
-  /* 3.  GeoJSON feeds to load – extend/replace as you like.  */
+  /* ───────── 2.  FEED CATALOG ───────── */
   const FEEDS = {
-    /** Fire perimeters – BC Wildfire “current season” */
-    wildfires: {
-      url:
-        MY_PROXY +
-        encodeURIComponent(
-          'https://opendata.arcgis.com/datasets/cdfc2d7bc0464bf090ac4897232619e1_0.geojson'
-        ),
+    wildfire: {
+      src:
+        'https://opendata.arcgis.com/datasets/cdfc2d7bc0464bf090ac4897232619e1_0.geojson',
       kind: 'polygon',
       style: {
         fillColor: '#E64A19',
@@ -32,14 +33,10 @@
         strokeWeight: 1.2,
       },
     },
-
-    /** Road incidents / construction – DriveBC Open 511 */
     drivebc: {
-      url:
-        MY_PROXY +
-        encodeURIComponent(
-          `https://api.open511.gov.bc.ca/events?format=geojson&bbox=${OK_BBOX}&event_type=INCIDENT,CONSTRUCTION`
-        ),
+      src:
+        `https://api.open511.gov.bc.ca/events?format=geojson&bbox=${OK_BBOX}` +
+        '&event_type=INCIDENT,CONSTRUCTION',
       kind: 'point',
       icon: {
         /* simple diamond marker */
@@ -53,122 +50,127 @@
     },
   };
 
-  /* ──────── INTERNALS (do not edit) ──────── */
+  /* ───────── 3.  INTERNALS (no edits needed) ───────── */
 
-  /** Holds references so we can remove old live features quickly */
-  const liveFeatures = [];
+  const liveFeatures = [];  // keep handles so we can clear later
+  let   liveBtn;           // the “⟳ Live” button element
 
-  /** “⟳ Live” button element */
-  let button;
+  /* Utility – build a list of candidate URLs to try                           *
+   * order: (a) no proxy, (b) MY_PROXY, (c) fall-back helpers.                 */
+  function candidateURLs(raw) {
+    const list = [raw];
+    if (MY_PROXY) list.push(MY_PROXY + encodeURIComponent(raw));
+    FALLBACK_PROXIES.forEach((p) =>
+      list.push(
+        p.endsWith('?u=') || p.endsWith('?u=')
+          ? p + encodeURIComponent(raw)
+          : p + raw.replace(/^https?:\/\//, '')
+      )
+    );
+    return list;
+  }
 
-  /**
-   * Remove every feature previously added by the live layer.
-   */
+  /* Fetch that walks through the candidate list until one succeeds. */
+  async function fetchWithFallback(rawUrl) {
+    const tries = candidateURLs(rawUrl);
+    for (const u of tries) {
+      try {
+        const res = await fetch(u, { cache: 'no-store' });
+        if (res.ok) {
+          console.info('[live-layer] ✓', rawUrl, 'via', u);
+          return res.json();
+        }
+        console.warn('[live-layer] ×', rawUrl, res.status, res.statusText);
+      } catch (e) {
+        console.warn('[live-layer] ×', rawUrl, e.message);
+      }
+    }
+    throw new Error('all fetch attempts failed for ' + rawUrl);
+  }
+
+  /* Remove previous live features from the map. */
   function clearLive() {
     liveFeatures.forEach((f) => map.data.remove(f));
     liveFeatures.length = 0;
   }
 
-  /**
-   * Fetch a feed, add it to the data layer, remember the features.
-   */
-  async function addFeed(def) {
-    try {
-      const res = await fetch(def.url, { cache: 'no-store' });
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const gj = await res.json();
+  /* Add one feed, tag its features, remember handles. */
+  async function addFeed(name, def) {
+    const gj = await fetchWithFallback(def.src);
 
-      // annotate each GeoJSON feature so the style wrapper can recognise it
-      gj.features.forEach((ft) => {
-        ft.properties.__live = true;
-        ft.properties.__kind = def.kind;
-      });
+    (gj.features || []).forEach((f) => {
+      f.properties.__live = name;
+      f.properties.__kind = def.kind;
+    });
 
-      const feats = map.data.addGeoJson(gj);
-      feats.forEach((f) => {
-        f.setProperty('__live', true);
-        f.setProperty('__kind', def.kind);
-        if (def.kind === 'polygon') f.setProperty('__style', def.style);
-        if (def.kind === 'point') f.setProperty('__icon', def.icon);
-        liveFeatures.push(f);
-      });
-    } catch (err) {
-      console.warn('Live-layer fetch failed:', err);
-    }
+    const feats = map.data.addGeoJson(gj);
+    feats.forEach((f) => {
+      f.setProperty('__live', name);
+      f.setProperty('__kind', def.kind);
+      if (def.kind === 'polygon') f.setProperty('__style', def.style);
+      if (def.kind === 'point')   f.setProperty('__icon',  def.icon);
+      liveFeatures.push(f);
+    });
   }
 
-  /**
-   * Style handler that defers to the original styleFeature()
-   * but intercepts items tagged “__live”.
-   */
-  function liveStyleWrapper(origStyleFn) {
-    return function (feature) {
-      if (feature.getProperty('__live')) {
-        if (feature.getProperty('__kind') === 'polygon') {
-          return feature.getProperty('__style');
-        }
-        if (feature.getProperty('__kind') === 'point') {
-          return { icon: feature.getProperty('__icon') };
-        }
+  /* Merge with the host page’s styleFeature(). */
+  function wrapStyle(orig) {
+    return function (feat) {
+      const live = feat.getProperty('__live');
+      if (live) {
+        return feat.getProperty('__kind') === 'polygon'
+          ? feat.getProperty('__style')
+          : { icon: feat.getProperty('__icon') };
       }
-      return origStyleFn(feature); // default polygons
+      return orig(feat);
     };
   }
 
-  /**
-   * One-click refresh handler.
-   */
+  /* Refresh handler. */
   async function reloadLive() {
-    if (button) {
-      button.disabled = true;
-      button.textContent = '⟳…';
+    if (liveBtn) {
+      liveBtn.disabled = true;
+      liveBtn.textContent = '⟳…';
     }
 
     clearLive();
-    for (const k of Object.keys(FEEDS)) await addFeed(FEEDS[k]);
+    try {
+      for (const [name, def] of Object.entries(FEEDS)) await addFeed(name, def);
+    } catch (e) {
+      console.error('[live-layer] giving up –', e.message);
+    }
 
-    // Re-install the style wrapper so new features paint instantly.
-    map.data.setStyle(liveStyleWrapper(styleFeature));
+    map.data.setStyle(wrapStyle(styleFeature));
 
-    if (button) {
-      button.disabled = false;
-      button.textContent = '⟳ Live';
+    if (liveBtn) {
+      liveBtn.disabled = false;
+      liveBtn.textContent = '⟳ Live';
     }
   }
 
-  /**
-   * Inject the floating “⟳ Live” button.
-   */
+  /* UI injection. */
   function makeButton() {
-    button = document.createElement('button');
-    button.id = 'refreshLiveBtn';
-    button.textContent = '⟳ Live';
-    button.title = 'Load / refresh live wildfire + DriveBC layers';
-    button.style.cssText = `
+    liveBtn = document.createElement('button');
+    liveBtn.id = 'refreshLiveBtn';
+    liveBtn.textContent = '⟳ Live';
+    liveBtn.title = 'Load / refresh wildfire & DriveBC layers';
+    liveBtn.style.cssText = `
       position:absolute; top:10px; right:58px; z-index:9;
       padding:6px 12px; border:1px solid #c7c7c7;
       background:#fff; border-radius:10px; cursor:pointer;
       font-weight:600; box-shadow:0 2px 8px rgba(0,0,0,.15);
     `;
-    button.addEventListener('click', reloadLive);
-    document.body.appendChild(button);
+    liveBtn.onclick = reloadLive;
+    document.body.appendChild(liveBtn);
   }
 
-  /**
-   * Wait until the main page has created `map` and `styleFeature`,
-   * then install the add-on.
-   */
-  function initAddon() {
+  /* Wait until the main script has created `map` & `styleFeature`. */
+  (function init() {
     if (!window.map || !window.styleFeature) {
-      setTimeout(initAddon, 80);
+      setTimeout(init, 80);
       return;
     }
     makeButton();
-
-    /* OPTIONAL: uncomment to auto-load once when the page opens
-       (still refreshable later via the button)                       */
-    // reloadLive();
-  }
-
-  initAddon();
+    // reloadLive();   // ← uncomment to auto-load once on page open
+  })();
 })();
