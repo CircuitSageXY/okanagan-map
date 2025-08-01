@@ -8,7 +8,7 @@
 
   /* **********  SET THIS TO YOUR CLOUDFLARE WORKER BASE URL  ********** */
   // Example once deployed: 'https://okanagan-live-proxy.yourname.workers.dev'
-  const WORKER_BASE = ''; // ← leave empty to disable external feeds safely
+const WORKER_BASE = 'https://okanagan-live-proxy.<your-account>.workers.dev';
   /* ******************************************************************* */
 
   // Central Okanagan bbox
