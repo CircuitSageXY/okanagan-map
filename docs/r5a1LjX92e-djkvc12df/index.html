@@ -1703,7 +1703,8 @@ function styleFeature(feature){
     strokeWeight: stroke, visible:true
   };
 }
-
+window.styleFeature = styleFeature;
+  
 /* --- persistence --- */
 function loadSaved(key, fallback){ try{ const v = JSON.parse(localStorage.getItem(key)||'null'); return v && typeof v==='object' ? v : fallback; }catch(_){ return fallback; } }
 function saveSaved(key, obj){ try{ localStorage.setItem(key, JSON.stringify(obj)); }catch(_){ } }
@@ -2010,7 +2011,8 @@ window.routePlannerInit=()=>{
     center:{lat:49.8879,lng:-119.4960}, zoom:10,
     mapTypeControl:false,streetViewControl:true,fullscreenControl:true,tilt:0
   });
-
+  window.map = map; 
+  
   // Provide the overlay class after Maps loads
   initRegionLabelOverlay();
 
@@ -2115,5 +2117,7 @@ async function globalOptimizeRoute(){
   scheduleAutoCompute(0,true);
 }
 </script>
+
+<script defer src="events.js"></script>
 </body>
 </html>
