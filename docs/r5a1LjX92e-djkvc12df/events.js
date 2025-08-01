@@ -225,15 +225,18 @@
     document.body.appendChild(button);
   }
 
-  /* =============== Boot (wait for map/styleFeature) =============== */
-  (function initAddon(tryN = 0) {
-    if (!window.map || !window.styleFeature) {
-      if (tryN < 60) return void setTimeout(() => initAddon(tryN + 1), 100);
-      console.warn('[live-layer] map/styleFeature not available – giving up');
-      return;
-    }
-    console.log('%c[live-layer] addon loaded v2024-07-31-c', 'color:#03A9F4;font-weight:bold');
-    map.data.setStyle(liveStyleWrapper(styleFeature));
-    makeButton();
-  })();
+  /* =============== Boot (wait until map.data is ready too) =============== */
+   (function initAddon(tryN = 0) {
+     if (!window.map           ||          // map not yet created
+         !window.map.data      ||          // Data layer not injected yet
+         !window.styleFeature) {           // original styling fn not defined yet
+       if (tryN < 100) return void setTimeout(() => initAddon(tryN + 1), 100);
+       console.warn('[live-layer] map / map.data / styleFeature not ready – giving up');
+       return;
+     }
+     console.log('%c[live-layer] addon loaded v2024-07-31-d', 'color:#03A9F4;font-weight:bold');
+     try   { map.data.setStyle(liveStyleWrapper(styleFeature)); }
+     catch (e) { console.warn('[live-layer] setStyle failed (will retry on first reload)', e); }
+     makeButton();
+   })();
 })();
