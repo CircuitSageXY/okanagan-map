@@ -2,10 +2,10 @@
 <script>
 /* ================= OCR PASTE ADD-ON (no changes to your core logic) ================= */
 
-// ---------------- CONFIG ----------------
+/* ---------- CONFIG ---------- */
 const OCR_CONFIG = {
-  backend: 'vision',
-  visionApiKey: 'AIzaSyAfG3tPwgNXTt6w6-CRqq5Xoi4fXfAfVrA', // <-- quoted string
+  backend: 'vision',                          // 'tesseract' or 'vision'
+  visionApiKey: 'AIzaSyAfG3tPwgNXTt6w6-CRqq5Xoi4fXfAfVrA', // <-- in quotes
   lang: 'eng'
 };
 
@@ -126,10 +126,10 @@ async function fillSequentialFrom(input, addresses){
   if (window.scheduleAutoCompute) { window.autoResolveNext = true; window.scheduleAutoCompute(0,true); }
 }
 
-// ---------------- Main: intercept paste of an image into any .stop input ---------------
-document.addEventListener('paste', async (ev) => {
+// Handle image->OCR when pasting into any address bar (input.stop)
+document.addEventListener('paste', async (ev)=>{
   const target = ev.target;
-  if (!target?.classList?.contains('stop')) return;   // only handle our address bars
+  if (!target || !target.classList || !target.classList.contains('stop')) return;
 
   const dt = ev.clipboardData;
   if (!dt) return;
@@ -137,50 +137,44 @@ document.addEventListener('paste', async (ev) => {
   // Try both paths: items[] (most browsers) and files[] (some Windows clipboard sources)
   let blob = null;
 
-  // Preferred path: clipboard items[] (has kind/type)
-  if (dt.items && dt.items.length) {
-    for (const it of dt.items) {
-      if (it.kind === 'file' && it.type && it.type.startsWith('image/')) {
+  if (dt.items && dt.items.length){
+    for (const it of dt.items){
+      if (it.kind === 'file' && it.type && it.type.startsWith('image/')){
         blob = it.getAsFile();
         break;
       }
     }
   }
-
   // Fallback: some pastes only populate files[]
-  if (!blob && dt.files && dt.files.length) {
+  if (!blob && dt.files && dt.files.length){
     const f = dt.files[0];
     if (f.type && f.type.startsWith('image/')) blob = f;
   }
 
-  // If no image present, let normal (text) paste proceed
+  // If no image present, let your normal text paste handler run (multiPaste)
   if (!blob) return;
 
-  // We’re handling the image ourselves → stop the default paste
+  // We’re handling the image → stop the default and do OCR
   ev.preventDefault();
 
-  try {
+  try{
     const text = await ocrFromClipboardImage(blob);
+    const addresses = extractAddressesInOrder(text);
 
-    // Parse addresses from OCR text
-    let addresses = extractAddressesInOrder(text);
-
-    // Light fallback: if parser found nothing but OCR returned text,
-    // try splitting on commas/newlines and renormalize each piece.
-    if (!addresses.length && text) {
-      const quick = text.split(/[\r\n,]+/).map(s => s.trim()).filter(Boolean);
-      addresses = quick.map(normalizeAddressLine).filter(Boolean);
+    // Very light fallback if parser found nothing but OCR returned text
+    if (!addresses.length && text){
+      const quick = text.split(/[\r\n,]+/).map(s=>s.trim()).filter(Boolean);
+      for (const q of quick){
+        const v = normalizeAddressLine(q);
+        if (v) addresses.push(v);
+      }
     }
 
-    // Nothing recognized? Just stop silently.
-    if (!addresses.length) return;
-
-    // Fill current and subsequent address bars using your existing logic
     await fillSequentialFrom(target, addresses);
-
-  } catch (err) {
+  }catch(err){
     console.error('OCR paste failed:', err);
+    // Optional: alert('Could not read the screenshot. Try again or type the address.');
   }
-}, true); // capture phase so we see the paste before other handlers
+}, true); // <--- capture so this runs before the input's text paste handler
 
 </script>
