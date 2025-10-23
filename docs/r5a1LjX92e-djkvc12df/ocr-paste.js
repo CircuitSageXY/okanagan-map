@@ -1,5 +1,3 @@
-<!-- ocr-paste.js -->
-<script>
 /* ================= OCR PASTE ADD-ON (no changes to your core logic) ================= */
 
 /* ---------- CONFIG ---------- */
@@ -176,5 +174,3 @@ document.addEventListener('paste', async (ev)=>{
     // Optional: alert('Could not read the screenshot. Try again or type the address.');
   }
 }, true); // <--- capture so this runs before the input's text paste handler
-
-</script>
