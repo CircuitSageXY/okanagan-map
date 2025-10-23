@@ -1361,11 +1361,22 @@ async function autoCompute(){
     else{ clearDirections(); clearLegDisplays(); return; }
   }
   if(rows.length===1){
-    clearDirections();clearLegDisplays();clearPreviewPins();
-    const inp=rows[0].querySelector('.stop');
-    addPreviewPin({lat:+inp.dataset.lat,lng:+inp.dataset.lng},'A');
-    msg.textContent=''; if(flatMsg) flatMsg.textContent='';
-  }else{
+  clearDirections();clearLegDisplays();clearPreviewPins();
+  const inp=rows[0].querySelector('.stop');
+  const pt = {lat:+inp.dataset.lat, lng:+inp.dataset.lng};
+  addPreviewPin(pt,'A');
+
+  // NEW: focus the map so the geo-area color is clearly visible
+  if (map && Number.isFinite(pt.lat) && Number.isFinite(pt.lng)){
+    map.panTo(pt);
+    // a crisp “see the polygon” level for your area
+    const targetZoom = 15; // 14–16 works well; adjust if you prefer
+    const z = map.getZoom();
+    if (!z || Math.abs(z - targetZoom) > 0.5) map.setZoom(targetZoom);
+  }
+
+  msg.textContent=''; if(flatMsg) flatMsg.textContent='';
+}else{
     clearPreviewPins(); await rebuildRoute();
   }
 }
