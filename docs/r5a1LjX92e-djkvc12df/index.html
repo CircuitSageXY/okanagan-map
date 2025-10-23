@@ -1396,7 +1396,18 @@ function displayLegs(res,stat){
   const msg=document.getElementById('msg'), flatMsg=document.getElementById('flatMsg');
   if(stat!=='OK'){msg.textContent='Route error: '+stat; if(flatMsg) flatMsg.textContent=msg.textContent; clearDirections();return;}
   dirRend.setDirections(res);
+
+  // >>>>> NEW: auto-focus map on the current route (with sensible padding)
+  const b = res?.routes?.[0]?.bounds;
+  if (b && map){
+    // leave space for your left panel / flat bar
+    const leftPad = (flatMode ?  (document.getElementById('panel')?.offsetWidth||480)+24 : 24);
+    map.fitBounds(b, { top: 60, right: 28, bottom: (flatMode? 160: 60), left: leftPad });
+  }
+  // <<<<< end insert
+
   const rows=getOrderedRows();
+
   let kmTot=0,minTot=0;clearLegDisplays();
   res.routes[0].legs.forEach((leg,i)=>{
     const km=leg.distance.value/1000,min=Math.round(leg.duration.value/60);
@@ -1554,6 +1565,29 @@ function pruneEmptyRowsAndFrames(){
   scheduleTimelineBuild();
 }
 
+// Normalize for duplicate compare: ignore unit/suite, compare case-insensitive
+function normForCompare(addr){
+  let t=(addr||'').toLowerCase();
+  t=t.replace(/^\s*(?:#\s*\d+[a-z]?[-–]?\s*|\b(?:unit|suite|apt|apartment)\b\s*\d+[a-z]?[-–]?\s*)/i,'');
+  t=t.replace(/\s+/g,' ').trim();
+  return t;
+}
+
+function collapseConsecutiveDuplicatesCurrentView(){
+  const listRows = window.flatMode
+    ? [...document.querySelectorAll('#addrList .row')]
+    : [...getOrderedRows(true)]; // include hidden just to handle long sequences safely
+
+  for (let i=listRows.length-2; i>=0; i--){
+    const a = listRows[i].querySelector('.stop')?.value || '';
+    const b = listRows[i+1].querySelector('.stop')?.value || '';
+    if (!a || !b) continue;
+    if (normForCompare(a) === normForCompare(b)){
+      listRows[i+1].remove(); // remove only if adjacent (consecutive)
+    }
+  }
+}
+
 /* =================== OPTIMIZE BY FRAMES (exact with DP across frames) =================== */
 async function optimizeByFrames(){
   if (flatMode){ return; }
@@ -1669,6 +1703,7 @@ async function optimizeByFrames(){
   }
 
   // NEW: tidy view after optimize
+  collapseConsecutiveDuplicatesCurrentView();   // <<< insert
   pruneEmptyRowsAndFrames();
 
   renumber();
@@ -2111,6 +2146,7 @@ async function globalOptimizeRoute(){
   ordered.forEach(r=>list.appendChild(r));
 
   // NEW: tidy (remove any remaining empties)
+  collapseConsecutiveDuplicatesCurrentView();   // <<< insert
   pruneEmptyRowsAndFrames();
 
   renumber();
@@ -2118,6 +2154,7 @@ async function globalOptimizeRoute(){
 }
 </script>
 
+<script defer src="ocr-paste.js"></script>
 <script defer src="events.js"></script>
 </body>
 </html>
