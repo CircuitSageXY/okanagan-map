@@ -4,8 +4,8 @@
 
 // ---------------- CONFIG ----------------
 const OCR_CONFIG = {
-  backend: 'vision',           // <— change to 'vision'
-  visionApiKey: 'YOUR_API_KEY_HERE',  // <— paste the key you restricted to Vision
+  backend: 'vision',
+  visionApiKey: 'AIzaSyAfG3tPwgNXTt6w6-CRqq5Xoi4fXfAfVrA', // <-- quoted string
   lang: 'eng'
 };
 
