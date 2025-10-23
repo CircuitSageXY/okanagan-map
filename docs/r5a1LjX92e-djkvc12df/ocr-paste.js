@@ -4,8 +4,8 @@
 
 // ---------------- CONFIG ----------------
 const OCR_CONFIG = {
-  backend: 'tesseract',        // 'tesseract' (default) or 'vision'
-  visionApiKey: '',            // set if backend = 'vision'
+  backend: 'vision',           // <— change to 'vision'
+  visionApiKey: 'YOUR_API_KEY_HERE',  // <— paste the key you restricted to Vision
   lang: 'eng'
 };
 
