@@ -1547,6 +1547,79 @@ function shortestHamiltonianPaths(D){
   }
   return {cost, path};
 }
+/* =================== CONSECUTIVE DUPLICATE REMOVAL (coords-first) =================== */
+// Suffix map to normalize St/Street, Rd/Road, etc. for text fallback
+const SUFFIX_MAP = {
+  'street':'st', 'st':'st',
+  'avenue':'ave', 'ave':'ave',
+  'road':'rd', 'rd':'rd',
+  'drive':'dr', 'dr':'dr',
+  'lane':'ln', 'ln':'ln',
+  'court':'ct', 'ct':'ct',
+  'place':'pl', 'pl':'pl',
+  'boulevard':'blvd', 'blvd':'blvd',
+  'highway':'hwy', 'hwy':'hwy',
+  'crescent':'cres', 'cres':'cres',
+  'terrace':'ter', 'ter':'ter',
+  'parkway':'pkwy', 'pkwy':'pkwy'
+};
+
+// very tolerant text normalizer (used only if we don't have coords)
+function normForCompare(addr){
+  let t = (addr||'')
+    .toLowerCase()
+    .replace(/[,\.;:]+$/,'')                 // strip trailing punctuation
+    .replace(/\b(canada|british columbia|bc)\b/g,'')  // remove country/province
+    .replace(/\b[a-z]\d[a-z]\s?\d[a-z]\d\b/gi,'')     // remove postal code
+    .replace(/^\s*(?:#\s*\d+[a-z]?|(?:unit|suite|apt|apartment)\s*\d+[a-z]?)\s*[-–]?\s*/i,'') // drop unit/suite
+    .replace(/\s+/g,' ')
+    .trim();
+
+  // normalize common street suffixes
+  t = t.replace(/\b(street|st|avenue|ave|road|rd|drive|dr|lane|ln|court|ct|place|pl|boulevard|blvd|highway|hwy|crescent|cres|terrace|ter|parkway|pkwy)\b/g,
+      (m)=>SUFFIX_MAP[m]||m);
+  return t;
+}
+
+// distance-based equality if both rows already have coords
+function rowsSamePlace(r1, r2){
+  const a = r1?.querySelector('.stop'), b = r2?.querySelector('.stop');
+  if(!a || !b) return false;
+
+  const haveA = a.dataset.lat && a.dataset.lng;
+  const haveB = b.dataset.lat && b.dataset.lng;
+
+  if (haveA && haveB){
+    const p = {lat:+a.dataset.lat, lng:+a.dataset.lng};
+    const q = {lat:+b.dataset.lat, lng:+b.dataset.lng};
+    // treat as identical if within 30m
+    return haversine(p,q) < 0.03;
+  }
+  // fallback to text compare
+  return normForCompare(a.value) === normForCompare(b.value);
+}
+
+// Ensure coords for visible rows, then remove only adjacent duplicates
+async function collapseConsecutiveDuplicatesCurrentView(){
+  const rows = window.flatMode
+    ? [...document.querySelectorAll('#addrList .row')]
+    : FRAMES.flatMap(fr=>{
+        const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
+        const vis = (fr.shift==='day' && dayVisible) || (fr.shift==='night' && nightVisible);
+        if (!vis || sec.classList.contains('collapsed') || sec.style.display==='none') return [];
+        return [...document.querySelectorAll(`#frame-${fr.id} .row`)];
+      });
+
+  // 1) Ensure coordinates (helps us compare by location, not formatting)
+  await ensureCoords(rows, {parallel:true});
+
+  // 2) Walk from the end removing only the *immediately next* duplicate
+  for (let i = rows.length - 2; i >= 0; i--){
+    if (rowsSamePlace(rows[i], rows[i+1])){
+      rows[i+1].remove();
+    }
+  }
+}
 
 /* =================== PRUNE EMPTY ROWS & FRAMES (after optimize) =================== */
 function pruneEmptyRowsAndFrames(){
@@ -1574,29 +1647,6 @@ function pruneEmptyRowsAndFrames(){
   });
   renumber();
   scheduleTimelineBuild();
-}
-
-// Normalize for duplicate compare: ignore unit/suite, compare case-insensitive
-function normForCompare(addr){
-  let t=(addr||'').toLowerCase();
-  t=t.replace(/^\s*(?:#\s*\d+[a-z]?[-–]?\s*|\b(?:unit|suite|apt|apartment)\b\s*\d+[a-z]?[-–]?\s*)/i,'');
-  t=t.replace(/\s+/g,' ').trim();
-  return t;
-}
-
-function collapseConsecutiveDuplicatesCurrentView(){
-  const listRows = window.flatMode
-    ? [...document.querySelectorAll('#addrList .row')]
-    : [...getOrderedRows(true)]; // include hidden just to handle long sequences safely
-
-  for (let i=listRows.length-2; i>=0; i--){
-    const a = listRows[i].querySelector('.stop')?.value || '';
-    const b = listRows[i+1].querySelector('.stop')?.value || '';
-    if (!a || !b) continue;
-    if (normForCompare(a) === normForCompare(b)){
-      listRows[i+1].remove(); // remove only if adjacent (consecutive)
-    }
-  }
 }
 
 /* =================== OPTIMIZE BY FRAMES (exact with DP across frames) =================== */
@@ -2034,15 +2084,16 @@ function initHotkeys(){
         clearFilledCurrentView();
         break;
       }
-     case 'F4': {                           // Optimize (by Frames in framed view, global in flat view)
+case 'F4': {                           // Optimize (by Frames in framed view, global in flat view)
   e.preventDefault();
   autoResolveNext = true;
-  collapseConsecutiveDuplicatesCurrentView();   // << run pre-opt, on current visible order
-  if (flatMode) {
-    globalOptimizeRoute();
-  } else {
-    optimizeByFrames();
-  }
+  collapseConsecutiveDuplicatesCurrentView().then(()=>{
+    if (flatMode) {
+      globalOptimizeRoute();
+    } else {
+      optimizeByFrames();
+    }
+  });
   break;
 }
       default: return;
