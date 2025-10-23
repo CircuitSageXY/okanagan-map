@@ -129,10 +129,59 @@ async function fillSequentialFrom(input, addresses){
 // ---------------- Main: intercept paste of an image into any .stop input ---------------
 document.addEventListener('paste', async (ev)=>{
   const target = ev.target;
-  if (!target || !target.classList || !target.classList.contains('stop')) return;
+  if (!target?.classList?.contains('stop')) return;
 
-  const cd = ev.clipboardData;
-  if (!cd) return;
+  const dt = ev.clipboardData;
+  if (!dt) return;
+
+  // Try both paths: items[] (most browsers) and files[] (some Windows clipboard sources)
+  let blob = null;
+
+  if (dt.items && dt.items.length){
+    for (const it of dt.items){
+      if (it.kind === 'file' && it.type && it.type.startsWith('image/')){
+        blob = it.getAsFile();
+        break;
+      }
+    }
+  }
+
+  // Fallback: some pastes only populate files[]
+  if (!blob && dt.files && dt.files.length){
+    const f = dt.files[0];
+    if (f.type && f.type.startsWith('image/')) blob = f;
+  }
+
+  // If no image present, let your normal text paste handler run
+  if (!blob) return;
+
+  // We’re handling the image → stop the default and do OCR
+  ev.preventDefault();
+
+  try{
+    const text = await ocrFromClipboardImage(blob);
+    // Optional: quick debug if parsing returns nothing
+    // console.log('OCR text:', text);
+
+    const addresses = extractAddressesInOrder(text);
+
+    // If OCR succeeded but parser found nothing, try a very light fallback:
+    if (!addresses.length && text){
+      // Split on commas/newlines and feed lines to normalizer
+      const quick = text.split(/[\r\n,]+/).map(s=>s.trim()).filter(Boolean);
+      quick.forEach(q=>{
+        const v = normalizeAddressLine(q);
+        if (v) addresses.push(v);
+      });
+    }
+
+    await fillSequentialFrom(target, addresses);
+  }catch(err){
+    console.error('OCR paste failed:', err);
+    // (Optional) show a small hint to the user
+    // alert('Sorry—could not read the screenshot. Try again or type.');
+  }
+}, true);
 
   // If there is at least one image item, we do OCR; else let your original paste logic run.
   const item = [...cd.items].find(i=> i.type && i.type.startsWith('image/'));
