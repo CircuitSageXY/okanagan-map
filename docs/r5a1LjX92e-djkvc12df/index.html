@@ -1714,7 +1714,6 @@ async function optimizeByFrames(){
   }
 
   // NEW: tidy view after optimize
-  collapseConsecutiveDuplicatesCurrentView();   // <<< insert
   pruneEmptyRowsAndFrames();
 
   renumber();
@@ -2035,16 +2034,17 @@ function initHotkeys(){
         clearFilledCurrentView();
         break;
       }
-      case 'F4': {                           // Optimize (by Frames in framed view, global in flat view)
-        e.preventDefault();
-        autoResolveNext = true;
-        if (flatMode) {
-          globalOptimizeRoute();
-        } else {
-          optimizeByFrames();
-        }
-        break;
-      }
+     case 'F4': {                           // Optimize (by Frames in framed view, global in flat view)
+  e.preventDefault();
+  autoResolveNext = true;
+  collapseConsecutiveDuplicatesCurrentView();   // << run pre-opt, on current visible order
+  if (flatMode) {
+    globalOptimizeRoute();
+  } else {
+    optimizeByFrames();
+  }
+  break;
+}
       default: return;
     }
   }, true);
@@ -2107,7 +2107,11 @@ window.routePlannerInit=()=>{
 
   applyShiftVisibility();  // start in FLAT
 
-  document.getElementById('flatOpt').onclick=()=>{autoResolveNext=true; globalOptimizeRoute();};
+ document.getElementById('flatOpt').onclick=()=>{
+  autoResolveNext = true;
+  collapseConsecutiveDuplicatesCurrentView();   // << pre-opt
+  globalOptimizeRoute();
+};
   document.getElementById('flatDelSel').onclick=deleteSelected;
 
   const sv = map.getStreetView();
@@ -2157,7 +2161,6 @@ async function globalOptimizeRoute(){
   ordered.forEach(r=>list.appendChild(r));
 
   // NEW: tidy (remove any remaining empties)
-  collapseConsecutiveDuplicatesCurrentView();   // <<< insert
   pruneEmptyRowsAndFrames();
 
   renumber();
