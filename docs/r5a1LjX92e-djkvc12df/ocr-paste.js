@@ -1,13 +1,16 @@
-/* ================= OCR PASTE ADD-ON (via Cloud Run proxy) ================= */
+/* ================= OCR PASTE ADD-ON (proxy + multi-address) ================= */
 
 /* ---------- CONFIG ---------- */
 const OCR_CONFIG = {
-  backend: 'proxy',   // 'proxy' (Cloud Run) or 'tesseract'
-  proxyUrl: 'https://ocrproxy-20209668074.northamerica-northeast2.run.app/ocr',
+  // Use the proxy we just deployed so this works on any PC with no login:
+  backend: 'proxy',     // 'proxy' | 'vision' | 'tesseract'
+  ocrProxyUrl: 'https://ocrproxy-20209668074.northamerica-northeast2.run.app', // <-- your Cloud Run URL
+  // If you ever want to go direct (not recommended), keep the Vision key here:
+  visionApiKey: '',     // not used when backend==='proxy'
   lang: 'eng'
 };
 
-// Lazy loader for Tesseract (single worker)
+/* ---------- OPTIONAL: Tesseract lazy loader (client-side fallback) ---------- */
 let __tessReady = null;
 function ensureTesseract(){
   if (__tessReady) return __tessReady;
@@ -22,33 +25,47 @@ function ensureTesseract(){
   return __tessReady;
 }
 
-// Extract text from a pasted image (PNG/JPEG/clipboard bitmap)
+/* ---------- OCR core ---------- */
 async function ocrFromClipboardImage(blob){
-  // --------- Use your Cloud Run proxy ----------
-  if (OCR_CONFIG.backend === 'proxy' && OCR_CONFIG.proxyUrl){
-    const b64 = await blobToBase64(blob); // data:image/...;base64,AAAA...
-    const res = await fetch(OCR_CONFIG.proxyUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        imageB64: b64,      // send full data URL; proxy strips the header
-        lang: OCR_CONFIG.lang || 'eng'
-      }),
-    }).then(r => r.json()).catch(()=> null);
+  const b64 = await blobToBase64(blob);
 
-    // expected proxy response: { text: "..." }  or  { error: "..." }
-    if (res && res.text) return res.text;
-    console.error('Proxy OCR error:', res);
-    return '';
+  if (OCR_CONFIG.backend === 'proxy' && OCR_CONFIG.ocrProxyUrl){
+    try{
+      const res = await fetch(`${OCR_CONFIG.ocrProxyUrl.replace(/\/+$/,'')}/ocr`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ imageB64: b64, lang: OCR_CONFIG.lang })
+      });
+      const json = await res.json().catch(()=>null);
+      const text = json?.text || '';
+      console.log('[OCR] proxy ok, chars:', text.length);
+      return text;
+    }catch(err){
+      console.warn('[OCR] proxy failed, falling back to tesseract', err);
+      // fall through to tesseract
+    }
   }
 
-  // --------- Tesseract fallback (fully client-side) ----------
+  if (OCR_CONFIG.backend === 'vision' && OCR_CONFIG.visionApiKey){
+    const req = {
+      requests: [{
+        image: { content: b64.replace(/^data:image\/\w+;base64,/, '') },
+        features: [{ type: 'TEXT_DETECTION' }]
+      }]
+    };
+    const res = await fetch(
+      'https://vision.googleapis.com/v1/images:annotate?key=' + encodeURIComponent(OCR_CONFIG.visionApiKey),
+      { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(req) }
+    ).then(r=>r.json()).catch(()=>null);
+    const text = res?.responses?.[0]?.fullTextAnnotation?.text || '';
+    console.log('[OCR] vision direct ok, chars:', text.length);
+    return text;
+  }
+
+  // Tesseract (always available as a last resort)
   const T = await ensureTesseract();
-  const { data:{ text } } = await T.recognize(
-    blob,
-    OCR_CONFIG.lang || 'eng',
-    { tessedit_pageseg_mode: 6 }
-  );
+  const { data:{ text } } = await T.recognize(blob, OCR_CONFIG.lang, { tessedit_pageseg_mode: 6 });
+  console.log('[OCR] tesseract ok, chars:', (text||'').length);
   return text || '';
 }
 
@@ -60,124 +77,73 @@ function blobToBase64(blob){
   });
 }
 
-// ---------------- Parsing: keep only real street addresses ----------------
-// Strips unit/suite and facility names, keeps number + street, like "3163 Richter St"
-function normalizeAddressLine(s){
-  let t = (s||'').replace(/\s+/g,' ').trim();
+/* ---------- Address extraction (global regex; keeps order & dedups) ---------- */
+/* We sweep the whole OCR text and pull every "#### Name <type>" occurrence. */
+const STREET_TYPE_RX = `St(?:reet)?|Ave(?:nue)?|Rd|Road|Dr|Drive|Blvd|Boulevard|Hwy|Highway|Way|Lane|Ln|Court|Ct|Place|Pl|Trail|Terrace|Cres(?:cent)?|Close|Pkwy|Parkway`;
+const ADDRESS_GLOB_RX = new RegExp(
+  String.raw`\b(\d{3,6})\s+([A-Za-z0-9.'\- ]+?)\s+(${STREET_TYPE_RX})\b`,
+  'gi'
+);
 
-  // remove leading unit/suite markers (e.g., "#304-", "Unit 12,", "Suite 5 –")
-  t = t.replace(/^(?:#\s*\d+[A-Z]?\s*[-–]\s*|\b(?:unit|suite|apt|apartment)\b\s*\d+[A-Z]?\s*[-–]?\s*)/i, '');
-
-  // try to capture street number + name + street type
-  const streetType = "(?:St(?:reet)?|Ave(?:nue)?|Rd|Road|Dr|Drive|Blvd|Boulevard|Hwy|Highway|Way|Lane|Ln|Court|Ct|Place|Pl|Trail|Cres(?:cent)?|Close|Pkwy|Parkway)";
-  const m = t.match(new RegExp(
-    String.raw`^(\d{3,6})\s+([A-Za-z0-9.'\- ]+?)\s+${streetType}\b(?:[^\n,]*)`,
-    'i'
-  ));
-  if (!m) return null;
-
-  // recompose as "#### StreetName St"
-  const number = m[1];
-  const name   = m[2].replace(/\s+/g,' ').trim();
-  const type   = (t.slice(m.index).match(new RegExp(streetType,'i'))||[''])[0];
-  let out = `${number} ${name} ${type}`.replace(/\s+/g,' ').trim();
-
+function extractAddresses(text){
+  if (!text) return [];
+  const found = [];
+  let m;
+  while ((m = ADDRESS_GLOB_RX.exec(text)) !== null){
+    const number = m[1];
+    const name   = m[2].replace(/\s+/g,' ').trim();
+    const type   = m[3];
+    const addr   = `${number} ${name} ${type}`.replace(/\s+/g,' ').trim();
+    found.push(addr);
+  }
+  // Dedup while preserving order
+  const seen = new Set();
+  const out = [];
+  for (const a of found){
+    const k = a.toLowerCase();
+    if (!seen.has(k)){ seen.add(k); out.push(a); }
+  }
   return out;
 }
 
-function extractAddressesInOrder(rawText){
-  const lines = (rawText||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  const out = [];
-  for (const ln of lines){
-    const v = normalizeAddressLine(ln);
-    if (v) out.push(v);
-  }
-  // Compact duplicates that are immediately repeated in the OCR text
-  return out.filter((v,i)=> i===0 || v.toLowerCase()!==out[i-1].toLowerCase());
-}
-
-// ---------------- Fill helper: respects your flat/framed advance logic ----------------
-// ---------------- Fill helper: use app bulk-paste when available, otherwise create rows ---------
+/* ---------- Fill helper: put each address into its own stop ---------- */
 async function fillSequentialFrom(input, addresses){
-  if (!addresses || !addresses.length) return;
+  if (!addresses.length) return;
 
-  // If your app exposes a bulk/multi paste helper, use it (it handles row creation perfectly).
-  // Common names we've seen; harmless if not present:
-  const bulk = window.multiPaste || window.bulkPasteStops || window.handleBulkPaste;
-  if (typeof bulk === 'function') {
-    // Most implementations expect a single string with newlines
-    try {
-      bulk(addresses.join('\n'), input);
-      return;
-    } catch (e) {
-      console.warn('App bulk-paste helper threw, falling back to manual fill:', e);
-      // fall through to manual loop
+  // Put the first address in the current input
+  applyAddressToInput(input, addresses[0]);
+
+  // For the rest, advance/create rows using your existing helpers
+  for (let i=1; i<addresses.length; i++){
+    if (window.flatMode) {
+      // advance or create a new row (your app’s helper)
+      window.focusNextInFlatOrCreate(input, false);
+    } else {
+      window.focusNextInFrameOrCreate(input, false);
     }
-  }
-
-  // Manual fallback: set the first, then keep creating/focusing the next .stop and fill it.
-  const setDirty = el => { el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1'; };
-
-  // Put the first address into the current input
-  input.value = addresses[0];
-  setDirty(input);
-
-  // Helper: get or create the next .stop input
-  function getOrCreateNextStop(fromInput){
-    // 1) Try “next row’s .stop”
-    let row = fromInput.closest('.row') || fromInput.closest('li') || fromInput.parentElement;
-    let next = row && row.nextElementSibling && (row.nextElementSibling.querySelector?.('input.stop'));
-    if (next) return next;
-
-    // 2) Ask app helpers (if you have these we used earlier)
-    if (typeof window.focusNextInFlatOrCreate === 'function') {
-      window.focusNextInFlatOrCreate(fromInput, false);
-    } else if (typeof window.focusNextInFrameOrCreate === 'function') {
-      window.focusNextInFrameOrCreate(fromInput, false);
-    }
-
-    // Did focusing helpers create one?
-    next = document.activeElement && document.activeElement.classList?.contains('stop')
+    // Try to locate the currently focused stop, or last created
+    let next = document.activeElement && document.activeElement.classList?.contains('stop')
       ? document.activeElement
-      : null;
-    if (next) return next;
-
-    // 3) Click a visible “add” button on the last row (covers most UIs)
-    const lastRow = (row?.parentElement || document).querySelector('.row:last-child');
-    const addBtn =
-      lastRow?.querySelector('.add, [data-add], .add-stop, button[title*="Add"], .fa-plus, .icon-plus');
-    if (addBtn) addBtn.click();
-
-    // 4) Grab the new last row's .stop input
-    const newLast = (row?.parentElement || document).querySelector('.row:last-child input.stop')
-                 || document.querySelector('#addrList .row:last-child input.stop')
-                 || document.querySelector('input.stop:last-of-type');
-
-    return newLast || null;
+      : (window.flatMode
+         ? document.querySelector('#addrList .row:last-child .stop')
+         : input.closest('.row')?.nextElementSibling?.querySelector('.stop'));
+    if (!next) break;
+    applyAddressToInput(next, addresses[i]);
+    input = next;
   }
 
-  // Fill the rest
-  let current = input;
-  for (let i = 1; i < addresses.length; i++) {
-    const next = getOrCreateNextStop(current);
-    if (!next) {
-      console.warn('Could not find/create the next stop input for', addresses[i]);
-      break;
-    }
-    next.value = addresses[i];
-    setDirty(next);
-    current = next;
-  }
-
-  // Trigger your normal pipeline
-  if (typeof window.renumber === 'function') window.renumber();
-  if (typeof window.scheduleAutoCompute === 'function') {
-    window.autoResolveNext = true;
-    window.scheduleAutoCompute(0, true);
-  }
+  if (window.renumber) window.renumber();
+  if (window.scheduleAutoCompute) { window.autoResolveNext = true; window.scheduleAutoCompute(0,true); }
 }
 
-// --- keep this callsite the same (just adding a console so we can see what OCR produced) ---
+function applyAddressToInput(el, addr){
+  el.value = addr;
+  el.dataset.lat = '';
+  el.dataset.lng = '';
+  el.dataset.dirty = '1';
+}
+
+/* ---------- Paste handler (image only) ---------- */
 document.addEventListener('paste', async (ev)=>{
   const target = ev.target;
   if (!target || !target.classList || !target.classList.contains('stop')) return;
@@ -186,34 +152,48 @@ document.addEventListener('paste', async (ev)=>{
   if (!dt) return;
 
   let blob = null;
+
+  // Try items[] first
   if (dt.items && dt.items.length){
     for (const it of dt.items){
-      if (it.kind === 'file' && it.type && it.type.startsWith('image/')) { blob = it.getAsFile(); break; }
+      if (it.kind === 'file' && it.type && it.type.startsWith('image/')){
+        blob = it.getAsFile(); break;
+      }
     }
   }
+  // Fallback: files[]
   if (!blob && dt.files && dt.files.length){
     const f = dt.files[0];
     if (f.type && f.type.startsWith('image/')) blob = f;
   }
-  if (!blob) return;                // let your normal text paste happen
 
-  ev.preventDefault();              // we’re handling the image
+  if (!blob) return;                 // Let normal text pastes through
+
+  ev.preventDefault();
+  ev.stopImmediatePropagation();     // make sure our handler wins
 
   try{
     const text = await ocrFromClipboardImage(blob);
-    let addresses = extractAddressesInOrder(text);
+    const addresses = extractAddresses(text);
 
+    // Extra light backup: check line-by-line if global regex found nothing
     if (!addresses.length && text){
-      const quick = text.split(/[\r\n,]+/).map(s=>s.trim()).filter(Boolean);
-      for (const q of quick){
-        const v = normalizeAddressLine(q);
-        if (v) addresses.push(v);
+      const lines = text.split(/\r?\n+/).map(s=>s.trim()).filter(Boolean);
+      for (const ln of lines){
+        const mm = ln.match(new RegExp(String.raw`^(\d{3,6})\s+([A-Za-z0-9.'\- ]+?)\s+(${STREET_TYPE_RX})\b`, 'i'));
+        if (mm){
+          addresses.push(`${mm[1]} ${mm[2].replace(/\s+/g,' ').trim()} ${mm[3]}`.trim());
+        }
       }
-      // dedupe again just in case
-      addresses = addresses.filter((v,i,a)=> a.findIndex(x=>x.toLowerCase()===v.toLowerCase())===i);
+      // Dedup preserve order
+      const uniq = [];
+      const seen = new Set();
+      for (const a of addresses){ const k=a.toLowerCase(); if(!seen.has(k)){ seen.add(k); uniq.push(a);} }
+      addresses.splice(0, addresses.length, ...uniq);
     }
 
-    console.log('OCR addresses:', addresses); // helpful to confirm we got >1
+    console.log('[OCR] extracted:', addresses);
+
     await fillSequentialFrom(target, addresses);
   }catch(err){
     console.error('OCR paste failed:', err);
