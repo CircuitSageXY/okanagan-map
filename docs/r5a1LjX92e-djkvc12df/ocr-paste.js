@@ -97,37 +97,87 @@ function extractAddressesInOrder(rawText){
 }
 
 // ---------------- Fill helper: respects your flat/framed advance logic ----------------
+// ---------------- Fill helper: use app bulk-paste when available, otherwise create rows ---------
 async function fillSequentialFrom(input, addresses){
-  if (!addresses.length) return;
+  if (!addresses || !addresses.length) return;
+
+  // If your app exposes a bulk/multi paste helper, use it (it handles row creation perfectly).
+  // Common names we've seen; harmless if not present:
+  const bulk = window.multiPaste || window.bulkPasteStops || window.handleBulkPaste;
+  if (typeof bulk === 'function') {
+    // Most implementations expect a single string with newlines
+    try {
+      bulk(addresses.join('\n'), input);
+      return;
+    } catch (e) {
+      console.warn('App bulk-paste helper threw, falling back to manual fill:', e);
+      // fall through to manual loop
+    }
+  }
+
+  // Manual fallback: set the first, then keep creating/focusing the next .stop and fill it.
+  const setDirty = el => { el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1'; };
 
   // Put the first address into the current input
   input.value = addresses[0];
-  input.dataset.lat = ''; input.dataset.lng = ''; input.dataset.dirty = '1';
+  setDirty(input);
 
-  // For the rest, ask your existing helpers to advance/create rows
-  for (let i=1;i<addresses.length;i++){
-    if (window.flatMode) {
-      window.focusNextInFlatOrCreate(input, false);
-    } else {
-      window.focusNextInFrameOrCreate(input, false);
+  // Helper: get or create the next .stop input
+  function getOrCreateNextStop(fromInput){
+    // 1) Try “next row’s .stop”
+    let row = fromInput.closest('.row') || fromInput.closest('li') || fromInput.parentElement;
+    let next = row && row.nextElementSibling && (row.nextElementSibling.querySelector?.('input.stop'));
+    if (next) return next;
+
+    // 2) Ask app helpers (if you have these we used earlier)
+    if (typeof window.focusNextInFlatOrCreate === 'function') {
+      window.focusNextInFlatOrCreate(fromInput, false);
+    } else if (typeof window.focusNextInFrameOrCreate === 'function') {
+      window.focusNextInFrameOrCreate(fromInput, false);
     }
-    const next = document.activeElement && document.activeElement.classList?.contains('stop')
+
+    // Did focusing helpers create one?
+    next = document.activeElement && document.activeElement.classList?.contains('stop')
       ? document.activeElement
-      : (window.flatMode
-          ? (document.querySelector('#addrList .row:last-child .stop'))
-          : (input.closest('.row')?.nextElementSibling?.querySelector('.stop') || input));
-    if (!next) break;
+      : null;
+    if (next) return next;
+
+    // 3) Click a visible “add” button on the last row (covers most UIs)
+    const lastRow = (row?.parentElement || document).querySelector('.row:last-child');
+    const addBtn =
+      lastRow?.querySelector('.add, [data-add], .add-stop, button[title*="Add"], .fa-plus, .icon-plus');
+    if (addBtn) addBtn.click();
+
+    // 4) Grab the new last row's .stop input
+    const newLast = (row?.parentElement || document).querySelector('.row:last-child input.stop')
+                 || document.querySelector('#addrList .row:last-child input.stop')
+                 || document.querySelector('input.stop:last-of-type');
+
+    return newLast || null;
+  }
+
+  // Fill the rest
+  let current = input;
+  for (let i = 1; i < addresses.length; i++) {
+    const next = getOrCreateNextStop(current);
+    if (!next) {
+      console.warn('Could not find/create the next stop input for', addresses[i]);
+      break;
+    }
     next.value = addresses[i];
-    next.dataset.lat = ''; next.dataset.lng = ''; next.dataset.dirty = '1';
-    input = next;
+    setDirty(next);
+    current = next;
   }
 
   // Trigger your normal pipeline
-  if (window.renumber) window.renumber();
-  if (window.scheduleAutoCompute) { window.autoResolveNext = true; window.scheduleAutoCompute(0,true); }
+  if (typeof window.renumber === 'function') window.renumber();
+  if (typeof window.scheduleAutoCompute === 'function') {
+    window.autoResolveNext = true;
+    window.scheduleAutoCompute(0, true);
+  }
 }
 
-// Handle image->OCR when pasting into any address bar (input.stop)
+// --- keep this callsite the same (just adding a console so we can see what OCR produced) ---
 document.addEventListener('paste', async (ev)=>{
   const target = ev.target;
   if (!target || !target.classList || !target.classList.contains('stop')) return;
@@ -135,45 +185,37 @@ document.addEventListener('paste', async (ev)=>{
   const dt = ev.clipboardData;
   if (!dt) return;
 
-  // Try both paths: items[] (most browsers) and files[] (some Windows clipboard sources)
   let blob = null;
-
   if (dt.items && dt.items.length){
     for (const it of dt.items){
-      if (it.kind === 'file' && it.type && it.type.startsWith('image/')){
-        blob = it.getAsFile();
-        break;
-      }
+      if (it.kind === 'file' && it.type && it.type.startsWith('image/')) { blob = it.getAsFile(); break; }
     }
   }
-  // Fallback: some pastes only populate files[]
   if (!blob && dt.files && dt.files.length){
     const f = dt.files[0];
     if (f.type && f.type.startsWith('image/')) blob = f;
   }
+  if (!blob) return;                // let your normal text paste happen
 
-  // If no image present, let your normal text paste handler run (multiPaste)
-  if (!blob) return;
-
-  // We’re handling the image → stop the default and do OCR
-  ev.preventDefault();
+  ev.preventDefault();              // we’re handling the image
 
   try{
     const text = await ocrFromClipboardImage(blob);
-    const addresses = extractAddressesInOrder(text);
+    let addresses = extractAddressesInOrder(text);
 
-    // Very light fallback if parser found nothing but OCR returned text
     if (!addresses.length && text){
       const quick = text.split(/[\r\n,]+/).map(s=>s.trim()).filter(Boolean);
       for (const q of quick){
         const v = normalizeAddressLine(q);
         if (v) addresses.push(v);
       }
+      // dedupe again just in case
+      addresses = addresses.filter((v,i,a)=> a.findIndex(x=>x.toLowerCase()===v.toLowerCase())===i);
     }
 
+    console.log('OCR addresses:', addresses); // helpful to confirm we got >1
     await fillSequentialFrom(target, addresses);
   }catch(err){
     console.error('OCR paste failed:', err);
-    // Optional: alert('Could not read the screenshot. Try again or type the address.');
   }
 }, true);
