@@ -1,12 +1,10 @@
-<!-- ================= OCR PASTE ADD-ON (proxy + tesseract) ================= -->
+/* ================= OCR PASTE ADD-ON (via Cloud Run proxy) ================= */
 
-<script>
-// ---------- CONFIG ----------
+/* ---------- CONFIG ---------- */
 const OCR_CONFIG = {
-  backend: 'proxy',  // 'proxy' (recommended) or 'tesseract'
+  backend: 'proxy',   // 'proxy' (Cloud Run) or 'tesseract'
   proxyUrl: 'https://ocrproxy-20209668074.northamerica-northeast2.run.app/ocr',
-  lang: 'eng',
-  maxBytes: 10 * 1024 * 1024 // guardrail for huge pastes (10 MB)
+  lang: 'eng'
 };
 
 // Lazy loader for Tesseract (single worker)
@@ -24,40 +22,42 @@ function ensureTesseract(){
   return __tessReady;
 }
 
-// Convert a Blob to a data: URL (base64)
+// Extract text from a pasted image (PNG/JPEG/clipboard bitmap)
+async function ocrFromClipboardImage(blob){
+  // --------- Use your Cloud Run proxy ----------
+  if (OCR_CONFIG.backend === 'proxy' && OCR_CONFIG.proxyUrl){
+    const b64 = await blobToBase64(blob); // data:image/...;base64,AAAA...
+    const res = await fetch(OCR_CONFIG.proxyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageB64: b64,      // send full data URL; proxy strips the header
+        lang: OCR_CONFIG.lang || 'eng'
+      }),
+    }).then(r => r.json()).catch(()=> null);
+
+    // expected proxy response: { text: "..." }  or  { error: "..." }
+    if (res && res.text) return res.text;
+    console.error('Proxy OCR error:', res);
+    return '';
+  }
+
+  // --------- Tesseract fallback (fully client-side) ----------
+  const T = await ensureTesseract();
+  const { data:{ text } } = await T.recognize(
+    blob,
+    OCR_CONFIG.lang || 'eng',
+    { tessedit_pageseg_mode: 6 }
+  );
+  return text || '';
+}
+
 function blobToBase64(blob){
   return new Promise((res)=>{
     const r = new FileReader();
     r.onload = ()=> res(r.result);
     r.readAsDataURL(blob);
   });
-}
-
-// === OCR core ===
-async function ocrFromClipboardImage(blob){
-  if (OCR_CONFIG.backend === 'proxy' && OCR_CONFIG.proxyUrl){
-    const b64 = await blobToBase64(blob);
-    // quick size guard (base64 ~ 4/3 of raw)
-    if (b64.length > OCR_CONFIG.maxBytes * 1.5) {
-      throw new Error('Image too large for OCR');
-    }
-    const res = await fetch(OCR_CONFIG.proxyUrl, {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ imageB64: b64, lang: OCR_CONFIG.lang })
-    });
-    if (!res.ok){
-      const t = await res.text().catch(()=>res.statusText);
-      throw new Error(`Proxy error ${res.status}: ${t}`);
-    }
-    const json = await res.json();
-    return json.text || '';
-  }
-
-  // Tesseract fallback (fully client-side)
-  const T = await ensureTesseract();
-  const { data:{ text } } = await T.recognize(blob, OCR_CONFIG.lang, { tessedit_pageseg_mode: 6 });
-  return text || '';
 }
 
 // ---------------- Parsing: keep only real street addresses ----------------
@@ -80,7 +80,9 @@ function normalizeAddressLine(s){
   const number = m[1];
   const name   = m[2].replace(/\s+/g,' ').trim();
   const type   = (t.slice(m.index).match(new RegExp(streetType,'i'))||[''])[0];
-  return `${number} ${name} ${type}`.replace(/\s+/g,' ').trim();
+  let out = `${number} ${name} ${type}`.replace(/\s+/g,' ').trim();
+
+  return out;
 }
 
 function extractAddressesInOrder(rawText){
@@ -172,7 +174,6 @@ document.addEventListener('paste', async (ev)=>{
     await fillSequentialFrom(target, addresses);
   }catch(err){
     console.error('OCR paste failed:', err);
-    // Optional UI: alert('Could not read the screenshot. Try again or type the address.');
+    // Optional: alert('Could not read the screenshot. Try again or type the address.');
   }
-}, true); // capture so this runs before the input's text paste handler
-</script>
+}, true);
