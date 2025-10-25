@@ -1389,40 +1389,44 @@ function geocodeSmart(addr,attempt=0){
       });
   });
 }
-/* =================== HOME BASE PINS =================== */
+/* =================== HOME BASE PINS (robust) =================== */
 
 const HOME_BASES = [
   {
     name: 'Lake Country Community Health Centre',
     address: '10080 Main St, Lake Country, BC V4V 1T8',
-    color: '#2A9D8F'   // teal
+    // fallback coords (approx)
+    lat: 50.03263, lng: -119.41377,
+    color: '#2A9D8F'
   },
   {
     name: 'Kelowna May Bennett Wellness Centre',
     address: '135 Davie Rd, Kelowna, BC V1X 1Y8',
-    color: '#F59E0B'   // amber
+    lat: 49.89558, lng: -119.40524,
+    color: '#F59E0B'
   },
   {
     name: 'Kelowna Central Office',
     address: '1815 Kirschner Rd, Kelowna, BC V1Y 4N7',
-    color: '#3B82F6'   // blue
+    lat: 49.87232, lng: -119.46434,
+    color: '#3B82F6'
   },
   {
     name: 'West Kelowna Health Centre',
     address: '2300 Carrington Rd, West Kelowna, BC V4T 2N6',
-    color: '#8B5CF6'   // purple
+    lat: 49.83988, lng: -119.61036,
+    color: '#8B5CF6'
   }
 ];
 
 let HOME_BASE_MARKERS = [];
 
-/** Find first available input (flat view or visible frames) */
+/** first available stop input in current view */
 function firstEmptyStopInput() {
   if (window.flatMode) {
     const list = document.getElementById('addrList');
     return [...list.querySelectorAll('.stop')].find(i => !(i.value||'').trim()) || list.querySelector('.stop');
   }
-  // framed view – only in visible, non-collapsed frames
   for (const fr of FRAMES) {
     const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
     const visible = (fr.shift==='day' && dayVisible) || (fr.shift==='night' && nightVisible);
@@ -1434,73 +1438,93 @@ function firstEmptyStopInput() {
   return null;
 }
 
-/** Initialize subdued, hoverable pins and click-to-fill behavior */
+/** add subdued pins, hover tooltip, and click-to-fill */
 function initHomeBasePins(){
-  if (!window.map || !window.google || !window.geocoder) return; // safety
-  // shared infowindow
-  const hbInfo = new google.maps.InfoWindow();
+  if (!window.map || !window.google) return; // run only after Maps is ready
+  console.debug('[home-bases] initializing pins…');
 
-  // remove old markers if re-initializing
+  // clean up on re-init
   HOME_BASE_MARKERS.forEach(m => m.setMap(null));
   HOME_BASE_MARKERS = [];
 
-  HOME_BASES.forEach(base => {
-    // geocode each address (uses your smart geocoder + OK_BOUNDS)
-    resolveAddress(base.address).then(out => {
-      if (!out) return;
-      const pos = new google.maps.LatLng(out.lat, out.lng);
+  const info = new google.maps.InfoWindow();
+  const fit = new google.maps.LatLngBounds();
 
-      const marker = new google.maps.Marker({
-        position: pos,
-        map,
-        // small, discreet “teardrop” icon that blends with layer colors
-        icon: {
-          path: TEARDROP_PATH,   // already defined in your code
-          scale: 0.85,
-          fillColor: base.color,
-          fillOpacity: 0.85,
-          strokeColor: '#263238',
-          strokeOpacity: 0.9,
-          strokeWeight: 1.2,
-          anchor: new google.maps.Point(0, 0),
-          labelOrigin: new google.maps.Point(0, -16)
-        },
-        title: base.name
-      });
+  HOME_BASES.forEach(async (base) => {
+    // try resolve; if it fails use fallback lat/lng
+    let resolved = null;
+    try {
+      resolved = await resolveAddress(base.address);
+    } catch (_) {}
 
-      // Hover: show name + address, leave when mouseout
-      marker.addListener('mouseover', () => {
-        hbInfo.setContent(
-          `<div style="min-width:220px">
-             <div style="font-weight:600;margin-bottom:4px">${base.name}</div>
-             <div style="font-size:12px;color:#475569">${out.formatted || base.address}</div>
-           </div>`
-        );
-        hbInfo.open({ map, anchor: marker });
-      });
-      marker.addListener('mouseout', () => hbInfo.close());
+    const lat = resolved?.lat ?? base.lat;
+    const lng = resolved?.lng ?? base.lng;
+    const formatted = resolved?.formatted || base.address;
 
-      // Click: put into first available stop in current view
-      marker.addListener('click', () => {
-        const inp = firstEmptyStopInput();
-        if (!inp) return;
-        inp.value = out.formatted || base.address;
-        inp.dataset.lat = out.lat;
-        inp.dataset.lng = out.lng;
-        delete inp.dataset.dirty;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      console.warn('[home-bases] could not locate:', base.name, base.address);
+      return;
+    }
 
-        // give user feedback + re-compute
-        safeFocus(inp);
-        autoResolveNext = true;
-        scheduleAutoCompute(0, true);
+    const pos = new google.maps.LatLng(lat, lng);
+    fit.extend(pos);
 
-        // subtle pan so the pin is in view
-        map.panTo(pos);
-      });
-
-      HOME_BASE_MARKERS.push(marker);
+    const marker = new google.maps.Marker({
+      position: pos,
+      map,
+      zIndex: 50,
+      icon: {
+        path: TEARDROP_PATH,           // from your code
+        scale: 1.0,                    // slightly larger so it’s visible
+        fillColor: base.color,
+        fillOpacity: 0.9,
+        strokeColor: '#263238',
+        strokeOpacity: 0.9,
+        strokeWeight: 1.2,
+        anchor: new google.maps.Point(0, 0),
+        labelOrigin: new google.maps.Point(0, -16)
+      },
+      title: base.name
     });
+
+    // hover tooltip
+    marker.addListener('mouseover', () => {
+      info.setContent(
+        `<div style="min-width:220px">
+           <div style="font-weight:600;margin-bottom:4px">${base.name}</div>
+           <div style="font-size:12px;color:#475569">${formatted}</div>
+         </div>`
+      );
+      info.open({ map, anchor: marker });
+    });
+    marker.addListener('mouseout', () => info.close());
+
+    // click to fill first empty
+    marker.addListener('click', () => {
+      const inp = firstEmptyStopInput();
+      if (!inp) return;
+      inp.value = formatted;
+      inp.dataset.lat = String(lat);
+      inp.dataset.lng = String(lng);
+      delete inp.dataset.dirty;
+
+      safeFocus(inp);
+      autoResolveNext = true;
+      scheduleAutoCompute(0, true);
+      map.panTo(pos);
+    });
+
+    HOME_BASE_MARKERS.push(marker);
   });
+
+  // if we actually added markers, keep them in view (without fighting your UI)
+  setTimeout(() => {
+    if (HOME_BASE_MARKERS.length) {
+      try {
+        map.fitBounds(fit, { top: 60, right: 40, bottom: 80, left: 380 }); // leave space for panel
+      } catch(_) {}
+    }
+  }, 0);
 }
 
 /* Find or create the first available directions input and fill it */
