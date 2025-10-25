@@ -711,67 +711,83 @@ function initRegionLabelOverlay(){
 
 /* =================== UI BUILD (frames/rows) =================== */
 function setFrameCollapsed(id, collapse){
-  const el=document.querySelector(`.frame[data-frame="${id}"]`);
+  const el = document.querySelector(`.frame[data-frame="${id}"]`);
   if(!el) return;
   if(collapse) el.classList.add('collapsed'); else el.classList.remove('collapsed');
   if(!collapse){ ensurePlaceholdersForFrame(id, {force:false}); buildTimelineForFrame(id); }
-  renumber(); scheduleTimelineBuild();
+  renumber();
+  scheduleTimelineBuild();
 }
 
 function buildFrameBuckets(){
-  const container=document.getElementById('framesContainer');
+  const container = document.getElementById('framesContainer');
 
   FRAMES.forEach(fr=>{
-    const sec=document.createElement('div');
-    sec.className='frame';sec.dataset.frame=fr.id;sec.dataset.shift=fr.shift;
+    const sec = document.createElement('div');
+    sec.className = 'frame';
+    sec.dataset.frame = fr.id;
+    sec.dataset.shift = fr.shift;
 
-    const head=document.createElement('div');
+    const head = document.createElement('div');
     head.className='frame-header';
-    head.innerHTML=`<span class="swatch" style="background:${fr.color}"></span>${fr.name} <span style="margin-left:10px;font-size:12px;color:#666">(${fr.start}–${fr.end})</span>`;
-    const hideBtn=document.createElement('span');
-    hideBtn.className='material-icons frame-hide';
-    hideBtn.textContent='visibility_off';
-    hideBtn.title='Hide / show this time frame';
-    hideBtn.onclick=()=>setFrameCollapsed(fr.id, !sec.classList.contains('collapsed'));
+    head.innerHTML = `
+      <span class="swatch" style="background:${fr.color}"></span>
+      ${fr.name} <span style="margin-left:10px;font-size:12px;color:#666">(${fr.start}–${fr.end})</span>`;
+    const hideBtn = document.createElement('span');
+    hideBtn.className = 'material-icons frame-hide';
+    hideBtn.textContent = 'visibility_off';
+    hideBtn.title = 'Hide / show this time frame';
+    hideBtn.onclick = ()=> setFrameCollapsed(fr.id, !sec.classList.contains('collapsed'));
     head.appendChild(hideBtn);
     sec.appendChild(head);
 
-    const body=document.createElement('div');
-    body.className='frame-body';
+    const body = document.createElement('div');
+    body.className = 'frame-body';
 
-    const tl=document.createElement('div');
-    tl.className='frame-timeline'; tl.id='timeline-frame-'+fr.id;
+    const tl = document.createElement('div');
+    tl.className = 'frame-timeline';
+    tl.id = 'timeline-frame-'+fr.id;
     body.appendChild(tl);
 
-    const list=document.createElement('div');
-    list.className='frame-list'; list.id='frame-'+fr.id;
+    const list = document.createElement('div');
+    list.className = 'frame-list';
+    list.id = 'frame-'+fr.id;
     body.appendChild(list);
 
     sec.appendChild(body);
 
-    const addBtn=document.createElement('button');
-    addBtn.className='addRowBtn';addBtn.textContent='+ Add stop';
-    addBtn.style.display='none';
-    addBtn.onclick=()=>addRowToFrame(fr.id,true,false);
+    const addBtn = document.createElement('button');
+    addBtn.className = 'addRowBtn';
+    addBtn.textContent = '+ Add stop';
+    addBtn.style.display = 'none';
+    addBtn.onclick = ()=> addRowToFrame(fr.id, true, false);
     sec.appendChild(addBtn);
 
     container.appendChild(sec);
 
-    Sortable.create(list,{
-      group:'stops', handle:'.drag', animation:150,
-      onEnd:evt=>{
-        evt.item.dataset.frame=list.parentElement.parentElement.dataset.frame;
-        renumber(); scheduleAutoCompute(120,false); scheduleTimelineBuild();
+    Sortable.create(list, {
+      group: 'stops',
+      handle: '.drag',
+      animation: 150,
+      onEnd: evt => {
+        evt.item.dataset.frame = list.parentElement.parentElement.dataset.frame;
+        renumber();
+        scheduleAutoCompute(120,false);
+        scheduleTimelineBuild();
       }
     });
   });
 
   renumber();
 
-  const ro=new ResizeObserver(()=>scheduleTimelineBuild());
-  document.querySelectorAll('.frame').forEach(f=>ro.observe(f));
-  const mo=new MutationObserver(()=>{ clearTimeout(__tl_to); __tl_to=setTimeout(scheduleTimelineBuild,50); });
-  document.querySelectorAll('.frame-list').forEach(fl=>mo.observe(fl,{childList:true,subtree:true}));
+  const ro = new ResizeObserver(()=> scheduleTimelineBuild());
+  document.querySelectorAll('.frame').forEach(f=> ro.observe(f));
+
+  const mo = new MutationObserver(()=>{
+    clearTimeout(__tl_to);
+    __tl_to = setTimeout(scheduleTimelineBuild, 50);
+  });
+  document.querySelectorAll('.frame-list').forEach(fl=> mo.observe(fl, {childList:true, subtree:true}));
 }
 
 function rebalanceFrameHeights(){ if(flatMode) return; scheduleTimelineBuild(); }
@@ -835,29 +851,17 @@ function insertRowAfter(currentRow){
   scheduleTimelineBuild();
   return newRow;
 }
-  // --- lock toggle on the bullet (click to lock/unlock) ---
-  const bullet = d.querySelector('.bullet');
-  bullet.addEventListener('click', (ev)=>{
-    ev.preventDefault();
-    ev.stopPropagation();
-    d.classList.toggle('locked');
-    if (d.classList.contains('locked')) {
-      d.dataset.locked = '1';
-    } else {
-      delete d.dataset.locked;
-    }
-  }, true);
 
-function ensurePlaceholdersForFrame(frameId,{force=false}={}){
-  const list=document.getElementById('frame-'+frameId); if(!list) return;
-  const sec=list.closest('.frame');
+function ensurePlaceholdersForFrame(frameId, {force=false} = {}){
+  const list = document.getElementById('frame-'+frameId); if(!list) return;
+  const sec = list.closest('.frame');
   const visible = sec.style.display!=='none' && !flatMode && !sec.classList.contains('collapsed');
   if(!visible) return;
   if(frameInitialized.get(frameId) && !force) return;
 
-  frameInitialized.set(frameId,true);
-  const cur=list.querySelectorAll('.row').length;
-  for(let i=cur;i<BASE_EMPTY_PER_FRAME;i++) addRowToFrame(frameId,false,false);
+  frameInitialized.set(frameId, true);
+  const cur = list.querySelectorAll('.row').length;
+  for(let i=cur; i<BASE_EMPTY_PER_FRAME; i++) addRowToFrame(frameId, false, false);
 }
 
 /* =================== TIMELINE =================== */
