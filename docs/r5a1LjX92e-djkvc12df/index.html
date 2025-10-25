@@ -1395,27 +1395,113 @@ const HOME_BASES = [
   {
     name: 'Lake Country Community Health Centre',
     address: '10080 Main St, Lake Country, BC V4V 1T8',
-    color: '#2A9D8F'  // teal
+    color: '#2A9D8F'   // teal
   },
   {
     name: 'Kelowna May Bennett Wellness Centre',
     address: '135 Davie Rd, Kelowna, BC V1X 1Y8',
-    color: '#F59E0B'  // amber
+    color: '#F59E0B'   // amber
   },
   {
     name: 'Kelowna Central Office',
     address: '1815 Kirschner Rd, Kelowna, BC V1Y 4N7',
-    color: '#3B82F6'  // blue
+    color: '#3B82F6'   // blue
   },
   {
     name: 'West Kelowna Health Centre',
     address: '2300 Carrington Rd, West Kelowna, BC V4T 2N6',
-    color: '#8B5CF6'  // purple
+    color: '#8B5CF6'   // purple
   }
 ];
 
 let HOME_BASE_MARKERS = [];
-const hbInfoWin = new google.maps.InfoWindow();
+
+/** Find first available input (flat view or visible frames) */
+function firstEmptyStopInput() {
+  if (window.flatMode) {
+    const list = document.getElementById('addrList');
+    return [...list.querySelectorAll('.stop')].find(i => !(i.value||'').trim()) || list.querySelector('.stop');
+  }
+  // framed view – only in visible, non-collapsed frames
+  for (const fr of FRAMES) {
+    const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
+    const visible = (fr.shift==='day' && dayVisible) || (fr.shift==='night' && nightVisible);
+    if (!visible || sec.classList.contains('collapsed') || sec.style.display==='none') continue;
+    const list = document.getElementById('frame-'+fr.id);
+    const inp  = [...list.querySelectorAll('.stop')].find(i => !(i.value||'').trim());
+    if (inp) return inp;
+  }
+  return null;
+}
+
+/** Initialize subdued, hoverable pins and click-to-fill behavior */
+function initHomeBasePins(){
+  if (!window.map || !window.google || !window.geocoder) return; // safety
+  // shared infowindow
+  const hbInfo = new google.maps.InfoWindow();
+
+  // remove old markers if re-initializing
+  HOME_BASE_MARKERS.forEach(m => m.setMap(null));
+  HOME_BASE_MARKERS = [];
+
+  HOME_BASES.forEach(base => {
+    // geocode each address (uses your smart geocoder + OK_BOUNDS)
+    resolveAddress(base.address).then(out => {
+      if (!out) return;
+      const pos = new google.maps.LatLng(out.lat, out.lng);
+
+      const marker = new google.maps.Marker({
+        position: pos,
+        map,
+        // small, discreet “teardrop” icon that blends with layer colors
+        icon: {
+          path: TEARDROP_PATH,   // already defined in your code
+          scale: 0.85,
+          fillColor: base.color,
+          fillOpacity: 0.85,
+          strokeColor: '#263238',
+          strokeOpacity: 0.9,
+          strokeWeight: 1.2,
+          anchor: new google.maps.Point(0, 0),
+          labelOrigin: new google.maps.Point(0, -16)
+        },
+        title: base.name
+      });
+
+      // Hover: show name + address, leave when mouseout
+      marker.addListener('mouseover', () => {
+        hbInfo.setContent(
+          `<div style="min-width:220px">
+             <div style="font-weight:600;margin-bottom:4px">${base.name}</div>
+             <div style="font-size:12px;color:#475569">${out.formatted || base.address}</div>
+           </div>`
+        );
+        hbInfo.open({ map, anchor: marker });
+      });
+      marker.addListener('mouseout', () => hbInfo.close());
+
+      // Click: put into first available stop in current view
+      marker.addListener('click', () => {
+        const inp = firstEmptyStopInput();
+        if (!inp) return;
+        inp.value = out.formatted || base.address;
+        inp.dataset.lat = out.lat;
+        inp.dataset.lng = out.lng;
+        delete inp.dataset.dirty;
+
+        // give user feedback + re-compute
+        safeFocus(inp);
+        autoResolveNext = true;
+        scheduleAutoCompute(0, true);
+
+        // subtle pan so the pin is in view
+        map.panTo(pos);
+      });
+
+      HOME_BASE_MARKERS.push(marker);
+    });
+  });
+}
 
 /* Find or create the first available directions input and fill it */
 function fillFirstAvailableAddress(addr){
@@ -2458,7 +2544,7 @@ window.routePlannerInit=()=>{
   acService=new google.maps.places.AutocompleteService();
   placeSvc=new google.maps.places.PlacesService(map);
   dmSvc = new google.maps.DistanceMatrixService();
-  addHomeBasePins();
+  initHomeBasePins();
 
   buildFrameBuckets();
   buildAddrBar();
