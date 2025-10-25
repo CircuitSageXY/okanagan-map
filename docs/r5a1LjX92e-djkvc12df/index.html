@@ -1,7 +1,10 @@
+
+
 <!doctype html>
+
 <html>
 <head>
-<meta charset="utf-8">
+<meta charset="utf-8">                   
 <title>Okanagan Route Planner</title>
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
@@ -35,9 +38,12 @@
   /* -------- Label palette (map-tuned) -------- */
   --accent-teal:#2A9D8F;
   --accent-blue:#3B82F6;
-  --accent-slate:#475569;
-  --accent-olive:#6B8E23;
-
+<html>
+--accent-slate:#475569;l      *Please pick up service plan for   
+  
+  
+  . Thank you - spia10--accent-olive:#6B8E23;
+  
   --label-paper:#ffffff;
   --label-ink:#0f1720;
   --label-border:rgba(15,23,32,.14);
@@ -1080,63 +1086,6 @@ async function multiPaste(e){
   e.preventDefault();
   SG.hide();
   await applyAddressesList(e.target, lines);  // reuse the shared logic
-}
-
-  if(flatMode){
-    const list=document.getElementById('addrList');
-    let rows=[...list.querySelectorAll('.row')];
-    const startIdx=rows.indexOf(startRow);
-
-    const need=Math.max(0,startIdx+lines.length-rows.length);
-    for(let i=0;i<need;i++){ list.appendChild(makeRow(0)); }
-    rows=[...list.querySelectorAll('.row')];
-
-    lines.forEach((addr,i)=>{
-      const r=rows[startIdx+i]; if(!r) return;
-      const el=r.querySelector('.stop');
-      el.value=addr; el.dataset.lat=''; el.dataset.lng=''; el.dataset.dirty='1';
-    });
-
-    renumber();
-    autoResolveNext=true;
-    await ensureCoords(lines.map((_,i)=>rows[startIdx+i]).filter(Boolean),{parallel:true});
-    await rebuildRoute();
-    return;
-  }
-
-  const firstFrameId=+startRow.dataset.frame;
-  const frMeta=FRAMES.find(f=>f.id===firstFrameId);
-  const shift=frMeta.shift;
-  const framesInShift = FRAMES.filter(f=>f.shift===shift);
-  const startIndexInShift = framesInShift.findIndex(f=>f.id===firstFrameId);
-
-  const targets=[];
-  for(let k=startIndexInShift; k<framesInShift.length && targets.length<lines.length; k++){
-    const fid=framesInShift[k].id;
-    const list=document.getElementById('frame-'+fid);
-    ensurePlaceholdersForFrame(fid);
-    const rows=[...list.querySelectorAll('.row')];
-    let startAt=0;
-    if(fid===firstFrameId) startAt=rows.indexOf(startRow);
-    for(let i=startAt;i<rows.length && targets.length<lines.length;i++){
-      const inp=rows[i].querySelector('.stop');
-      if(!inp.value.trim()) targets.push(inp);
-    }
-    while(targets.length<lines.length && k===framesInShift.length-1){
-      const added=addRowToFrame(fid,false,false);
-      targets.push(added.querySelector('.stop'));
-    }
-  }
-
-  for(let i=0;i<lines.length && i<targets.length;i++){
-    const inp=targets[i];
-    inp.value=lines[i]; inp.dataset.lat=''; inp.dataset.lng=''; inp.dataset.dirty='1';
-  }
-
-  renumber();
-  autoResolveNext=true;
-  await ensureCoords(getOrderedRows(true),{parallel:true});
-  await rebuildRoute();
 }
 
 /* Accept top prediction on Tab/Enter */
