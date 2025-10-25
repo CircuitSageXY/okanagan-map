@@ -780,26 +780,12 @@ function makeRow(frameId){
   const d = document.createElement('div');
   d.className = 'row';
   d.dataset.frame = frameId;
-
   d.innerHTML = `
     <div class="bullet defaultBullet">A</div>
     <input class="stop" placeholder="Enter stop" autocomplete="off" autocorrect="off" spellcheck="false">
     <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
     <span class="remove" title="Remove stop">×</span>
   `;
-
-  const del = d.querySelector('.remove');
-  del.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); }, true);
-  del.addEventListener('click', e => {
-    e.preventDefault(); e.stopPropagation();
-    d.remove();
-    renumber();
-    scheduleAutoCompute(120,false);
-    scheduleTimelineBuild();
-    showDeleteBtns();
-  });
-
-  d.addEventListener('click', rowSelectToggle);
 
   // --- lock toggle on the bullet (click to lock/unlock) ---
   const bullet = d.querySelector('.bullet');
@@ -814,22 +800,39 @@ function makeRow(frameId){
     }
   }, true);
 
+  const del = d.querySelector('.remove');
+  del.addEventListener('mousedown', e=>{ e.preventDefault(); e.stopPropagation(); }, true);
+  del.addEventListener('click', e=>{
+    e.preventDefault(); e.stopPropagation();
+    d.remove();
+    renumber();
+    scheduleAutoCompute(120,false);
+    scheduleTimelineBuild();
+    showDeleteBtns();
+  });
+
+  d.addEventListener('click', rowSelectToggle);
   attachInputEvents(d.querySelector('.stop'));
   return d;
 }
-function addRowToFrame(frameId,focus=true,select=false){
-  const list=document.getElementById('frame-'+frameId);
-  const row=makeRow(frameId);list.appendChild(row);
-  renumber();scheduleTimelineBuild();
-  if(focus) safeFocus(row.querySelector('.stop'));
-  if(select) setSelected(row,true);
+
+function addRowToFrame(frameId, focus=true, select=false){
+  const list = document.getElementById('frame-'+frameId);
+  const row  = makeRow(frameId);
+  list.appendChild(row);
+  renumber();
+  scheduleTimelineBuild();
+  if (focus)  safeFocus(row.querySelector('.stop'));
+  if (select) setSelected(row,true);
   return row;
 }
+
 function insertRowAfter(currentRow){
-  const frameId=+currentRow.dataset.frame;
-  const newRow=makeRow(frameId);
+  const frameId = +currentRow.dataset.frame;
+  const newRow  = makeRow(frameId);
   currentRow.insertAdjacentElement('afterend', newRow);
-  renumber(); scheduleTimelineBuild();
+  renumber();
+  scheduleTimelineBuild();
   return newRow;
 }
   // --- lock toggle on the bullet (click to lock/unlock) ---
