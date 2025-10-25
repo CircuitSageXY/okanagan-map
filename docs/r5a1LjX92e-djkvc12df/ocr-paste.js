@@ -87,6 +87,7 @@ const ADDRESS_GLOB_RX = new RegExp(
 
 function extractAddresses(text){
   if (!text) return [];
+  ADDRESS_GLOB_RX.lastIndex = 0;   // <-- IMPORTANT: reset global regex state
   const found = [];
   let m;
   while ((m = ADDRESS_GLOB_RX.exec(text)) !== null){
@@ -180,7 +181,8 @@ document.addEventListener('paste', async (ev)=>{
     if (!addresses.length && text){
       const lines = text.split(/\r?\n+/).map(s=>s.trim()).filter(Boolean);
       for (const ln of lines){
-        const mm = ln.match(new RegExp(String.raw`^(\d{3,6})\s+([A-Za-z0-9.'\- ]+?)\s+(${STREET_TYPE_RX})\b`, 'i'));
+        const mm = ln.replace(/[,\s]+(?:Kelowna|West Kelowna|Lake Country|Peachland)\b.*$/i,'')
+             .match(new RegExp(String.raw`^(\d{3,6})\s+([A-Za-z0-9.'\- ]+?)\s+(${STREET_TYPE_RX})\b`, 'i'));
         if (mm){
           addresses.push(`${mm[1]} ${mm[2].replace(/\s+/g,' ').trim()} ${mm[3]}`.trim());
         }
