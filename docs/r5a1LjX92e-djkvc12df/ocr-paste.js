@@ -196,7 +196,12 @@ document.addEventListener('paste', async (ev)=>{
 
     console.log('[OCR] extracted:', addresses);
 
-    await fillSequentialFrom(target, addresses);
+if (window.applyAddressesList) {
+  await window.applyAddressesList(target, addresses);
+} else {
+  // fallback (older builds): keep previous sequential filler
+  await fillSequentialFrom(target, addresses);
+}
   }catch(err){
     console.error('OCR paste failed:', err);
   }
