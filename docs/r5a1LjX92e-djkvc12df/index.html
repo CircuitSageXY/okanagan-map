@@ -129,6 +129,28 @@ html,body,#map{height:100%;margin:0;font-family:var(--fontMain);}
 .G{background:var(--clrG)} .H{background:var(--clrH)}
 .defaultBullet{background:var(--clrDefault)}
 
+  /* locked-row badge */
+.row.locked .bullet{
+  position: relative;
+}
+.row.locked .bullet::after{
+  content: "🔒";
+  position: absolute;
+  top: -6px;              /* adjust if you want it higher/lower */
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  font-size: 12px;
+  line-height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #c62828;    /* red bubble */
+  color: #fff;
+  box-shadow: 0 0 0 2px #fff;
+}
+
 input.stop{
   flex:1;height:38px;border:1px solid var(--clrInputBorder);
   border-radius:var(--radiusSm);padding:4px 6px 4px 10px;font-size:14px;
@@ -755,16 +777,20 @@ function buildFrameBuckets(){
 function rebalanceFrameHeights(){ if(flatMode) return; scheduleTimelineBuild(); }
 
 function makeRow(frameId){
-  const d=document.createElement('div');
-  d.className='row';d.dataset.frame=frameId;
-  d.innerHTML=`
+  const d = document.createElement('div');
+  d.className = 'row';
+  d.dataset.frame = frameId;
+
+  d.innerHTML = `
     <div class="bullet defaultBullet">A</div>
     <input class="stop" placeholder="Enter stop" autocomplete="off" autocorrect="off" spellcheck="false">
     <span class="material-icons drag" title="Drag to reorder">drag_indicator</span>
-    <span class="remove" title="Remove stop">×</span>`;
-  const del=d.querySelector('.remove');
-  del.addEventListener('mousedown', e=>{ e.preventDefault(); e.stopPropagation(); }, true);
-  del.addEventListener('click', e=>{
+    <span class="remove" title="Remove stop">×</span>
+  `;
+
+  const del = d.querySelector('.remove');
+  del.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); }, true);
+  del.addEventListener('click', e => {
     e.preventDefault(); e.stopPropagation();
     d.remove();
     renumber();
@@ -772,7 +798,22 @@ function makeRow(frameId){
     scheduleTimelineBuild();
     showDeleteBtns();
   });
-  d.addEventListener('click',rowSelectToggle);
+
+  d.addEventListener('click', rowSelectToggle);
+
+  // --- lock toggle on the bullet (click to lock/unlock) ---
+  const bullet = d.querySelector('.bullet');
+  bullet.addEventListener('click', (ev)=>{
+    ev.preventDefault();
+    ev.stopPropagation();
+    d.classList.toggle('locked');
+    if (d.classList.contains('locked')) {
+      d.dataset.locked = '1';
+    } else {
+      delete d.dataset.locked;
+    }
+  }, true);
+
   attachInputEvents(d.querySelector('.stop'));
   return d;
 }
@@ -791,6 +832,19 @@ function insertRowAfter(currentRow){
   renumber(); scheduleTimelineBuild();
   return newRow;
 }
+  // --- lock toggle on the bullet (click to lock/unlock) ---
+  const bullet = d.querySelector('.bullet');
+  bullet.addEventListener('click', (ev)=>{
+    ev.preventDefault();
+    ev.stopPropagation();
+    d.classList.toggle('locked');
+    if (d.classList.contains('locked')) {
+      d.dataset.locked = '1';
+    } else {
+      delete d.dataset.locked;
+    }
+  }, true);
+
 function ensurePlaceholdersForFrame(frameId,{force=false}={}){
   const list=document.getElementById('frame-'+frameId); if(!list) return;
   const sec=list.closest('.frame');
@@ -892,6 +946,7 @@ document.addEventListener('click',e=>{
 }, true);
 
 function idxToLabel(i){let s='',n=i+1;while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;}
+function isLocked(row){ return row?.dataset?.locked === '1' || row?.classList?.contains('locked'); }
 function renumber(){
   if(flatMode){
     const rows=[...document.querySelectorAll('#addrList .row')];
@@ -1698,7 +1753,114 @@ async function optimizeByFrames(){
   // Build global driving matrix once (exact)
   const Dglobal = await buildDrivingMatrixAll(allPoints);
 
-  // Build candidate tables per frame using Held–Karp paths
+  // ----- lock-respecting in-frame ordering -----
+  function orderFrameWithLocks(pf){
+    const idxs = pf.globalIdxs.slice(); // global indices for this frame in current order
+    const locked = pf.rows.map((r,i)=>isLocked(r)?i:-1).filter(i=>i>=0);
+    if(locked.length===0){
+      // leave unlocked; Held–Karp will handle via candidates below
+      return null; // means "no forced order"
+    }
+
+    // Build a new local order that respects locked anchors
+    const finalLocal = [];
+    const m = idxs.length;
+
+    function Dloc(i,j){ return Dglobal[idxs[i]][idxs[j]]; }
+
+    function optimizeRun(lo,hi,leftAnchorIdx,rightAnchorIdx){
+      const sub = [];
+      for(let k=lo;k<=hi;k++) sub.push(k);
+      if(sub.length<=1) return sub;
+
+      // local matrix for run
+      const u = sub.length;
+      const Dblock = Array.from({length:u},()=>Array(u).fill(0));
+      for(let a=0;a<u;a++){
+        for(let b=0;b<u;b++){
+          if(a===b) Dblock[a][b]=0; else Dblock[a][b]=Dloc(sub[a],sub[b]);
+        }
+      }
+      const hk = shortestHamiltonianPaths(Dblock);
+
+      // convert possible anchors into local indices
+      const Lg = leftAnchorIdx, Rg = rightAnchorIdx; // local indices are sub[*] holders
+
+      if(Lg!=null && Rg!=null){
+        let best=1e18, bestS=0, bestT=u-1, bestPath=null;
+        for(let s=0;s<u;s++){
+          for(let t=0;t<u;t++){
+            if(u>1 && s===t) continue;
+            const inner = hk.cost[s][t];
+            if(!Number.isFinite(inner)) continue;
+            const tot = Dloc(Lg, sub[s]) + inner + Dloc(sub[t], Rg);
+            if(tot<best){ best=tot; bestS=s; bestT=t; bestPath=hk.path[s][t]; }
+          }
+        }
+        return (bestPath||[...Array(u).keys()]).map(k=>sub[k]);
+      }
+      if(Lg!=null && Rg==null){
+        let best=1e18, bestS=0, bestT=u-1, bestPath=null;
+        for(let s=0;s<u;s++){
+          for(let t=0;t<u;t++){
+            if(u>1 && s===t) continue;
+            const inner = hk.cost[s][t];
+            if(!Number.isFinite(inner)) continue;
+            const tot = Dloc(Lg, sub[s]) + inner;
+            if(tot<best){ best=tot; bestS=s; bestT=t; bestPath=hk.path[s][t]; }
+          }
+        }
+        return (bestPath||[...Array(u).keys()]).map(k=>sub[k]);
+      }
+      if(Lg==null && Rg!=null){
+        let best=1e18, bestS=0, bestT=u-1, bestPath=null;
+        for(let s=0;s<u;s++){
+          for(let t=0;t<u;t++){
+            if(u>1 && s===t) continue;
+            const inner = hk.cost[s][t];
+            if(!Number.isFinite(inner)) continue;
+            const tot = inner + Dloc(sub[t], Rg);
+            if(tot<best){ best=tot; bestS=s; bestT=t; bestPath=hk.path[s][t]; }
+          }
+        }
+        return (bestPath||[...Array(u).keys()]).map(k=>sub[k]);
+      }
+      // no anchors; just best path
+      let best=1e18, bestS=0, bestT=u-1, bestPath=null;
+      for(let s=0;s<u;s++){
+        for(let t=0;t<u;t++){
+          if(u>1 && s===t) continue;
+          const inner = hk.cost[s][t];
+          if(!Number.isFinite(inner)) continue;
+          if(inner<best){ best=inner; bestS=s; bestT=t; bestPath=hk.path[s][t]; }
+        }
+      }
+      return (bestPath||[...Array(u).keys()]).map(k=>sub[k]);
+    }
+
+    const lockedSet = new Set(locked);
+    let i=0;
+    while(i<m){
+      if(lockedSet.has(i)){ finalLocal.push(i); i++; continue; }
+      const lo=i; while(i<m && !lockedSet.has(i)) i++; const hi=i-1;
+      const leftA  = (lo-1>=0 && lockedSet.has(lo-1)) ? (lo-1) : null;
+      const rightA = (hi+1<m && lockedSet.has(hi+1)) ? (hi+1) : null;
+      finalLocal.push(...optimizeRun(lo,hi,leftA,rightA));
+    }
+    return finalLocal; // array of local indices 0..m-1 in new order (locks included)
+  }
+
+  // If a frame has locks, fix its internal order now; otherwise leave it for candidates below
+  perFrame.forEach(pf=>{
+    const ord = orderFrameWithLocks(pf);
+    if(Array.isArray(ord)){
+      // apply order to pf.rows and pf.globalIdxs
+      pf.rows = ord.map(i=>pf.rows[i]);
+      pf.globalIdxs = ord.map(i=>pf.globalIdxs[i]);
+    }
+  });
+
+  // Build candidate tables per frame (as before) using HK on the (possibly pre-ordered) frame
   const framesPlan = perFrame.map(pf=>{
     const n = pf.rows.length;
     if(n===0){
@@ -1714,6 +1876,16 @@ async function optimizeByFrames(){
         D[i][j] = (i===j)?0 : Dglobal[idxs[i]][idxs[j]];
       }
     }
+
+    // If the frame had locks we already arranged pf.rows. To keep those positions fixed,
+    // we offer only the single "ordered" candidate; otherwise, enumerate all s,t like before.
+    const hadLocks = pf.rows.some((r)=>isLocked(r));
+    if(hadLocks){
+      return { ...pf, n, candidates:[{s:0, t:n-1, order:[...Array(n).keys()], cost: (()=> {
+        let c=0; for(let i=0;i<n-1;i++) c+=D[i][i+1]; return c;
+      })()}] };
+    }
+
     const hk = shortestHamiltonianPaths(D);
     const cands = [];
     for(let s=0;s<n;s++){
@@ -1729,7 +1901,7 @@ async function optimizeByFrames(){
     return { ...pf, n, candidates: cands, idxs };
   });
 
-  // DP across frames
+  // DP across frames (unchanged)
   function linkCost(prevPlan, prevCand, nextPlan, nextCand){
     if(prevCand.t==null || nextCand.s==null) return 0;
     const gi = prevPlan.globalIdxs[prevCand.t];
@@ -1775,9 +1947,7 @@ async function optimizeByFrames(){
     orderedRows.forEach(r=>list.appendChild(r));
   }
 
-  // NEW: tidy view after optimize
   pruneEmptyRowsAndFrames();
-
   renumber();
   scheduleAutoCompute(0,true);
 }
@@ -2193,39 +2363,149 @@ if (window.__mapsApiReady) { window.routePlannerInit(); }
 /* --------- Flat-view optimizer (exact) --------- */
 async function globalOptimizeRoute(){
   if(!flatMode){ return; }
-  const list=document.getElementById('addrList');
+  const list = document.getElementById('addrList');
 
-  // Remove blanks first (also ensures no dangling empties)
+  // Remove blanks first
   [...list.querySelectorAll('.row')].forEach(r=>{
     if(!r.querySelector('.stop').value.trim()) r.remove();
   });
 
-  const rows=[...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
-  if(rows.length<=1){ renumber(); scheduleAutoCompute(0,true); return; }
+  const rows = [...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
+  if(rows.length <= 1){ renumber(); scheduleAutoCompute(0,true); return; }
 
-  const ok=await ensureCoords(rows,{parallel:true});
+  const ok = await ensureCoords(rows,{parallel:true});
   if(!ok){ const fm=document.getElementById('flatMsg'); if(fm) fm.textContent='One or more stops can’t be located – please edit.'; return; }
 
-  const pts=rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat,lng:+r.querySelector('.stop').dataset.lng}));
+  // Points in current order
+  const pts = rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat, lng:+r.querySelector('.stop').dataset.lng}));
 
-  // Use driving matrix for parity with framed optimizer
+  // Distance matrix (driving)
   const D = await buildDrivingMatrixAll(pts);
-  const {cost, path} = shortestHamiltonianPaths(D);
-  // choose best path among all start/end pairs
-  let bestC=1e18, bestS=0, bestT=rows.length-1;
-  for(let s=0;s<rows.length;s++){
-    for(let t=0;t<rows.length;t++){
-      if(s===t && rows.length>1) continue;
-      if(cost[s][t] < bestC){ bestC = cost[s][t]; bestS = s; bestT = t; }
+
+  // Split into segments separated by locked anchors
+  const lockedIdxs = rows.map((r,i)=>isLocked(r)?i:-1).filter(i=>i>=0);
+
+  // If nothing is locked, do your standard global HK route
+  if(lockedIdxs.length === 0){
+    const {cost, path} = shortestHamiltonianPaths(D);
+    let bestC=1e18, bestS=0, bestT=rows.length-1;
+    for(let s=0;s<rows.length;s++){
+      for(let t=0;t<rows.length;t++){
+        if(s===t && rows.length>1) continue;
+        if(cost[s][t] < bestC){ bestC=cost[s][t]; bestS=s; bestT=t; }
+      }
     }
+    const ord = path[bestS][bestT] || [...rows.keys()];
+    const ordered=ord.map(i=>rows[i]);
+    ordered.forEach(r=>list.appendChild(r));
+    pruneEmptyRowsAndFrames(); renumber(); scheduleAutoCompute(0,true); return;
   }
-  const ord = path[bestS][bestT] || [...rows.keys()];
-  const ordered=ord.map(i=>rows[i]);
-  ordered.forEach(r=>list.appendChild(r));
 
-  // NEW: tidy (remove any remaining empties)
+  // Build final order honoring locked anchors
+  // Strategy: keep locked rows fixed in place; optimize each free run between anchors.
+  const finalOrder = [];
+  const n = rows.length;
+
+  // Helper: optimize subarray [lo..hi] (inclusive) that contains only UNLOCKED rows,
+  // with optional left/right anchors (indices into the global array) supplying link costs.
+  function optimizeRun(lo, hi, leftAnchorIdx, rightAnchorIdx){
+    const idxs = [];
+    for(let i=lo;i<=hi;i++) idxs.push(i);
+    if(idxs.length<=1){ return idxs; } // nothing to optimize
+
+    // Build local Dblock
+    const m = idxs.length;
+    const Dblock = Array.from({length:m},()=>Array(m).fill(0));
+    for(let i=0;i<m;i++){
+      for(let j=0;j<m;j++){
+        if(i===j) Dblock[i][j]=0; else Dblock[i][j]=D[idxs[i]][idxs[j]];
+      }
+    }
+    const hk = shortestHamiltonianPaths(Dblock);
+
+    // If both anchors exist, choose start/end that minimize link cost: L -> start -> ... -> end -> R
+    if(leftAnchorIdx!=null && rightAnchorIdx!=null){
+      let best=1e18, bestS=0, bestT=m-1, bestPath=null;
+      for(let s=0;s<m;s++){
+        for(let t=0;t<m;t++){
+          if(m>1 && s===t) continue;
+          const inner = hk.cost[s][t];
+          if(!Number.isFinite(inner)) continue;
+          const tot = D[leftAnchorIdx][idxs[s]] + inner + D[idxs[t]][rightAnchorIdx];
+          if(tot < best){ best=tot; bestS=s; bestT=t; bestPath = hk.path[s][t]; }
+        }
+      }
+      return (bestPath||[...Array(m).keys()]).map(k=>idxs[k]);
+    }
+
+    // Only left anchor: minimize L -> start -> ... (no forced end)
+    if(leftAnchorIdx!=null && rightAnchorIdx==null){
+      let best=1e18, bestS=0, bestT=m-1, bestPath=null;
+      for(let s=0;s<m;s++){
+        for(let t=0;t<m;t++){
+          if(m>1 && s===t) continue;
+          const inner = hk.cost[s][t];
+          if(!Number.isFinite(inner)) continue;
+          const tot = D[leftAnchorIdx][idxs[s]] + inner;
+          if(tot < best){ best=tot; bestS=s; bestT=t; bestPath = hk.path[s][t]; }
+        }
+      }
+      return (bestPath||[...Array(m).keys()]).map(k=>idxs[k]);
+    }
+
+    // Only right anchor: minimize ... -> end -> R
+    if(leftAnchorIdx==null && rightAnchorIdx!=null){
+      let best=1e18, bestS=0, bestT=m-1, bestPath=null;
+      for(let s=0;s<m;s++){
+        for(let t=0;t<m;t++){
+          if(m>1 && s===t) continue;
+          const inner = hk.cost[s][t];
+          if(!Number.isFinite(inner)) continue;
+          const tot = inner + D[idxs[t]][rightAnchorIdx];
+          if(tot < best){ best=tot; bestS=s; bestT=t; bestPath = hk.path[s][t]; }
+        }
+      }
+      return (bestPath||[...Array(m).keys()]).map(k=>idxs[k]);
+    }
+
+    // No anchors (should not happen between locks, but can be the whole list if all unlocked)
+    let best=1e18, bestS=0, bestT=m-1, bestPath=null;
+    for(let s=0;s<m;s++){
+      for(let t=0;t<m;t++){
+        if(m>1 && s===t) continue;
+        const inner = hk.cost[s][t];
+        if(!Number.isFinite(inner)) continue;
+        if(inner < best){ best=inner; bestS=s; bestT=t; bestPath = hk.path[s][t]; }
+      }
+    }
+    return (bestPath||[...Array(m).keys()]).map(k=>idxs[k]);
+  }
+
+  // Walk the list and collect runs
+  const lockedSet = new Set(lockedIdxs);
+  let i=0;
+  while(i<n){
+    if(lockedSet.has(i)){
+      finalOrder.push(i); // keep locked in place
+      i++;
+      continue;
+    }
+    // start of a free run
+    const lo = i;
+    while(i<n && !lockedSet.has(i)) i++;
+    const hi = i-1;
+    const leftAnchor  = (lo-1>=0 && lockedSet.has(lo-1)) ? (lo-1) : null;
+    const rightAnchor = (hi+1<n && lockedSet.has(hi+1)) ? (hi+1) : null;
+
+    const bestIdxs = optimizeRun(lo, hi, leftAnchor, rightAnchor);
+    finalOrder.push(...bestIdxs);
+  }
+
+  // Rebuild DOM in that order
+  const orderedRows = finalOrder.map(k=>rows[k]);
+  orderedRows.forEach(r=>list.appendChild(r));
+
   pruneEmptyRowsAndFrames();
-
   renumber();
   scheduleAutoCompute(0,true);
 }
