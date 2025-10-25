@@ -34,14 +34,12 @@
 
   /* -------- Label palette (map-tuned) -------- */
   --accent-teal:#2A9D8F;
-  --accent-blue:#3B82F6;
-<html>
---accent-slate:#475569;l      *Please pick up service plan for   
-  
-  
-  . Thank you - spia10--accent-olive:#6B8E23;
-  
-  --label-paper:#ffffff;
+--accent-blue:#3B82F6;
+--accent-slate:#475569;
+--accent-olive:#6B8E23;
+
+--label-paper:#ffffff;
+
   --label-ink:#0f1720;
   --label-border:rgba(15,23,32,.14);
   --label-halo:rgba(15,23,32,.16);
@@ -1474,9 +1472,6 @@ function initHomeBasePins(){
   const info = new google.maps.InfoWindow();
   const fit  = new google.maps.LatLngBounds();
 
-/* =================== HOME BASE PINS =================== */
-/* Define the bases first (with fallback coordinates) */
-const HOME_BASES = [
   {
     name:   'Lake Country Community Health Centre',
     address:'10080 Main St, Lake Country, BC V4V 1T8',
@@ -1654,54 +1649,6 @@ function fillFirstAvailableAddress(addr){
   }
 }
 
-/* Create subtle teardrop markers for each home base */
-async function addHomeBasePins(){
-  // clear old
-  HOME_BASE_MARKERS.forEach(m=>m.setMap(null));
-  HOME_BASE_MARKERS = [];
-
-  for (const hb of HOME_BASES){
-    const loc = await resolveAddress(hb.address); // your existing resolver
-    if (!loc) continue;
-
-    const marker = new google.maps.Marker({
-      position: {lat: loc.lat, lng: loc.lng},
-      map,
-      // small, discreet pin that still reads well
-      icon: {
-        path: TEARDROP_PATH,
-        scale: 0.70,
-        fillColor: hb.color,
-        fillOpacity: 0.95,
-        strokeColor: '#263238',
-        strokeOpacity: 0.6,
-        strokeWeight: 1.2,
-        labelOrigin: new google.maps.Point(0,-16),
-        anchor: new google.maps.Point(0,0)
-      },
-      // faint label letter (optional: comment out next line to remove)
-      label: { text: '•', fontSize: '10px', fontWeight: '700', color: '#ffffff' },
-      title: hb.name
-    });
-
-    marker.addListener('mouseover', ()=>{
-      hbInfoWin.setContent(
-        `<div style="line-height:1.25">
-           <div style="font-weight:600">${hb.name}</div>
-           <div style="font-size:12px;color:#444">${hb.address}</div>
-         </div>`
-      );
-      hbInfoWin.open({map, anchor: marker});
-    });
-    marker.addListener('mouseout', ()=> hbInfoWin.close());
-
-    marker.addListener('click', ()=>{
-      fillFirstAvailableAddress(hb.address);
-    });
-
-    HOME_BASE_MARKERS.push(marker);
-  }
-}
 async function ensureCoords(rows,{parallel=false}={}){
   const tasks = rows.map(row=>async ()=>{
     const inp=row.querySelector('.stop');
