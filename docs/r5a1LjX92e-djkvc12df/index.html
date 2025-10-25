@@ -252,7 +252,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   box-shadow: inset 0 1px 0 rgba(255,255,255,.6); }
 .title{ font-weight:800; letter-spacing:.35px; text-transform:uppercase; white-space:nowrap; font-size:14px; }
 .close{ margin-left:6px; width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center;
-  background:#fff; border:1px solid #var(--label-border); box-shadow:0 1px 1px rgba(0,0,0,.06); color:#4b5563; font-size:16px; line-height:16px; cursor:pointer; }
+  background:#fff; border:1px solid var(--label-border); box-shadow:0 1px 1px rgba(0,0,0,.06); color:#4b5563; font-size:16px; line-height:16px; cursor:pointer; }
 .close:hover{ color:#000; }
 
 @media (prefers-reduced-motion: reduce){
@@ -404,7 +404,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 
 <!-- Google Maps JS API (async) -->
 <script async defer
-  src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=init&libraries=places,geometry&loading=async">
+  src="https://maps.googleapis.com/maps/api/js?key="AIzaSyDnpSCHQWHr1neHALY-xddNne_S7f608co"&callback=init&libraries=places,geometry&loading=async">
 </script>
 
 <!-- Sortable must load BEFORE your main app script that calls Sortable.create(...) -->
@@ -1426,52 +1426,7 @@ function geocodeSmart(addr,attempt=0){
 }
 /* =================== HOME-BASE PINS =================== */
 
-let HOME_BASE_MARKERS = [];
-
-/** first available stop input in current view (creates one if none exists) */
-function firstEmptyStopInput() {
-  if (window.flatMode) {
-    const list = document.getElementById('addrList');
-    let inp = [...list.querySelectorAll('.stop')].find(i => !(i.value||'').trim()) || list.querySelector('.stop');
-    if (!inp) {
-      // no rows yet – create one
-      const row = addRowToAddrBar(true, false);
-      inp = row?.querySelector('.stop') || null;
-    }
-    return inp;
-  }
-
-  // framed view: search visible frames in order, create one if none empty
-  for (const fr of FRAMES) {
-    const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
-    const visible = (fr.shift==='day' && dayVisible) || (fr.shift==='night' && nightVisible);
-    if (!visible || sec.classList.contains('collapsed') || sec.style.display==='none') continue;
-
-    const list = document.getElementById('frame-'+fr.id);
-    const empty = [...list.querySelectorAll('.stop')].find(i => !(i.value||'').trim());
-    if (empty) return empty;
-
-    // no empties in this visible frame? ensure placeholders exist, then give us a new input
-    ensurePlaceholdersForFrame(fr.id, {force:true});
-    const added = addRowToFrame(fr.id, true, false);
-    return added?.querySelector('.stop') || null;
-  }
-  return null;
-}
-
-/** add subdued pins, styled hover tooltip, and click-to-fill */
-function initHomeBasePins(){
-  if (!window.map || !window.google) return; // run only after Maps is ready
-  console.debug('[home-bases] initializing pins…');
-
-  // clean up on re-init
-  HOME_BASE_MARKERS.forEach(m => m.setMap(null));
-  HOME_BASE_MARKERS = [];
-
-  // reuse a single InfoWindow so only one is shown at a time
-  const info = new google.maps.InfoWindow();
-  const fit  = new google.maps.LatLngBounds();
-
+const HOME_BASES = [
   {
     name:   'Lake Country Community Health Centre',
     address:'10080 Main St, Lake Country, BC V4V 1T8',
@@ -1497,116 +1452,6 @@ function initHomeBasePins(){
     lat: 49.8360, lng: -119.5996
   }
 ];
-
-let HOME_BASE_MARKERS = [];
-
-/** first available stop input in the currently visible view */
-function firstEmptyStopInput() {
-  if (window.flatMode) {
-    const list = document.getElementById('addrList');
-    return [...list.querySelectorAll('.stop')].find(i => !(i.value||'').trim()) || list.querySelector('.stop');
-  }
-  for (const fr of FRAMES) {
-    const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
-    const visible = (fr.shift==='day' && dayVisible) || (fr.shift==='night' && nightVisible);
-    if (!visible || sec.classList.contains('collapsed') || sec.style.display==='none') continue;
-    const list = document.getElementById('frame-'+fr.id);
-    const inp  = [...list.querySelectorAll('.stop')].find(i => !(i.value||'').trim());
-    if (inp) return inp;
-  }
-  return null;
-}
-
-/** add subdued pins, hover tooltip, and click-to-fill */
-function initHomeBasePins(){
-  if (!window.map || !window.google) return; // run only after Maps is ready
-
-  // clean up on re-init
-  HOME_BASE_MARKERS.forEach(m => m.setMap(null));
-  HOME_BASE_MARKERS = [];
-
-  // a single InfoWindow so only one is shown at a time
-  const info = new google.maps.InfoWindow();
-  const fit  = new google.maps.LatLngBounds();
-
-  HOME_BASES.forEach(async (base) => {
-    // Try to resolve via your existing code *only if* Places/Geocoder are usable.
-    // Otherwise, fall back to the provided lat/lng.
-    let resolved = null;
-    const canResolve =
-      google?.maps?.places && typeof resolveAddress === 'function';
-
-    if (canResolve) {
-      try { resolved = await resolveAddress(base.address); } catch (_) {}
-    }
-
-    const lat = (resolved?.lat ?? base.lat);
-    const lng = (resolved?.lng ?? base.lng);
-    const formatted = resolved?.formatted || base.address;
-
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      console.warn('[home-bases] could not locate:', base.name, base.address);
-      return;
-    }
-
-    const pos = new google.maps.LatLng(lat, lng);
-    fit.extend(pos);
-
-    const marker = new google.maps.Marker({
-      position: pos,
-      map,
-      zIndex: 50,
-      icon: {
-        path: TEARDROP_PATH,             // reuse your existing path
-        scale: 0.82,                     // smaller
-        fillColor: base.color,
-        fillOpacity: 0.72,               // more transparent
-        strokeColor: '#263238',
-        strokeOpacity: 0.75,             // softer edge
-        strokeWeight: 1.0,
-        anchor: new google.maps.Point(0, 0),
-        labelOrigin: new google.maps.Point(0, -16)
-      },
-      title: base.name
-    });
-
-    // hover tooltip (styled by your CSS .hb-info)
-    marker.addListener('mouseover', () => {
-      info.setContent(
-        `<div class="hb-info">
-           <div class="name">${base.name}</div>
-           <div class="addr">${formatted}</div>
-         </div>`
-      );
-      info.open({ map, anchor: marker });
-    });
-    marker.addListener('mouseout', () => info.close());
-
-    // click to fill first empty input in current view
-    marker.addListener('click', () => {
-      const inp = firstEmptyStopInput();
-      if (!inp) return;
-      inp.value = formatted;
-      inp.dataset.lat = String(lat);
-      inp.dataset.lng = String(lng);
-      delete inp.dataset.dirty;
-
-      safeFocus(inp);
-      autoResolveNext = true;
-      scheduleAutoCompute(0, true);
-      map.panTo(pos);
-    });
-
-    HOME_BASE_MARKERS.push(marker);
-  });
-
-  // keep bases in view (leave space for your panel)
-  setTimeout(() => {
-    if (HOME_BASE_MARKERS.length) {
-      try { map.fitBounds(fit, { top: 60, right: 40, bottom: 80, left: 380 }); } catch(_) {}
-    }
-  }, 0);
-}
 
 /* Find or create the first available directions input and fill it */
 function fillFirstAvailableAddress(addr){
