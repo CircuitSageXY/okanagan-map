@@ -1005,7 +1005,7 @@ function focusNextInFlatOrCreate(currentInput, queueOnly=false){
   }
   if(queueOnly) setTimeout(()=>safeFocus(target),0); else safeFocus(target);
 }
-// === NEW: shared helper so OCR can use the same multi-paste logic ===
+// === Shared helper so OCR and text multi-paste use the SAME pipeline ===
 async function applyAddressesList(startInput, lines){
   const addresses = (lines || []).map(s => (s||'').replace(/\s+/g,' ').trim()).filter(Boolean);
   if (!addresses.length) return;
@@ -1014,14 +1014,13 @@ async function applyAddressesList(startInput, lines){
 
   if (flatMode){
     const list = document.getElementById('addrList');
-    // ensure enough rows starting at current index
-    let rows = [...list.querySelectorAll('.row')];
+    let rows   = [...list.querySelectorAll('.row')];
     const startIdx = rows.indexOf(startRow);
+
     const need = Math.max(0, startIdx + addresses.length - rows.length);
     for (let i=0; i<need; i++) list.appendChild(makeRow(0));
     rows = [...list.querySelectorAll('.row')];
 
-    // fill values
     addresses.forEach((addr,i)=>{
       const r = rows[startIdx + i]; if (!r) return;
       const el = r.querySelector('.stop');
@@ -1030,25 +1029,23 @@ async function applyAddressesList(startInput, lines){
 
     renumber();
     autoResolveNext = true;
-    // only resolve the rows we just filled
     const span = rows.slice(startIdx, startIdx + addresses.length);
     await ensureCoords(span, {parallel:true});
     await rebuildRoute();
     return;
   }
 
-  // ----- framed view (same behavior as your multiPaste) -----
-  const firstFrameId = +startRow.dataset.frame;
-  const frMeta = FRAMES.find(f => f.id === firstFrameId);
-  const shift  = frMeta.shift;
-  const framesInShift = FRAMES.filter(f => f.shift === shift);
-  const startIndexInShift = framesInShift.findIndex(f => f.id === firstFrameId);
+  // ----- framed view (same behavior as your old multiPaste) -----
+  const firstFrameId       = +startRow.dataset.frame;
+  const frMeta             = FRAMES.find(f => f.id === firstFrameId);
+  const shift              = frMeta.shift;
+  const framesInShift      = FRAMES.filter(f => f.shift === shift);
+  const startIndexInShift  = framesInShift.findIndex(f => f.id === firstFrameId);
 
-  // collect target inputs in order across frames, creating as needed
   const targets = [];
-  for (let k = startIndexInShift; k < framesInShift.length && targets.length < addresses.length; k++){
-    const fid = framesInShift[k].id;
-    const list = document.getElementById('frame-' + fid);
+  for (let k=startIndexInShift; k<framesInShift.length && targets.length<addresses.length; k++){
+    const fid  = framesInShift[k].id;
+    const list = document.getElementById('frame-'+fid);
     ensurePlaceholdersForFrame(fid);
     const rows = [...list.querySelectorAll('.row')];
 
@@ -1059,16 +1056,14 @@ async function applyAddressesList(startInput, lines){
       const inp = rows[i].querySelector('.stop');
       if (!inp.value.trim()) targets.push(inp);
     }
-    // if we ran out on the last visible frame, grow it
-    while (targets.length < addresses.length && k === framesInShift.length - 1){
+    while (targets.length < addresses.length && k === framesInShift.length-1){
       const added = addRowToFrame(fid, false, false);
       targets.push(added.querySelector('.stop'));
     }
   }
 
-  targets.forEach((inp, i)=>{
-    inp.value = addresses[i] || '';
-    inp.dataset.lat=''; inp.dataset.lng=''; inp.dataset.dirty='1';
+  targets.forEach((inp,i)=>{
+    inp.value = addresses[i]; inp.dataset.lat=''; inp.dataset.lng=''; inp.dataset.dirty='1';
   });
 
   renumber();
@@ -1079,12 +1074,12 @@ async function applyAddressesList(startInput, lines){
 
 /* =================== MULTI-PASTE (both views) =================== */
 async function multiPaste(e){
-  const clip = (e.clipboardData||window.clipboardData).getData('text');
-  const lines = clip.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  if (lines.length <= 1) return;           // keep single-line behavior
+  const clip  = (e.clipboardData || window.clipboardData).getData('text');
+  const lines = clip.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  if (lines.length <= 1) return;   // keep single-line behavior
   e.preventDefault();
   SG.hide();
-  await applyAddressesList(e.target, lines);  // <<< reuse exact logic
+  await applyAddressesList(e.target, lines);  // reuse the shared logic
 }
 
   if(flatMode){
