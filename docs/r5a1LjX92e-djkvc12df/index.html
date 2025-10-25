@@ -1389,6 +1389,123 @@ function geocodeSmart(addr,attempt=0){
       });
   });
 }
+/* =================== HOME BASE PINS =================== */
+
+const HOME_BASES = [
+  {
+    name: 'Lake Country Community Health Centre',
+    address: '10080 Main St, Lake Country, BC V4V 1T8',
+    color: '#2A9D8F'  // teal
+  },
+  {
+    name: 'Kelowna May Bennett Wellness Centre',
+    address: '135 Davie Rd, Kelowna, BC V1X 1Y8',
+    color: '#F59E0B'  // amber
+  },
+  {
+    name: 'Kelowna Central Office',
+    address: '1815 Kirschner Rd, Kelowna, BC V1Y 4N7',
+    color: '#3B82F6'  // blue
+  },
+  {
+    name: 'West Kelowna Health Centre',
+    address: '2300 Carrington Rd, West Kelowna, BC V4T 2N6',
+    color: '#8B5CF6'  // purple
+  }
+];
+
+let HOME_BASE_MARKERS = [];
+const hbInfoWin = new google.maps.InfoWindow();
+
+/* Find or create the first available directions input and fill it */
+function fillFirstAvailableAddress(addr){
+  let input = null;
+
+  if (flatMode){
+    input = [...document.querySelectorAll('#addrList .stop')].find(i=>!i.value.trim());
+    if (!input){
+      const r = addRowToAddrBar(true,false);
+      input = r.querySelector('.stop');
+    }
+  } else {
+    // visible (non-collapsed) frames in order
+    const frames = FRAMES.filter(fr=>{
+      const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
+      const visible = (fr.shift==='day'&&dayVisible) || (fr.shift==='night'&&nightVisible);
+      return visible && sec && !sec.classList.contains('collapsed') && sec.style.display!=='none';
+    });
+
+    for (const fr of frames){
+      const list = document.getElementById('frame-'+fr.id);
+      input = [...list.querySelectorAll('.stop')].find(i=>!i.value.trim());
+      if (input) break;
+    }
+    if (!input && frames.length){
+      // no empties; add one to the first visible frame
+      const r = addRowToFrame(frames[0].id, true, false);
+      input = r.querySelector('.stop');
+    }
+  }
+
+  if (input){
+    input.value = addr;
+    input.dataset.lat=''; input.dataset.lng='';
+    input.dataset.dirty='1';
+    safeFocus(input);
+    renumber();
+    autoResolveNext = true;          // resolve + route on next compute
+    scheduleAutoCompute(0, true);
+  }
+}
+
+/* Create subtle teardrop markers for each home base */
+async function addHomeBasePins(){
+  // clear old
+  HOME_BASE_MARKERS.forEach(m=>m.setMap(null));
+  HOME_BASE_MARKERS = [];
+
+  for (const hb of HOME_BASES){
+    const loc = await resolveAddress(hb.address); // your existing resolver
+    if (!loc) continue;
+
+    const marker = new google.maps.Marker({
+      position: {lat: loc.lat, lng: loc.lng},
+      map,
+      // small, discreet pin that still reads well
+      icon: {
+        path: TEARDROP_PATH,
+        scale: 0.70,
+        fillColor: hb.color,
+        fillOpacity: 0.95,
+        strokeColor: '#263238',
+        strokeOpacity: 0.6,
+        strokeWeight: 1.2,
+        labelOrigin: new google.maps.Point(0,-16),
+        anchor: new google.maps.Point(0,0)
+      },
+      // faint label letter (optional: comment out next line to remove)
+      label: { text: '•', fontSize: '10px', fontWeight: '700', color: '#ffffff' },
+      title: hb.name
+    });
+
+    marker.addListener('mouseover', ()=>{
+      hbInfoWin.setContent(
+        `<div style="line-height:1.25">
+           <div style="font-weight:600">${hb.name}</div>
+           <div style="font-size:12px;color:#444">${hb.address}</div>
+         </div>`
+      );
+      hbInfoWin.open({map, anchor: marker});
+    });
+    marker.addListener('mouseout', ()=> hbInfoWin.close());
+
+    marker.addListener('click', ()=>{
+      fillFirstAvailableAddress(hb.address);
+    });
+
+    HOME_BASE_MARKERS.push(marker);
+  }
+}
 async function ensureCoords(rows,{parallel=false}={}){
   const tasks = rows.map(row=>async ()=>{
     const inp=row.querySelector('.stop');
@@ -2341,6 +2458,7 @@ window.routePlannerInit=()=>{
   acService=new google.maps.places.AutocompleteService();
   placeSvc=new google.maps.places.PlacesService(map);
   dmSvc = new google.maps.DistanceMatrixService();
+  addHomeBasePins();
 
   buildFrameBuckets();
   buildAddrBar();
