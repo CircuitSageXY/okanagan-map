@@ -1437,15 +1437,13 @@ function drawRouteMarkers(points, rows){
     const letter = b ? (b.textContent || '').trim() : '';
     const classLetter = b ? [...b.classList].find(c => /^[A-Z]$/.test(c)) : null;
     const varName = classLetter ? `--clr${classLetter}` : '--clrDefault';
-    const color = (getComputedStyle(document.documentElement)
-                  .getPropertyValue(varName).trim()) || '#607d8b';
+    const color = (getComputedStyle(document.documentElement).getPropertyValue(varName).trim()) || '#607d8b';
 
     // Address text for tooltip
     const address = (rows[i]?.querySelector('.stop')?.value || '').trim();
-    const title   = address || `Stop ${letter}`;
 
     // Reuse a nearby home-base pin if present
-    const hb = getHomeBaseAtLatLng(p, 35);   // 35 m tolerance
+    const hb = getHomeBaseAtLatLng(new google.maps.LatLng(p.lat, p.lng), 35);
     if (hb){
       hb.setLabel({ text: letter, color: '#ffffff', fontSize: '16px', fontWeight: '700' });
       try { hb.setZIndex(200); } catch(_) {}
@@ -1459,55 +1457,28 @@ function drawRouteMarkers(points, rows){
       label: { text: letter, color: '#fff', fontSize: '16px', fontWeight: '700' },
       icon: {
         path: TEARDROP_PATH,
-        scale: 0.82,
+        scale: 0.78,                 // a touch smaller
         fillColor: color,
-        fillOpacity: 0.65,
+        fillOpacity: 0.62,           // a bit more transparent
         strokeColor: '#000000',
         strokeOpacity: 1,
-        strokeWeight: 1.8,
+        strokeWeight: 1.6,
         anchor: new google.maps.Point(0, 0),
         labelOrigin: new google.maps.Point(0, -16)
       }
     });
 
-    // hover handlers
-marker.addListener('mouseover', () => {
-  if (!window.__hbTip) return;
-  const pos    = marker.getPosition();
-  const name   = base.name || '';
-  const addr   = formatted || base.address || '';
-  const accent = base.color || '#3B82F6';
-  window.__hbTip.show(pos, name, addr, accent);
-});
+    // Hover → show pill; mouseout → hide
+    marker.addListener('mouseover', () => {
+      if (window.__hbTip) window.__hbTip.show(marker.getPosition(), address, address, color);
+    });
+    marker.addListener('mouseout', () => {
+      if (window.__hbTip) window.__hbTip.hide();
+    });
 
-marker.addListener('mouseout', () => {
-  if (window.__hbTip) window.__hbTip.hide();
-});
-
-// click → paste first available input, lock it, set coords, recompute
-marker.addListener('click', () => {
-  if (window.__hbTip) window.__hbTip.hide();
-  const row = fillFirstAvailableAddress(formatted, {
-    lock: true,
-    coords: { lat, lng }
+    routeMarkers.push(marker);
   });
-  if (!row) {
-    if (window.flatMode) {
-      const r = addRowToAddrBar(true, false);
-      fillFirstAvailableAddress(formatted, { lock: true, coords: { lat, lng } });
-    } else {
-      const vis = FRAMES.find(fr => {
-        const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
-        return ((fr.shift==='day' && dayVisible) || (fr.shift==='night' && nightVisible)) &&
-               sec && !sec.classList.contains('collapsed') && sec.style.display!=='none';
-      });
-      if (vis) {
-        addRowToFrame(vis.id, true, false);
-        fillFirstAvailableAddress(formatted, { lock: true, coords: { lat, lng } });
-      }
-    }
-  }
-});
+}
 
 function clearRouteMarkers(){
   routeMarkers.forEach(m => m.setMap(null));
@@ -1691,97 +1662,74 @@ function initHBTooltip(){
 
 /** add subdued pins, hover tooltip, and click-to-fill */
 function initHomeBasePins(){
-  if (!window.map || !window.google) return; // run only after Maps is ready
-  console.debug('[home-bases] initializing pins…');
+  if (!window.map || !window.google) return;
 
-  // clean up on re-init
+  // One tooltip singleton
+  initHBTooltip();
+  const hbTip = window.__hbTip;
+
+  // clean old
   HOME_BASE_MARKERS.forEach(m => m.setMap(null));
   HOME_BASE_MARKERS = [];
 
   const fit = new google.maps.LatLngBounds();
-
-// define the tooltip class (if not already) and reuse a single instance
-initHBTooltip();
-const hbTip = window.__hbTip;  // singleton
-  
-  // Hide hover card if user clicks elsewhere on the map
-map.addListener('click', () => hbTip.hide());
+  map.addListener('click', () => hbTip.hide());
 
   HOME_BASES.forEach(async (base) => {
-    // try resolve; if it fails use fallback lat/lng
+    // resolve address (fallback to provided lat/lng)
     let resolved = null;
     try { resolved = await resolveAddress(base.address); } catch {}
-
     const lat = resolved?.lat ?? base.lat;
     const lng = resolved?.lng ?? base.lng;
     const formatted = resolved?.formatted || base.address;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      console.warn('[home-bases] could not locate:', base.name, base.address);
-      return;
-    }
-
-    const pos = new google.maps.LatLng(lat, lng);
+    const pos = {lat, lng};
     fit.extend(pos);
 
-   // Otherwise create a dedicated route marker
-const marker = new google.maps.Marker({
-  position: p,
-  map,
-  label: { text: letter, color: '#fff', fontSize: '16px', fontWeight: '700' },
-  icon: {
-    path: TEARDROP_PATH,
-    scale: 0.78,                 // a touch smaller
-    fillColor: color,
-    fillOpacity: 0.62,           // a bit more transparent
-    strokeColor: '#000000',
-    strokeOpacity: 1,
-    strokeWeight: 1.6,
-    anchor: new google.maps.Point(0, 0),
-    labelOrigin: new google.maps.Point(0, -16)
-  }
-});
+    const marker = new google.maps.Marker({
+      position: pos,
+      map,
+      zIndex: 50,
+      icon: {
+        path: TEARDROP_PATH,
+        scale: 0.70,
+        fillColor: base.color,
+        fillOpacity: 0.70,
+        strokeColor: '#000000',
+        strokeOpacity: 0.9,
+        strokeWeight: 1.6,
+        labelOrigin: new google.maps.Point(0, -16),
+        anchor: new google.maps.Point(0, 0)
+      },
+      optimized: true
+    });
 
-// Build tooltip content from this row
-const addrText = (rows[i]?.querySelector('.stop')?.value || '').trim();
-const nameText = addrText;              // no separate name; use the address
-const accent   = color;                 // match marker color
+    // Hover shows the colored pill
+    marker.addListener('mouseover', () => hbTip.show(marker.getPosition(), base.name, formatted, base.color));
+    marker.addListener('mouseout',  () => hbTip.hide());
 
-// Hover → show pill; mouseout → hide
-marker.addListener('mouseover', () => {
-  if (!window.__hbTip) return;
-  window.__hbTip.show(marker.getPosition(), nameText, addrText, accent);
-});
-marker.addListener('mouseout', () => {
-  if (window.__hbTip) window.__hbTip.hide();
-});
-
-routeMarkers.push(marker);
-
-// click → paste first available input, lock it, set coords, recompute
-marker.addListener('click', () => {
-  hbTip.hide();
-  const row = fillFirstAvailableAddress(formatted, {
-    lock: true,
-    coords: { lat, lng }
-  });
-  if (!row) {
-    if (window.flatMode) {
-      const r = addRowToAddrBar(true, false);
-      fillFirstAvailableAddress(formatted, { lock: true, coords: { lat, lng } });
-    } else {
-      const vis = FRAMES.find(fr => {
-        const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
-        return ((fr.shift==='day' && dayVisible) || (fr.shift==='night' && nightVisible)) &&
-               sec && !sec.classList.contains('collapsed') && sec.style.display!=='none';
-      });
-      if (vis) {
-        addRowToFrame(vis.id, true, false);
-        fillFirstAvailableAddress(formatted, { lock: true, coords: { lat, lng } });
+    // Click pastes into first available input and locks it
+    marker.addListener('click', () => {
+      hbTip.hide();
+      const row = fillFirstAvailableAddress(formatted, { lock:true, coords:{lat,lng} });
+      if (!row) {
+        if (window.flatMode) {
+          const r = addRowToAddrBar(true, false);
+          fillFirstAvailableAddress(formatted, { lock:true, coords:{lat,lng} });
+        } else {
+          const vis = FRAMES.find(fr => {
+            const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
+            return ((fr.shift==='day' && dayVisible) || (fr.shift==='night' && nightVisible)) &&
+                   sec && !sec.classList.contains('collapsed') && sec.style.display!=='none';
+          });
+          if (vis) {
+            addRowToFrame(vis.id, true, false);
+            fillFirstAvailableAddress(formatted, { lock:true, coords:{lat,lng} });
+          }
+        }
       }
-    }
-  }
-});
+    });
 
     HOME_BASE_MARKERS.push(marker);
   });
@@ -1789,9 +1737,7 @@ marker.addListener('click', () => {
   // keep markers in view (leaving space for the left panel)
   setTimeout(() => {
     if (HOME_BASE_MARKERS.length) {
-      try {
-        map.fitBounds(fit, { top: 60, right: 40, bottom: 80, left: 380 });
-      } catch {}
+      try { map.fitBounds(fit, { top:60, right:40, bottom:80, left:380 }); } catch {}
     }
   }, 0);
 }
