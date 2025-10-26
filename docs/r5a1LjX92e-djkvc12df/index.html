@@ -267,63 +267,48 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .gm-style .scene-viewcard-button,
 .gm-style .app-viewcard-strip{ display:none !important; }
 
-/* ===== Home-base hover card (no Google white bubble) ===== */
 /* ===== Home-base info bubble (solid colored pill) ===== */
 .hb-iw{
-  --hb-accent:#3B82F6;
-  min-width:260px;
-  padding:8px 12px;
-  border-radius:12px;
-  background:var(--hb-accent);
-  color:#fff;
-  border:1px solid rgba(0,0,0,.35);
-  box-shadow:0 8px 24px rgba(0,0,0,.25);
-}
-.hb-iw .hb-title{ color:#fff; }
-.hb-iw .hb-addr { color:#fff; }
-
-/* ===== Home-base info bubble (solid colored pill, bigger text) ===== */
-.hb-iw{
-  --hb-accent:#3B82F6;
+  --hb-accent:#3B82F6;          /* JS sets this per pin */
+  display:block;
   min-width:300px;
   padding:10px 14px;
-  border-radius:12px;
-  background:var(--hb-accent);
+  border-radius:14px;
+  background:var(--hb-accent);  /* solid fill (no gradients) */
   color:#fff;
-  border:1px solid rgba(0,0,0,.35);
-  box-shadow:0 10px 28px rgba(0,0,0,.28);
-}
-.hb-iw .hb-title{ color:#fff; }
-.hb-iw .hb-addr { color:#fff; }
-
-/* Google InfoWindow chrome → transparent so only our colored card shows */
-.gm-style .gm-style-iw-c{ background:transparent !important; box-shadow:none !important; }
-.gm-style .gm-style-iw-t::after{ display:none !important; }
-
-/* Our hover card: larger, clearer */
-.hb-iw{
-  --hb-accent:#3B82F6;          /* overridden per pin */
-  min-width: 280px;
-  border-radius: 14px;
-  padding: 10px 12px;
-  background:
-    radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--hb-accent) 22%, #fff), #fff),
-    #fff;
-  border: 1px solid color-mix(in srgb, var(--hb-accent) 55%, transparent);
-  box-shadow: 0 10px 28px rgba(0,0,0,.22);
+  border:1px solid rgba(0,0,0,.28);   /* subtle edge so it “pops” */
+  box-shadow:0 10px 28px rgba(0,0,0,.25);
 }
 .hb-iw .hb-title{
-  font-weight: 900;
-  font-size: 17px;
-  letter-spacing: .25px;
-  margin-bottom: 6px;
-  color:#0b1320;
+  font-weight:900;
+  font-size:18px;
+  margin-bottom:4px;
+  color:#fff;
 }
 .hb-iw .hb-addr{
-  font-size: 14.5px;
-  line-height: 1.45;
-  color:#0b1320;
-  opacity:.92;
+  font-size:15px;
+  line-height:1.4;
+  color:#fff;
+  opacity:.98;
+}
+
+/* Kill Google’s default InfoWindow chrome so only our pill shows */
+.gm-style .gm-style-iw-c,
+.gm-style .gm-style-iw{
+  background:transparent !important;
+  box-shadow:none !important;
+  border:none !important;
+}
+.gm-style .gm-style-iw-tc,
+.gm-style .gm-style-iw-t::after{
+  display:none !important;          /* hide the little white tip */
+}
+.gm-style .gm-style-iw-d{
+  overflow:visible !important;
+  padding:0 !important;             /* no inner padding box */
+}
+.gm-style .gm-ui-hover-effect{      /* close “X” */
+  display:none !important;
 }
 
 /* ===========================================================
