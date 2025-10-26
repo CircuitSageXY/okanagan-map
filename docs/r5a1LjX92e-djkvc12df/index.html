@@ -2381,42 +2381,70 @@ function areaCodeFromFeature(feat){
 }
 
 function styleFeature(feature){
-  // live features
+  // Always keep Data Layer below markers and non-interactive,
+  // so teardrop marker hover/clicks are not intercepted.
+  const BASE_Z = -10;
+
+  // --- "live" features (you already support these) ---
   if (feature.getProperty('__live')) {
     let t = '';
     try { t = feature.getGeometry()?.getType?.() || ''; } catch(_){}
+
     if (t.includes('Polygon')) {
-      return (feature.getProperty('__polyStyle') || {
-        fillColor:'#E64A19', fillOpacity:.26, strokeColor:'#BF360C', strokeWeight:1.2, zIndex: 1
-      });
+      const s = feature.getProperty('__polyStyle') || {
+        fillColor:'#E64A19',
+        fillOpacity:.26,
+        strokeColor:'#BF360C',
+        strokeWeight:1.2
+      };
+      return { ...s, clickable:false, zIndex: BASE_Z, visible:true };
     }
+
     if (t.includes('LineString')) {
-      return (feature.getProperty('__lineStyle') || { strokeColor:'#F50057', strokeWeight:3, strokeOpacity:.9, zIndex: 1 });
+      const s = feature.getProperty('__lineStyle') || {
+        strokeColor:'#F50057',
+        strokeWeight:3,
+        strokeOpacity:.9
+      };
+      return { ...s, clickable:false, zIndex: BASE_Z, visible:true };
     }
+
     if (t === 'Point') {
-      return { icon: feature.getProperty('__pointIcon') || {
+      const icon = feature.getProperty('__pointIcon') || {
         path:'M0,-10 L10,0 L0,10 L-10,0 Z',
-        fillColor:'#F50057', fillOpacity:1, strokeColor:'#fff', strokeWeight:1.5, scale:1
-      }, zIndex: 1 };
+        fillColor:'#F50057', fillOpacity:1,
+        strokeColor:'#fff', strokeWeight:1.5, scale:1
+      };
+      return { icon, clickable:false, zIndex: BASE_Z, visible:true };
     }
-    return { visible:true, zIndex: 1 };
+
+    return { visible:true, clickable:false, zIndex: BASE_Z };
   }
 
-  // normal polygons
-  if (feature.getProperty('__visible') === false) return {visible:false, zIndex: 1};
+  // --- normal polygons (your geo area shades) ---
+  if (feature.getProperty('__visible') === false) {
+    return { visible:false, clickable:false, zIndex: BASE_Z };
+  }
+
   const color  = feature.getProperty('__color') || '#607d8b';
   const stroke = feature.getProperty('__stroke') ?? AREA_STROKE_WEIGHT;
   const fillOp = feature.getProperty('__fillOpacity') ??
-                 (feature.getProperty('__code')==='MISS2' ? Math.min(AREA_FILL_OPACITY, 0.12) : AREA_FILL_OPACITY);
+                 (feature.getProperty('__code')==='MISS2'
+                    ? Math.min(AREA_FILL_OPACITY, 0.12)
+                    : AREA_FILL_OPACITY);
 
   return {
-    fillColor: color, fillOpacity: fillOp,
-    strokeColor: color, strokeOpacity: 0.85,
+    fillColor: color,
+    fillOpacity: fillOp,
+    strokeColor: color,
+    strokeOpacity: 0.85,
     strokeWeight: stroke,
-    visible:true,
-    zIndex: 1                         // <<< keep Data Layer below markers
+    visible: true,
+    clickable: false,           // <-- the key line
+    zIndex: BASE_Z
   };
 }
+
 window.styleFeature = styleFeature;
 styleFeature.__isBaseStyle = true;
   
