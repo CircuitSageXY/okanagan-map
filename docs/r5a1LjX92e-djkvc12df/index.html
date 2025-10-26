@@ -1713,15 +1713,6 @@ icon: {
       });
 
     // hover tooltip
-// ===== hover: show our custom colored card (no white bubble) =====
-initHBTooltip();
-const hbTip = window.__hbTip || (window.__hbTip = new HBTooltip());
-
-// click to fill: always drops into the first available directions bar (any view)
-marker.addListener('click', () => {
-  fillFirstAvailableAddress(formatted, { lock:true, coords:{lat, lng} });
-  map.panTo(pos);
-});
 
     HOME_BASE_MARKERS.push(marker);
   });
@@ -1742,10 +1733,8 @@ const hbTip = window.__hbTip || (window.__hbTip = new HBTooltip());
 marker.addListener('mouseover', () => {
   hbTip.set(pos, base.name, formatted, base.color);
 });
-marker.addListener('mouseout', () => {
-  hbTip.hide();
-});
-
+marker.addListener('mouseout', () => hbTip.hide());
+  
 /* Find/create first available input, fill it, optionally lock and set coords. */
 function fillFirstAvailableAddress(addr, { lock=false, coords=null } = {}){
   let input = null, row = null;
