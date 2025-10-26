@@ -1677,6 +1677,9 @@ function initHomeBasePins(){
   initHBTooltip();
   const hbTip = (window.__hbTip ||= new HBTooltip());
 
+  // Hide hover card if user clicks elsewhere on the map
+map.addListener('click', () => hbTip.hide());
+
   HOME_BASES.forEach(async (base) => {
     // try resolve; if it fails use fallback lat/lng
     let resolved = null;
@@ -1713,11 +1716,43 @@ function initHomeBasePins(){
       optimized: true
     });
 
-    // hover tooltip handlers
-    marker.addListener('mouseover', () => {
-      hbTip.set(pos, base.name, formatted, base.color);
-    });
-    marker.addListener('mouseout', () => hbTip.hide());
+  // hover tooltip handlers
+marker.addListener('mouseover', () => {
+  hbTip.set(pos, base.name, formatted, base.color);
+});
+marker.addListener('mouseout', () => hbTip.hide());
+
+// NEW: click → paste into first available bar, lock it, set coords, recompute
+marker.addListener('click', () => {
+  // hide the hover card when we click
+  hbTip.hide();
+
+  // Fill first available input in the CURRENT view (Flat or visible frames),
+  // persist coordinates, and lock the row immediately.
+  const row = fillFirstAvailableAddress(formatted, {
+    lock: true,
+    coords: { lat, lng }   // we already resolved these above
+  });
+
+  // Defensive fallback: ensure there IS at least one input, then try again
+  if (!row) {
+    if (window.flatMode) {
+      const r = addRowToAddrBar(true, false);
+      fillFirstAvailableAddress(formatted, { lock: true, coords: { lat, lng } });
+    } else {
+      // find first visible frame and create a row
+      const vis = FRAMES.find(fr => {
+        const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
+        return ((fr.shift==='day' && dayVisible) || (fr.shift==='night' && nightVisible)) &&
+               sec && !sec.classList.contains('collapsed') && sec.style.display!=='none';
+      });
+      if (vis) {
+        addRowToFrame(vis.id, true, false);
+        fillFirstAvailableAddress(formatted, { lock: true, coords: { lat, lng } });
+      }
+    }
+  }
+});
 
     HOME_BASE_MARKERS.push(marker);
   });
