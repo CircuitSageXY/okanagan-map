@@ -2449,6 +2449,7 @@ function styleFeature(feature){
   };
 }
 window.styleFeature = styleFeature;
+styleFeature.__isBaseStyle = true;
   
 /* --- persistence --- */
 function loadSaved(key, fallback){ try{ const v = JSON.parse(localStorage.getItem(key)||'null'); return v && typeof v==='object' ? v : fallback; }catch(_){ return fallback; } }
