@@ -386,6 +386,32 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 }
 #areasDrawer input[type="color"]{ width:0; height:0; padding:0; border:none; visibility:hidden; }
 
+/* ===== Home-base info bubble theme ===== */
+.hb-iw {
+  --hb-accent: #3B82F6;
+  min-width: 240px;
+  border-radius: 12px;
+  padding: 8px 10px;
+  background:
+    radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--hb-accent) 22%, #fff), #fff),
+    #fff;
+  border: 1px solid color-mix(in srgb, var(--hb-accent) 45%, transparent);
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+}
+.hb-iw .hb-title {
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: .2px;
+  margin-bottom: 4px;
+  color: #0f1720;
+}
+.hb-iw .hb-addr {
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: #273142;
+}
+</style>
+  
 /* Style section spacing */
 #secStyle .row{ margin-top:6px; }
 #secStyle label{ min-width:90px; color:#374151; }
@@ -2737,34 +2763,6 @@ async function globalOptimizeRoute(){
   renumber();
   scheduleAutoCompute(0,true);
 }
-
-<style>
-/* ===== Home-base info bubble theme ===== */
-.hb-iw {
-  --hb-accent: #3B82F6;
-  min-width: 240px;
-  border-radius: 12px;
-  padding: 8px 10px;
-  background:
-    radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--hb-accent) 22%, #fff), #fff),
-    #fff;
-  border: 1px solid color-mix(in srgb, var(--hb-accent) 45%, transparent);
-  box-shadow: 0 8px 24px rgba(0,0,0,.18);
-}
-.hb-iw .hb-title {
-  font-weight: 800;
-  font-size: 15px;
-  letter-spacing: .2px;
-  margin-bottom: 4px;
-  color: #0f1720;
-}
-.hb-iw .hb-addr {
-  font-size: 13.5px;
-  line-height: 1.35;
-  color: #273142;
-}
-</style>
-
 <script defer src="ocr-paste.js"></script>
 <script defer src="events.js"></script>
 </body>
