@@ -1790,6 +1790,16 @@ marker.addListener('click', () => {
     }
   }, 0);
 }
+// ===== hover: show our custom colored card (no white bubble) =====
+initHBTooltip();
+const hbTip = window.__hbTip || (window.__hbTip = new HBTooltip());
+
+marker.addListener('mouseover', () => {
+  hbTip.set(pos, base.name, formatted, base.color);
+});
+marker.addListener('mouseout', () => {
+  hbTip.hide();
+});
 
 /* Find/create first available input, fill it, optionally lock and set coords. */
 function fillFirstAvailableAddress(addr, { lock=false, coords=null } = {}){
