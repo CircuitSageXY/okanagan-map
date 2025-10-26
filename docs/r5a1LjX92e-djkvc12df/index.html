@@ -1448,9 +1448,9 @@ function addPreviewPin(latlng,label){
     label:{text:label,color:'#fff',fontSize:'16px',fontWeight:'700'},
 icon:{
   path: TEARDROP_PATH,
-  scale: 0.92,
+  scale: 0.80,
   fillColor: '#607d8b',
-  fillOpacity: 0.9,
+  fillOpacity: 0.75,
   strokeColor: '#000000',
   strokeWeight: 2.0,
   labelOrigin: new google.maps.Point(0,-16),
@@ -1486,12 +1486,12 @@ function drawRouteMarkers(points, rows){
       label: { text: letter, color: '#fff', fontSize: '16px', fontWeight: '700' },
    icon: {
   path: TEARDROP_PATH,
-  scale: 0.82,                       // smaller
+  scale: 0.72,                       // smaller
   fillColor: color,
-  fillOpacity: 0.65,                 // more transparent
+  fillOpacity: 0.5,                 // more transparent
   strokeColor: '#000000',            // solid black outline
   strokeOpacity: 1,
-  strokeWeight: 1.8,
+  strokeWeight: 1.6,
   anchor: new google.maps.Point(0, 0),
   labelOrigin: new google.maps.Point(0, -16)
 },
@@ -1617,81 +1617,72 @@ function firstEmptyStopInput() {
   return null;
 }
 function initHBTooltip(){
-  // define once, after Maps API is ready
+  // Only after Maps API is ready
   if (!window.google || !google.maps) return;
-  if (window.HBTooltip) return;
 
-  class HBTooltip extends google.maps.OverlayView{
-    constructor(){
-      super();
-      this.div = null;
-      this.position = null;
-      this.accent = '#3B82F6';
-      this.name = '';
-      this.addr = '';
-      this._setting = false;   // re-entrancy guard
-      this._lastKey = '';
-    }
+  // Define the overlay class once
+  if (!window.HBTooltip){
+    class HBTooltip extends google.maps.OverlayView{
+      constructor(){
+        super();
+        this.div = null;
+        this.pos = null;
+        this.name = '';
+        this.addr = '';
+        this.accent = '#3B82F6';
+      }
 
-    set(position, name, addr, accent){
-      // prevent recursive updates on identical payloads
-      const lat = typeof position?.lat === 'function' ? position.lat() : position?.lat;
-      const lng = typeof position?.lng === 'function' ? position.lng() : position?.lng;
-      const key = `${lat},${lng}|${name}|${addr}|${accent}`;
-      if (this._setting || key === this._lastKey) return;
+      onAdd(){
+        const d = document.createElement('div');
+        d.className = 'hb-card';
+        d.style.pointerEvents = 'none';             // IMPORTANT: no mouse capture
+        this.div = d;
+        // floatPane so it never becomes a mouse target
+        this.getPanes().floatPane.appendChild(d);
+      }
 
-      this._setting = true;
-      try{
-        this.position = position;
-        this.name = name || '';
-        this.addr = addr || '';
+      draw(){
+        if (!this.div || !this.pos) return;
+        const proj = this.getProjection();
+        const p = proj && proj.fromLatLngToDivPixel(this.pos);
+        if (!p) return;
+        this.div.style.left = p.x + 'px';
+        this.div.style.top  = (p.y - 12) + 'px';
+        this.div.style.transform = 'translate(-50%,-100%)';
+      }
+
+      onRemove(){
+        this.div?.remove();
+        this.div = null;
+      }
+
+      show(latLng, name, addr, accent){
+        this.pos    = latLng;
+        this.name   = name || '';
+        this.addr   = addr || '';
         this.accent = accent || '#3B82F6';
+
+        // paint content
+        if (this.div){
+          const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
+          this.div.style.setProperty('--hb-accent', this.accent);
+          this.div.innerHTML = `<div class="t">${esc(this.name)}</div><div class="a">${esc(this.addr)}</div>`;
+          this.div.style.display = 'block';
+        }
+
         if (!this.getMap()) this.setMap(window.map);
         this.draw();
-        if (this.div) this.div.style.display = 'block';
-        this._lastKey = key;
-      } finally {
-        this._setting = false;
+      }
+
+      hide(){
+        if (this.div) this.div.style.display = 'none';
       }
     }
-
-    hide(){
-      this._lastKey = '';
-      if (this.div) this.div.style.display = 'none';
-    }
-
-    onAdd(){
-      const d = document.createElement('div');
-      d.className = 'hb-card';
-      // absolutely critical: do NOT capture mouse events
-      d.style.pointerEvents = 'none';
-      this.div = d;
-      // put in FLOAT PANE so it never becomes a mouse target
-      this.getPanes().floatPane.appendChild(d);
-    }
-
-    draw(){
-      if (!this.div || !this.position) return;
-      this.div.style.setProperty('--hb-accent', this.accent);
-
-      const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
-      this.div.innerHTML =
-        `<div class="t">${esc(this.name)}</div><div class="a">${esc(this.addr)}</div>`;
-
-      const px = this.getProjection()?.fromLatLngToDivPixel(this.position);
-      if (!px) return;
-      this.div.style.left = px.x + 'px';
-      this.div.style.top  = (px.y - 12) + 'px';
-      this.div.style.transform = 'translate(-50%,-100%)';
-    }
-
-    onRemove(){
-      this.div?.remove();
-      this.div = null;
-    }
+    window.HBTooltip = HBTooltip;
   }
 
-  window.HBTooltip = HBTooltip;
+  // Singleton instance
+  if (!window.__hbTip) window.__hbTip = new window.HBTooltip();
 }
 
 /** add subdued pins, hover tooltip, and click-to-fill */
@@ -1705,10 +1696,10 @@ function initHomeBasePins(){
 
   const fit = new google.maps.LatLngBounds();
 
-  // define the tooltip class (if not already) and reuse a single instance
-  initHBTooltip();
-  const hbTip = (window.__hbTip ||= new HBTooltip());
-
+// define the tooltip class (if not already) and reuse a single instance
+initHBTooltip();
+const hbTip = window.__hbTip;  // singleton
+  
   // Hide hover card if user clicks elsewhere on the map
 map.addListener('click', () => hbTip.hide());
 
@@ -1735,12 +1726,12 @@ map.addListener('click', () => hbTip.hide());
       zIndex: 50,
       icon: {
         path: TEARDROP_PATH,
-        scale: 1.0,
+        scale: 0.85,
         fillColor: base.color,
-        fillOpacity: 0.75,
+        fillOpacity: 0.60,
         strokeColor: '#000000',
         strokeOpacity: 1,
-        strokeWeight: 2.2,
+        strokeWeight: 1.8,
         anchor: new google.maps.Point(0, 0),
         labelOrigin: new google.maps.Point(0, -16)
       },
@@ -1748,10 +1739,10 @@ map.addListener('click', () => hbTip.hide());
       optimized: true
     });
 
-// HOVER → show tooltip at the event latLng (fallback to marker pos)
+// hover handlers
 marker.addListener('mouseover', (e) => {
-  const at = e?.latLng || marker.getPosition();
-  hbTip.set(at, base.name, formatted, base.color);
+  const at = (e && e.latLng) ? e.latLng : marker.getPosition();
+  hbTip.show(at, base.name, formatted, base.color);
 });
 marker.addListener('mouseout', () => hbTip.hide());
 
