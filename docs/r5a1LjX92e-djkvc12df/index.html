@@ -267,87 +267,64 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .gm-style .scene-viewcard-button,
 .gm-style .app-viewcard-strip{ display:none !important; }
 
-/* ===== Home-base / Marker info bubble (fun look) ===== */
-.hb-iw{
-  --hb-accent:#3B82F6;                 /* dynamic accent; JS sets this */
-  display:block;
-  box-sizing:border-box;
-  width:100%;                          /* fill the InfoWindow shell */
-  min-width:320px;
-  max-width:min(420px, 86vw);
-  padding:14px 16px;
-  border-radius:16px;
-
-  /* soft glassy gradient with accent tint */
-  background: color-mix(in srgb, var(--hb-accent) 16%, #ffffff);
-  border: 1px solid color-mix(in srgb, var(--hb-accent) 45%, transparent);
-  box-shadow: 0 14px 34px rgba(0,0,0,.28);
-  color:#0b1320;
-  backdrop-filter: blur(4px);
+/* ===== Home-base hover card (no Google white bubble) ===== */
+.hb-card{
+  --hb-accent:#3B82F6;
+  position:absolute;
+  transform:translate(-50%,-100%);
+  min-width: 280px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background:
+    radial-gradient(160% 120% at 10% 0%,
+      color-mix(in srgb, var(--hb-accent) 18%, #fff),
+      #fff 70%);
+  border: 1px solid color-mix(in srgb, var(--hb-accent) 42%, transparent);
+  box-shadow: 0 10px 28px rgba(0,0,0,.22);
+  pointer-events:none;
 }
-
-/* layout: tiny accent bar + text column */
-.hb-iw .hb-row{
-  display:grid;
-  grid-template-columns: 10px 1fr;
-  gap:12px;
-  align-items:flex-start;
+.hb-card .t{
+  font-weight: 900;
+  font-size: 16px;
+  letter-spacing:.2px;
+  margin-bottom: 4px;
+  color:#0c172a;           /* darker for clarity */
 }
-
-.hb-iw .hb-accent{
-  width:10px; height:42px; margin-top:2px;
-  background:var(--hb-accent);
-  border-radius:6px;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.55), 0 0 0 1px rgba(0,0,0,.05);
+.hb-card .a{
+  font-size: 14.5px;
+  line-height: 1.38;
+  color:#1f2937;           /* darker address text */
+  opacity:.95;
 }
-
-.hb-iw .hb-text{ display:block; }
-
-/* fun title line */
-.hb-iw .hb-title{
-  display:flex; align-items:center; gap:8px;
-  font-weight:900;
-  font-size:19px;
-  letter-spacing:.25px;
-  line-height:1.2;
-  color:#0b1320;
-}
-.hb-iw .hb-title .hb-pin{ font-size:18px; line-height:1; }
-
-/* address */
-.hb-iw .hb-addr{
-  margin-top:4px;
-  font-size:15px;
-  line-height:1.45;
-  color:#1f2b3a;
-  opacity:.94;
-}
-
-/* subtle halo around the pill */
-.hb-iw::after{
-  content:"";
-  position:absolute; inset:-14px -18px -18px -18px; z-index:-1;
-  background: radial-gradient(150px 80px at 50% 62%, rgba(15,23,32,.16), transparent 65%);
-}
-
-/* Make Google’s InfoWindow shell invisible so only our pill shows,
-   but ensure the shell actually renders (display:block) */
-.gm-style .gm-style-iw,
-.gm-style .gm-style-iw-c{
-  display:block !important;              /* <-- add this */
-  background:transparent !important;
-  border:none !important;
-  box-shadow:none !important;
-  padding:0 !important;
-}
-.gm-style .gm-style-iw-t,
+/* Google InfoWindow chrome → transparent so only our colored card shows */
+.gm-style .gm-style-iw-c{ background:transparent !important; box-shadow:none !important; }
 .gm-style .gm-style-iw-t::after{ display:none !important; }
-.gm-style .gm-style-iw-d{
-  overflow:visible !important;
-  padding:0 !important;
-  pointer-events:auto !important;        /* defensive: allow hover */
+
+/* Our hover card: larger, clearer */
+.hb-iw{
+  --hb-accent:#3B82F6;          /* overridden per pin */
+  min-width: 280px;
+  border-radius: 14px;
+  padding: 10px 12px;
+  background:
+    radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--hb-accent) 22%, #fff), #fff),
+    #fff;
+  border: 1px solid color-mix(in srgb, var(--hb-accent) 55%, transparent);
+  box-shadow: 0 10px 28px rgba(0,0,0,.22);
 }
-.gm-style .gm-ui-hover-effect{ display:none !important; }
+.hb-iw .hb-title{
+  font-weight: 900;
+  font-size: 17px;
+  letter-spacing: .25px;
+  margin-bottom: 6px;
+  color:#0b1320;
+}
+.hb-iw .hb-addr{
+  font-size: 14.5px;
+  line-height: 1.45;
+  color:#0b1320;
+  opacity:.92;
+}
 
 /* ===========================================================
    RIGHT DRAWER + SLIM TAB (with accent color)
@@ -480,6 +457,34 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .gm-style-iw-d { overflow: visible !important; }
 
 /* ===== Home-base info bubble (solid colored pill) ===== */
+.hb-iw{
+  --hb-accent:#3B82F6;
+  min-width:260px;
+  padding:8px 12px;
+  border-radius:12px;
+  background:var(--hb-accent);
+  color:#fff;
+  border:1px solid rgba(0,0,0,.35);           /* clearer outline */
+  box-shadow:0 8px 24px rgba(0,0,0,.25);
+}
+.hb-iw .hb-title{ font-weight:800; font-size:15px; margin-bottom:2px; color:#fff; }
+.hb-iw .hb-addr { font-size:13.5px; line-height:1.35; color:#fff; opacity:.95; }
+
+/* ===== Home-base info bubble theme ===== */
+/* ===== Home-base info bubble (solid colored pill, bigger text) ===== */
+.hb-iw{
+  --hb-accent:#3B82F6;
+  min-width:300px;
+  padding:10px 14px;
+  border-radius:12px;
+  background:var(--hb-accent);
+  color:#fff;
+  border:1px solid rgba(0,0,0,.35);
+  box-shadow:0 10px 28px rgba(0,0,0,.28);
+}
+.hb-iw .hb-title{ font-weight:900; font-size:18px; margin-bottom:4px; color:#fff; }
+.hb-iw .hb-addr { font-size:15px; line-height:1.4; color:#fff; opacity:.98; }
+
 .hb-iw .hb-title {
   font-weight: 800;
   font-size: 15px;
@@ -1443,9 +1448,9 @@ function addPreviewPin(latlng,label){
     label:{text:label,color:'#fff',fontSize:'16px',fontWeight:'700'},
 icon:{
   path: TEARDROP_PATH,
-  scale: 0.70,
+  scale: 0.92,
   fillColor: '#607d8b',
-  fillOpacity: 0.65,
+  fillOpacity: 0.9,
   strokeColor: '#000000',
   strokeWeight: 2.0,
   labelOrigin: new google.maps.Point(0,-16),
@@ -1456,79 +1461,45 @@ icon:{
 }
 function clearPreviewPins(){previewPins.forEach(m=>m.setMap(null));previewPins=[];}
 function drawRouteMarkers(points, rows){
-  const hbTip = window.__hbTip || null;
-
   points.forEach((p, i) => {
     if (!p) return;
 
-    // Letter + color from the UI
     const b = rows[i]?.querySelector('.bullet');
     const letter = b ? (b.textContent || '').trim() : '';
     const classLetter = b ? [...b.classList].find(c => /^[A-Z]$/.test(c)) : null;
     const varName = classLetter ? `--clr${classLetter}` : '--clrDefault';
-    const color = (getComputedStyle(document.documentElement).getPropertyValue(varName).trim()) || '#607d8b';
+    const color = getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || '#607d8b';
 
-    const address = (rows[i]?.querySelector('.stop')?.value || '').trim();
-
-    // Reuse home-base marker if close
-    const hb = getHomeBaseAtLatLng(new google.maps.LatLng(p.lat, p.lng), 35);
+    // --- NEW: If this point sits on a home-base pin, reuse that pin and just label it ---
+    const hb = getHomeBaseAtLatLng(p, 35);   // 35m tolerance; adjust if needed
     if (hb){
       hb.setLabel({ text: letter, color: '#ffffff', fontSize: '16px', fontWeight: '700' });
-      try { hb.setZIndex(200); } catch(_) {}
-      // Also attach hover handlers to show the pill on home-base pins
-      if (hbTip){
-        let hideTO = null;
-        google.maps.event.clearListeners(hb, 'mouseover');
-        google.maps.event.clearListeners(hb, 'mouseout');
-        hb.addListener('mouseover', () => {
-          if (hideTO) { clearTimeout(hideTO); hideTO = null; }
-          hbTip.show(hb.getPosition(), address, address, color);
-        });
-        hb.addListener('mouseout', () => {
-          hideTO = setTimeout(() => hbTip.hide(), 120);
-        });
-      }
-      return;
+      // optionally bump zIndex a bit
+      try { hb.setZIndex(200); } catch(_){}
+      return; // don't create a second marker
     }
 
-    // Dedicated route marker
+    // --- Otherwise, create a dedicated route marker with strong black outline ---
     const marker = new google.maps.Marker({
       position: p,
       map,
       label: { text: letter, color: '#fff', fontSize: '16px', fontWeight: '700' },
-      icon: {
-        path: TEARDROP_PATH,
-        scale: 0.78,
-        fillColor: color,
-        fillOpacity: 0.62,
-        strokeColor: '#000000',
-        strokeOpacity: 1,
-        strokeWeight: 1.6,
-        anchor: new google.maps.Point(0, 0),
-        labelOrigin: new google.maps.Point(0, -16)
-      }
-      // IMPORTANT: do not set 'title' here, or a native tooltip will override ours
+   icon: {
+  path: TEARDROP_PATH,
+  scale: 0.82,                       // smaller
+  fillColor: color,
+  fillOpacity: 0.65,                 // more transparent
+  strokeColor: '#000000',            // solid black outline
+  strokeOpacity: 1,
+  strokeWeight: 1.8,
+  anchor: new google.maps.Point(0, 0),
+  labelOrigin: new google.maps.Point(0, -16)
+},
     });
-
-    // Make sure no native tooltip appears (defensive)
-    try { marker.setTitle(''); } catch (_) {}
-
-    // Hover → show pill; mouseout → hide (tiny delay to reduce flicker)
-    if (hbTip){
-      let hideTO = null;
-      marker.addListener('mouseover', () => {
-        if (hideTO) { clearTimeout(hideTO); hideTO = null; }
-        hbTip.show(marker.getPosition(), address, address, color);
-      });
-      marker.addListener('mouseout', () => {
-        hideTO = setTimeout(() => hbTip.hide(), 120);
-      });
-    }
 
     routeMarkers.push(marker);
   });
 }
-
 function clearRouteMarkers(){
   routeMarkers.forEach(m => m.setMap(null));
   routeMarkers = [];
@@ -1567,57 +1538,13 @@ function geocodeSmart(addr,attempt=0){
       });
   });
 }
-
-/* ===== tiny overlay that lives above polygons and captures hover ===== */
-function ensureHoverHotspotClass(){
-  if (window.HoverHotspotOverlay) return;
-
-  class HoverHotspotOverlay extends google.maps.OverlayView{
-    constructor(position, sizePx, onEnter, onLeave){
-      super();
-      this.pos = position;
-      this.size = sizePx || 38;
-      this.onEnter = onEnter;
-      this.onLeave = onLeave;
-      this.div = null;
-    }
-    onAdd(){
-      const d = document.createElement('div');
-      d.style.position = 'absolute';
-      d.style.width = this.size + 'px';
-      d.style.height = this.size + 'px';
-      d.style.pointerEvents = 'auto';
-      d.style.background = 'transparent';
-      d.style.borderRadius = '50%';
-      d.style.zIndex = '9999'; // above Data Layer hit-area
-      d.addEventListener('mouseenter', () => this.onEnter && this.onEnter());
-      d.addEventListener('mouseleave', () => this.onLeave && this.onLeave());
-      this.div = d;
-      // Put it on the same mouse-target pane used by polygons, but higher z-index
-      this.getPanes().overlayMouseTarget.appendChild(d);
-    }
-    draw(){
-      if (!this.div) return;
-      const p = this.getProjection().fromLatLngToDivPixel(this.pos);
-      const s = this.size;
-      this.div.style.left = (p.x - s/2) + 'px';
-      this.div.style.top  = (p.y - s/2) + 'px';
-    }
-    onRemove(){
-      if (this.div?.parentNode) this.div.parentNode.removeChild(this.div);
-      this.div = null;
-    }
-  }
-
-  window.HoverHotspotOverlay = HoverHotspotOverlay;
-}
-
 /* =================== HOME BASE PINS (robust) =================== */
 
 const HOME_BASES = [
   {
     name: 'Lake Country Community Health Centre',
     address: '10080 Main St, Lake Country, BC V4V 1T8',
+    // fallback coords (approx)
     lat: 50.03263, lng: -119.41377,
     color: '#2A9D8F'
   },
@@ -1646,7 +1573,10 @@ let HOME_BASE_MARKERS = [];
 /* === Home-base helpers (match + reset) === */
 function getHomeBaseAtLatLng(latlng, tolMeters = 30){
   if (!Array.isArray(HOME_BASE_MARKERS) || !HOME_BASE_MARKERS.length) return null;
-  const toRad = x => x * Math.PI / 180, R = 6371000;
+
+  // Haversine distance in meters
+  const toRad = x => x * Math.PI / 180;
+  const R = 6371000;
   function dist(a, b){
     const dLat = toRad(b.lat() - a.lat());
     const dLng = toRad(b.lng() - a.lng());
@@ -1655,82 +1585,146 @@ function getHomeBaseAtLatLng(latlng, tolMeters = 30){
                Math.sin(dLng/2)**2;
     return 2 * R * Math.asin(Math.sqrt(sa));
   }
+
   const target = new google.maps.LatLng(latlng.lat, latlng.lng);
   for (const m of HOME_BASE_MARKERS){
-    try{ if (dist(m.getPosition(), target) <= tolMeters) return m; }catch(_){}
+    try{
+      const d = dist(m.getPosition(), target);
+      if (d <= tolMeters) return m;
+    }catch(_){}
   }
   return null;
 }
-function resetHomeBaseLabels(){ HOME_BASE_MARKERS.forEach(m => m.setLabel(null)); }
 
-/* -------- small helpers for the colorful pill -------- */
-function __hbEsc(s){ return String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m])); }
-function __hbPillHTML(title, addr, accent){
-  return `
-    <div class="hb-iw" style="--hb-accent:${accent || '#3B82F6'}">
-      <div class="hb-title"><span class="hb-pin">📍</span>${__hbEsc(title||'')}</div>
-      <div class="hb-addr">${__hbEsc(addr||'')}</div>
-    </div>
-  `;
+function resetHomeBaseLabels(){
+  HOME_BASE_MARKERS.forEach(m => m.setLabel(null));
 }
 
-/** Create a per-marker hover InfoWindow that stays open while you hover it */
-function attachHoverPill(map, marker, title, addr, accent){
-  const shell = document.createElement('div');
-  shell.innerHTML = __hbPillHTML(title, addr, accent);
-  const pill = shell.firstElementChild;
+/** first available stop input in current view */
+function firstEmptyStopInput() {
+  if (window.flatMode) {
+    const list = document.getElementById('addrList');
+    return [...list.querySelectorAll('.stop')].find(i => !(i.value||'').trim()) || list.querySelector('.stop');
+  }
+  for (const fr of FRAMES) {
+    const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
+    const visible = (fr.shift==='day' && dayVisible) || (fr.shift==='night' && nightVisible);
+    if (!visible || sec.classList.contains('collapsed') || sec.style.display==='none') continue;
+    const list = document.getElementById('frame-'+fr.id);
+    const inp  = [...list.querySelectorAll('.stop')].find(i => !(i.value||'').trim());
+    if (inp) return inp;
+  }
+  return null;
+}
+function initHBTooltip(){
+  // define once, after Maps API is ready
+  if (!window.google || !google.maps) return;
+  if (window.HBTooltip) return;
 
-  const iw = new google.maps.InfoWindow({
-    content: pill,
-    disableAutoPan: true,
-    pixelOffset: new google.maps.Size(0, -18),
-    maxWidth: 0
-  });
+  class HBTooltip extends google.maps.OverlayView{
+    constructor(){
+      super();
+      this.div = null;
+      this.position = null;
+      this.accent = '#3B82F6';
+      this.name = '';
+      this.addr = '';
+      this._setting = false;   // re-entrancy guard
+      this._lastKey = '';
+    }
 
-  let hideTO = null;
-  function cancelHide(){ if(hideTO){ clearTimeout(hideTO); hideTO = null; } }
-  function scheduleHide(){ hideTO = setTimeout(()=> iw.close(), 160); }
+    set(position, name, addr, accent){
+      // prevent recursive updates on identical payloads
+      const lat = typeof position?.lat === 'function' ? position.lat() : position?.lat;
+      const lng = typeof position?.lng === 'function' ? position.lng() : position?.lng;
+      const key = `${lat},${lng}|${name}|${addr}|${accent}`;
+      if (this._setting || key === this._lastKey) return;
 
-  // Native marker hover (will work when not under polygons)
-  marker.addListener('mouseover', () => { cancelHide(); iw.open(map, marker); });
-  marker.addListener('mouseout',  () => scheduleHide());
+      this._setting = true;
+      try{
+        this.position = position;
+        this.name = name || '';
+        this.addr = addr || '';
+        this.accent = accent || '#3B82F6';
+        if (!this.getMap()) this.setMap(window.map);
+        this.draw();
+        if (this.div) this.div.style.display = 'block';
+        this._lastKey = key;
+      } finally {
+        this._setting = false;
+      }
+    }
 
-  // Keep open while hovering the pill itself
-  iw.addListener('domready', () => {
-    pill.style.width = '100%';
-    pill.style.margin = '0';
-    pill.addEventListener('mouseenter', cancelHide);
-    pill.addEventListener('mouseleave', scheduleHide);
-  });
+    hide(){
+      this._lastKey = '';
+      if (this.div) this.div.style.display = 'none';
+    }
 
-  // Expose controls so a hotspot can drive it too
-  iw.__cancelHide = cancelHide;
-  iw.__scheduleHide = scheduleHide;
+    onAdd(){
+      const d = document.createElement('div');
+      d.className = 'hb-card';
+      // absolutely critical: do NOT capture mouse events
+      d.style.pointerEvents = 'none';
+      this.div = d;
+      // put in FLOAT PANE so it never becomes a mouse target
+      this.getPanes().floatPane.appendChild(d);
+    }
 
-  return iw;
+    draw(){
+      if (!this.div || !this.position) return;
+      this.div.style.setProperty('--hb-accent', this.accent);
+
+      const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
+      this.div.innerHTML =
+        `<div class="t">${esc(this.name)}</div><div class="a">${esc(this.addr)}</div>`;
+
+      const px = this.getProjection()?.fromLatLngToDivPixel(this.position);
+      if (!px) return;
+      this.div.style.left = px.x + 'px';
+      this.div.style.top  = (px.y - 12) + 'px';
+      this.div.style.transform = 'translate(-50%,-100%)';
+    }
+
+    onRemove(){
+      this.div?.remove();
+      this.div = null;
+    }
+  }
+
+  window.HBTooltip = HBTooltip;
 }
 
-/** Add the four colored home-base pins with reliable hover popups — even over polygons */
-async function initHomeBasePins(){
-  if (!window.map || !window.google) return;
+/** add subdued pins, hover tooltip, and click-to-fill */
+function initHomeBasePins(){
+  if (!window.map || !window.google) return; // run only after Maps is ready
+  console.debug('[home-bases] initializing pins…');
 
-  // make sure the overlay class exists (maps is loaded now)
-  ensureHoverHotspotClass();
-
-  // Clear old
+  // clean up on re-init
   HOME_BASE_MARKERS.forEach(m => m.setMap(null));
   HOME_BASE_MARKERS = [];
 
   const fit = new google.maps.LatLngBounds();
 
-  for (const base of HOME_BASES){
-    // Resolve to precise coords (fallback to provided)
+  // define the tooltip class (if not already) and reuse a single instance
+  initHBTooltip();
+  const hbTip = (window.__hbTip ||= new HBTooltip());
+
+  // Hide hover card if user clicks elsewhere on the map
+map.addListener('click', () => hbTip.hide());
+
+  HOME_BASES.forEach(async (base) => {
+    // try resolve; if it fails use fallback lat/lng
     let resolved = null;
     try { resolved = await resolveAddress(base.address); } catch {}
+
     const lat = resolved?.lat ?? base.lat;
     const lng = resolved?.lng ?? base.lng;
     const formatted = resolved?.formatted || base.address;
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      console.warn('[home-bases] could not locate:', base.name, base.address);
+      return;
+    }
 
     const pos = new google.maps.LatLng(lat, lng);
     fit.extend(pos);
@@ -1738,61 +1732,63 @@ async function initHomeBasePins(){
     const marker = new google.maps.Marker({
       position: pos,
       map,
-      zIndex: 200, // keep above most overlays
+      zIndex: 50,
       icon: {
         path: TEARDROP_PATH,
-        scale: 0.78,
+        scale: 1.0,
         fillColor: base.color,
-        fillOpacity: 0.72,
+        fillOpacity: 0.75,
         strokeColor: '#000000',
         strokeOpacity: 1,
-        strokeWeight: 1.6,
-        labelOrigin: new google.maps.Point(0, -16),
-        anchor: new google.maps.Point(0, 0)
+        strokeWeight: 2.2,
+        anchor: new google.maps.Point(0, 0),
+        labelOrigin: new google.maps.Point(0, -16)
       },
+      title: '',
       optimized: true
     });
-    try { marker.setTitle(''); } catch(_) {}
 
-    // The InfoWindow pill (as before)
-    const iw = attachHoverPill(map, marker, base.name, formatted, base.color);
+// HOVER → show tooltip at the event latLng (fallback to marker pos)
+marker.addListener('mouseover', (e) => {
+  const at = e?.latLng || marker.getPosition();
+  hbTip.set(at, base.name, formatted, base.color);
+});
+marker.addListener('mouseout', () => hbTip.hide());
 
-    // NEW: invisible hotspot that sits ABOVE polygons and guarantees hover
-    const hotspot = new window.HoverHotspotOverlay(
-      pos, 40,
-      () => { iw.__cancelHide?.(); iw.open(map, marker); },   // enter → open
-      () => { iw.__scheduleHide?.(); }                        // leave → close soon
-    );
-    hotspot.setMap(map);
-
-    // Click pastes into first available input and locks it (unchanged behavior)
-    marker.addListener('click', () => {
-      const row = fillFirstAvailableAddress(formatted, { lock:true, coords:{lat,lng} });
-      if (!row) {
-        if (window.flatMode) {
-          const r = addRowToAddrBar(true, false);
-          fillFirstAvailableAddress(formatted, { lock:true, coords:{lat,lng} });
-        } else {
-          const vis = FRAMES.find(fr => {
-            const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
-            return ((fr.shift==='day' && dayVisible) || (fr.shift==='night' && nightVisible)) &&
-                   sec && !sec.classList.contains('collapsed') && sec.style.display!=='none';
-          });
-          if (vis) {
-            addRowToFrame(vis.id, true, false);
-            fillFirstAvailableAddress(formatted, { lock:true, coords:{lat,lng} });
-          }
-        }
+// click → paste first available input, lock it, set coords, recompute
+marker.addListener('click', () => {
+  hbTip.hide();
+  const row = fillFirstAvailableAddress(formatted, {
+    lock: true,
+    coords: { lat, lng }
+  });
+  if (!row) {
+    if (window.flatMode) {
+      const r = addRowToAddrBar(true, false);
+      fillFirstAvailableAddress(formatted, { lock: true, coords: { lat, lng } });
+    } else {
+      const vis = FRAMES.find(fr => {
+        const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
+        return ((fr.shift==='day' && dayVisible) || (fr.shift==='night' && nightVisible)) &&
+               sec && !sec.classList.contains('collapsed') && sec.style.display!=='none';
+      });
+      if (vis) {
+        addRowToFrame(vis.id, true, false);
+        fillFirstAvailableAddress(formatted, { lock: true, coords: { lat, lng } });
       }
-    });
+    }
+  }
+});
 
     HOME_BASE_MARKERS.push(marker);
-  }
+  });
 
-  // Keep all four in view with room for the left panel
+  // keep markers in view (leaving space for the left panel)
   setTimeout(() => {
     if (HOME_BASE_MARKERS.length) {
-      try { map.fitBounds(fit, { top:60, right:40, bottom:80, left:380 }); } catch {}
+      try {
+        map.fitBounds(fit, { top: 60, right: 40, bottom: 80, left: 380 });
+      } catch {}
     }
   }, 0);
 }
@@ -2439,72 +2435,41 @@ function areaCodeFromFeature(feat){
 }
 
 function styleFeature(feature){
-  // Always keep Data Layer below markers and non-interactive,
-  // so teardrop marker hover/clicks are not intercepted.
-  const BASE_Z = -10;
-
-  // --- "live" features (you already support these) ---
+  // --- LIVE FEATURES (from events.js) ---
   if (feature.getProperty('__live')) {
     let t = '';
     try { t = feature.getGeometry()?.getType?.() || ''; } catch(_){}
-
     if (t.includes('Polygon')) {
-      const s = feature.getProperty('__polyStyle') || {
-        fillColor:'#E64A19',
-        fillOpacity:.26,
-        strokeColor:'#BF360C',
-        strokeWeight:1.2
-      };
-      return { ...s, clickable:false, zIndex: BASE_Z, visible:true };
+      return feature.getProperty('__polyStyle') || { fillColor:'#E64A19', fillOpacity:.26, strokeColor:'#BF360C', strokeWeight:1.2 };
     }
-
     if (t.includes('LineString')) {
-      const s = feature.getProperty('__lineStyle') || {
-        strokeColor:'#F50057',
-        strokeWeight:3,
-        strokeOpacity:.9
-      };
-      return { ...s, clickable:false, zIndex: BASE_Z, visible:true };
+      return feature.getProperty('__lineStyle') || { strokeColor:'#F50057', strokeWeight:3, strokeOpacity:.9 };
     }
-
     if (t === 'Point') {
-      const icon = feature.getProperty('__pointIcon') || {
+      return { icon: feature.getProperty('__pointIcon') || {
         path:'M0,-10 L10,0 L0,10 L-10,0 Z',
-        fillColor:'#F50057', fillOpacity:1,
-        strokeColor:'#fff', strokeWeight:1.5, scale:1
-      };
-      return { icon, clickable:false, zIndex: BASE_Z, visible:true };
+        fillColor:'#F50057', fillOpacity:1, strokeColor:'#fff', strokeWeight:1.5, scale:1
+      }};
     }
-
-    return { visible:true, clickable:false, zIndex: BASE_Z };
+    // default visible if live but no known geometry
+    return { visible:true };
   }
 
-  // --- normal polygons (your geo area shades) ---
-  if (feature.getProperty('__visible') === false) {
-    return { visible:false, clickable:false, zIndex: BASE_Z };
-  }
-
+  // --- NORMAL POLYGONS (your geo areas) ---
+  if (feature.getProperty('__visible') === false) return {visible:false};
   const color  = feature.getProperty('__color') || '#607d8b';
   const stroke = feature.getProperty('__stroke') ?? AREA_STROKE_WEIGHT;
   const fillOp = feature.getProperty('__fillOpacity') ??
-                 (feature.getProperty('__code')==='MISS2'
-                    ? Math.min(AREA_FILL_OPACITY, 0.12)
-                    : AREA_FILL_OPACITY);
+                 (feature.getProperty('__code')==='MISS2' ? Math.min(AREA_FILL_OPACITY, 0.12) : AREA_FILL_OPACITY);
 
   return {
-    fillColor: color,
-    fillOpacity: fillOp,
-    strokeColor: color,
-    strokeOpacity: 0.85,
-    strokeWeight: stroke,
-    visible: true,
-    clickable: false,           // <-- the key line
-    zIndex: BASE_Z
+    fillColor: color, fillOpacity: fillOp,
+    strokeColor: color, strokeOpacity: 0.85,
+    strokeWeight: stroke, visible:true
   };
 }
-
-window.styleFeature = styleFeature;
-styleFeature.__isBaseStyle = true;
+window.styleFeature = styleFeature;     // keep this
+styleFeature.__isBaseStyle = true;      // harmless tag; safe to keep
   
 /* --- persistence --- */
 function loadSaved(key, fallback){ try{ const v = JSON.parse(localStorage.getItem(key)||'null'); return v && typeof v==='object' ? v : fallback; }catch(_){ return fallback; } }
