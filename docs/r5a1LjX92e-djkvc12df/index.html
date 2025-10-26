@@ -1617,7 +1617,7 @@ function firstEmptyStopInput() {
   return null;
 }
 function initHBTooltip(){
-  // define once, after Maps API is ready
+  // Only define once and only after Maps is ready
   if (!window.google || !google.maps) return;
   if (window.HBTooltip) return;
 
@@ -1629,60 +1629,54 @@ function initHBTooltip(){
       this.accent = '#3B82F6';
       this.name = '';
       this.addr = '';
-      this._setting = false;   // re-entrancy guard
-      this._lastKey = '';
     }
 
     set(position, name, addr, accent){
-      // prevent recursive updates on identical payloads
-      const lat = typeof position?.lat === 'function' ? position.lat() : position?.lat;
-      const lng = typeof position?.lng === 'function' ? position.lng() : position?.lng;
-      const key = `${lat},${lng}|${name}|${addr}|${accent}`;
-      if (this._setting || key === this._lastKey) return;
+      // accept google.maps.LatLng or plain {lat,lng}
+      this.position = (position && typeof position.lat === 'function')
+        ? position
+        : new google.maps.LatLng(position.lat, position.lng);
 
-      this._setting = true;
-      try{
-        this.position = position;
-        this.name = name || '';
-        this.addr = addr || '';
-        this.accent = accent || '#3B82F6';
-        if (!this.getMap()) this.setMap(window.map);
+      this.name = name || '';
+      this.addr = addr || '';
+      this.accent = accent || '#3B82F6';
+
+      if (!this.getMap()) {
+        this.setMap(window.map);   // triggers onAdd → draw()
+      } else {
         this.draw();
-        if (this.div) this.div.style.display = 'block';
-        this._lastKey = key;
-      } finally {
-        this._setting = false;
       }
     }
 
     hide(){
-      this._lastKey = '';
-      if (this.div) this.div.style.display = 'none';
+      if (this.getMap()) this.setMap(null);
     }
 
     onAdd(){
       const d = document.createElement('div');
       d.className = 'hb-card';
-      // absolutely critical: do NOT capture mouse events
-      d.style.pointerEvents = 'none';
+      d.style.zIndex = '1000';           // ensure above markers
+      d.style.display = 'block';
       this.div = d;
-      // put in FLOAT PANE so it never becomes a mouse target
+      // << key change: attach to floatPane so it renders above markers/labels
       this.getPanes().floatPane.appendChild(d);
     }
 
     draw(){
       if (!this.div || !this.position) return;
+
       this.div.style.setProperty('--hb-accent', this.accent);
 
       const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
       this.div.innerHTML =
         `<div class="t">${esc(this.name)}</div><div class="a">${esc(this.addr)}</div>`;
 
-      const px = this.getProjection()?.fromLatLngToDivPixel(this.position);
+      const px = this.getProjection().fromLatLngToDivPixel(this.position);
       if (!px) return;
       this.div.style.left = px.x + 'px';
       this.div.style.top  = (px.y - 12) + 'px';
       this.div.style.transform = 'translate(-50%,-100%)';
+      this.div.style.display = 'block';
     }
 
     onRemove(){
