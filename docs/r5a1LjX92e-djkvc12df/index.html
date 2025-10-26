@@ -268,34 +268,34 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .gm-style .app-viewcard-strip{ display:none !important; }
 
 /* ===== Home-base hover card (no Google white bubble) ===== */
-.hb-card{
+/* ===== Home-base info bubble (solid colored pill) ===== */
+.hb-iw{
   --hb-accent:#3B82F6;
-  position:absolute;
-  transform:translate(-50%,-100%);
-  min-width: 280px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background:
-    radial-gradient(160% 120% at 10% 0%,
-      color-mix(in srgb, var(--hb-accent) 18%, #fff),
-      #fff 70%);
-  border: 1px solid color-mix(in srgb, var(--hb-accent) 42%, transparent);
-  box-shadow: 0 10px 28px rgba(0,0,0,.22);
-  pointer-events:none;
+  min-width:260px;
+  padding:8px 12px;
+  border-radius:12px;
+  background:var(--hb-accent);
+  color:#fff;
+  border:1px solid rgba(0,0,0,.35);
+  box-shadow:0 8px 24px rgba(0,0,0,.25);
 }
-.hb-card .t{
-  font-weight: 900;
-  font-size: 16px;
-  letter-spacing:.2px;
-  margin-bottom: 4px;
-  color:#0c172a;           /* darker for clarity */
+.hb-iw .hb-title{ color:#fff; }
+.hb-iw .hb-addr { color:#fff; }
+
+/* ===== Home-base info bubble (solid colored pill, bigger text) ===== */
+.hb-iw{
+  --hb-accent:#3B82F6;
+  min-width:300px;
+  padding:10px 14px;
+  border-radius:12px;
+  background:var(--hb-accent);
+  color:#fff;
+  border:1px solid rgba(0,0,0,.35);
+  box-shadow:0 10px 28px rgba(0,0,0,.28);
 }
-.hb-card .a{
-  font-size: 14.5px;
-  line-height: 1.38;
-  color:#1f2937;           /* darker address text */
-  opacity:.95;
-}
+.hb-iw .hb-title{ color:#fff; }
+.hb-iw .hb-addr { color:#fff; }
+
 /* Google InfoWindow chrome → transparent so only our colored card shows */
 .gm-style .gm-style-iw-c{ background:transparent !important; box-shadow:none !important; }
 .gm-style .gm-style-iw-t::after{ display:none !important; }
