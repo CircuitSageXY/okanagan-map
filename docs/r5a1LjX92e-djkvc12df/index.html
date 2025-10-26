@@ -1697,13 +1697,6 @@ function initHBTooltip(){
   if (!window.__hbTip) window.__hbTip = new HBTooltip();
   if (window.map && !window.__hbTip.getMap()) window.__hbTip.setMap(window.map);
 }
-
-  // Singleton instance
-  if (!window.__hbTip) window.__hbTip = new window.HBTooltip();
-  if (window.map && !window.__hbTip.getMap()) {
-  window.__hbTip.setMap(window.map);
-}
-
 /** add subdued pins, hover tooltip, and click-to-fill */
 function initHomeBasePins(){
   if (!window.map || !window.google) return;
@@ -1717,7 +1710,7 @@ function initHomeBasePins(){
   // Define the tooltip class (once) and create a single instance,
   // then attach it to the map *before* any marker hover happens.
   initHBTooltip();
-  const hbTip = (window.__hbTip ||= new window.HBTooltip());
+  const hbTip = window.__hbTip;     // reuse the singleton created above
   if (!hbTip.getMap()) hbTip.setMap(window.map);
 
   // Hide card if user clicks on map
