@@ -270,6 +270,36 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .gm-style .scene-viewcard-button,
 .gm-style .app-viewcard-strip{ display:none !important; }
 
+/* ===== Home-base hover card (no Google white bubble) ===== */
+.hb-card{
+  --hb-accent:#3B82F6;
+  position:absolute;
+  transform:translate(-50%,-100%);
+  min-width: 280px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background:
+    radial-gradient(160% 120% at 10% 0%,
+      color-mix(in srgb, var(--hb-accent) 18%, #fff),
+      #fff 70%);
+  border: 1px solid color-mix(in srgb, var(--hb-accent) 42%, transparent);
+  box-shadow: 0 10px 28px rgba(0,0,0,.22);
+  pointer-events:none;
+}
+.hb-card .t{
+  font-weight: 900;
+  font-size: 16px;
+  letter-spacing:.2px;
+  margin-bottom: 4px;
+  color:#0c172a;           /* darker for clarity */
+}
+.hb-card .a{
+  font-size: 14.5px;
+  line-height: 1.38;
+  color:#1f2937;           /* darker address text */
+  opacity:.95;
+}
+
 /* ===========================================================
    RIGHT DRAWER + SLIM TAB (with accent color)
    =========================================================== */
@@ -386,6 +416,34 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 }
 #areasDrawer input[type="color"]{ width:0; height:0; padding:0; border:none; visibility:hidden; }
 
+/* Style section spacing */
+#secStyle .row{ margin-top:6px; }
+#secStyle label{ min-width:90px; color:#374151; }
+#areasDrawer input[type="range"]{ width:100%; }
+
+/* Make Google’s InfoWindow shell transparent so only our pill shows */
+.gm-style-iw-c, .gm-style-iw{
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+.gm-style-iw-tc{ display:none !important; }   /* hide the little white tip */
+.gm-style-iw-d { overflow: visible !important; }
+
+/* ===== Home-base info bubble (solid colored pill) ===== */
+.hb-iw{
+  --hb-accent:#3B82F6;
+  min-width:260px;
+  padding:8px 12px;
+  border-radius:12px;
+  background:var(--hb-accent);
+  color:#fff;
+  border:1px solid rgba(0,0,0,.35);           /* clearer outline */
+  box-shadow:0 8px 24px rgba(0,0,0,.25);
+}
+.hb-iw .hb-title{ font-weight:800; font-size:15px; margin-bottom:2px; color:#fff; }
+.hb-iw .hb-addr { font-size:13.5px; line-height:1.35; color:#fff; opacity:.95; }
+
 /* ===== Home-base info bubble theme ===== */
 .hb-iw {
   --hb-accent: #3B82F6;
@@ -412,10 +470,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 }
 </style>
   
-/* Style section spacing */
-#secStyle .row{ margin-top:6px; }
-#secStyle label{ min-width:90px; color:#374151; }
-#areasDrawer input[type="range"]{ width:100%; }
+
 </style>
 
 <script>
@@ -733,6 +788,60 @@ function initRegionLabelOverlay(){
   }
 
   window.RegionLabelOverlay = RegionLabelOverlay;
+}
+/* ===== Home-base hover tooltip (custom overlay) ===== */
+function initHBTooltip(){
+  if (window.HBTooltip) return;    // define once
+
+  class HBTooltip extends google.maps.OverlayView{
+    constructor(){
+      super();
+      this.div = null;
+      this.position = null;
+      this.accent = '#3B82F6';
+      this.name = '';
+      this.addr = '';
+    }
+    set(position, name, addr, accent){
+      this.position = position;
+      this.name = name || '';
+      this.addr = addr || '';
+      this.accent = accent || '#3B82F6';
+      if (!this.getMap()) this.setMap(window.map);
+      else this.draw();
+    }
+    hide(){ this.setMap(null); }
+
+    onAdd(){
+      const d = document.createElement('div');
+      d.className = 'hb-card';
+      this.div = d;
+      this.getPanes().overlayMouseTarget.appendChild(d);
+    }
+    draw(){
+      if (!this.div) return;
+      this.div.style.setProperty('--hb-accent', this.accent);
+
+      // simple escape
+      const esc = (s)=>String(s||'').replace(/</g,'&lt;');
+
+      this.div.innerHTML =
+        `<div class="t">${esc(this.name)}</div>
+         <div class="a">${esc(this.addr)}</div>`;
+
+      const px = this.getProjection().fromLatLngToDivPixel(this.position);
+      this.div.style.left = px.x + 'px';
+      // lift it a bit above the marker tip
+      this.div.style.top  = (px.y - 12) + 'px';
+      this.div.style.transform = 'translate(-50%,-100%)';
+    }
+    onRemove(){
+      this.div?.remove();
+      this.div = null;
+    }
+  }
+
+  window.HBTooltip = HBTooltip;
 }
 
 /* =================== UI BUILD (frames/rows) =================== */
@@ -1575,23 +1684,22 @@ icon: {
       });
 
     // hover tooltip
-    marker.addListener('mouseover', () => {
-      const html =
-        `<div class="hb-iw" style="--hb-accent:${base.color}">
-           <div class="hb-title">${base.name.replace(/</g,'&lt;')}</div>
-           <div class="hb-addr">${formatted.replace(/</g,'&lt;')}</div>
-         </div>`;
-      info.setContent(html);
-      info.open({ map, anchor: marker });
-    });
-    marker.addListener('mouseout', () => info.close());
+// ===== hover: show our custom colored card (no white bubble) =====
+initHBTooltip();
+const hbTip = window.__hbTip || (window.__hbTip = new HBTooltip());
 
-    // click to fill first empty
-    // click to fill: always drops into the first available directions bar (any view)
-    marker.addListener('click', () => {
-      fillFirstAvailableAddress(formatted);
-      map.panTo(pos);
-    });
+marker.addListener('mouseover', () => {
+  hbTip.set(pos, base.name, formatted, base.color);
+});
+marker.addListener('mouseout', () => {
+  hbTip.hide();
+});
+
+// click to fill: always drops into the first available directions bar (any view)
+marker.addListener('click', () => {
+  fillFirstAvailableAddress(formatted);
+  map.panTo(pos);
+});
 
     HOME_BASE_MARKERS.push(marker);
   });
