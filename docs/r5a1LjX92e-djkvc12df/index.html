@@ -1567,6 +1567,51 @@ function geocodeSmart(addr,attempt=0){
       });
   });
 }
+
+/* ===== tiny overlay that lives above polygons and captures hover ===== */
+function ensureHoverHotspotClass(){
+  if (window.HoverHotspotOverlay) return;
+
+  class HoverHotspotOverlay extends google.maps.OverlayView{
+    constructor(position, sizePx, onEnter, onLeave){
+      super();
+      this.pos = position;
+      this.size = sizePx || 38;
+      this.onEnter = onEnter;
+      this.onLeave = onLeave;
+      this.div = null;
+    }
+    onAdd(){
+      const d = document.createElement('div');
+      d.style.position = 'absolute';
+      d.style.width = this.size + 'px';
+      d.style.height = this.size + 'px';
+      d.style.pointerEvents = 'auto';
+      d.style.background = 'transparent';
+      d.style.borderRadius = '50%';
+      d.style.zIndex = '9999'; // above Data Layer hit-area
+      d.addEventListener('mouseenter', () => this.onEnter && this.onEnter());
+      d.addEventListener('mouseleave', () => this.onLeave && this.onLeave());
+      this.div = d;
+      // Put it on the same mouse-target pane used by polygons, but higher z-index
+      this.getPanes().overlayMouseTarget.appendChild(d);
+    }
+    draw(){
+      if (!this.div) return;
+      const p = this.getProjection().fromLatLngToDivPixel(this.pos);
+      const s = this.size;
+      this.div.style.left = (p.x - s/2) + 'px';
+      this.div.style.top  = (p.y - s/2) + 'px';
+    }
+    onRemove(){
+      if (this.div?.parentNode) this.div.parentNode.removeChild(this.div);
+      this.div = null;
+    }
+  }
+
+  window.HoverHotspotOverlay = HoverHotspotOverlay;
+}
+
 /* =================== HOME BASE PINS (robust) =================== */
 
 const HOME_BASES = [
@@ -1646,26 +1691,31 @@ function attachHoverPill(map, marker, title, addr, accent){
   function cancelHide(){ if(hideTO){ clearTimeout(hideTO); hideTO = null; } }
   function scheduleHide(){ hideTO = setTimeout(()=> iw.close(), 160); }
 
-  // Open on marker hover
+  // Native marker hover (will work when not under polygons)
   marker.addListener('mouseover', () => { cancelHide(); iw.open(map, marker); });
-  // If we leave the marker, close soon — unless we move into the pill
   marker.addListener('mouseout',  () => scheduleHide());
 
-  // Keep open while hovering the pill; close after leaving it
+  // Keep open while hovering the pill itself
   iw.addListener('domready', () => {
-    // ensure width/stretch each time it renders
     pill.style.width = '100%';
     pill.style.margin = '0';
     pill.addEventListener('mouseenter', cancelHide);
     pill.addEventListener('mouseleave', scheduleHide);
   });
 
+  // Expose controls so a hotspot can drive it too
+  iw.__cancelHide = cancelHide;
+  iw.__scheduleHide = scheduleHide;
+
   return iw;
 }
 
-/** Add the four colored home-base pins with reliable hover popups */
+/** Add the four colored home-base pins with reliable hover popups — even over polygons */
 async function initHomeBasePins(){
   if (!window.map || !window.google) return;
+
+  // make sure the overlay class exists (maps is loaded now)
+  ensureHoverHotspotClass();
 
   // Clear old
   HOME_BASE_MARKERS.forEach(m => m.setMap(null));
@@ -1682,13 +1732,13 @@ async function initHomeBasePins(){
     const formatted = resolved?.formatted || base.address;
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
 
-    const pos = {lat, lng};
+    const pos = new google.maps.LatLng(lat, lng);
     fit.extend(pos);
 
     const marker = new google.maps.Marker({
       position: pos,
       map,
-      zIndex: 50,
+      zIndex: 200, // keep above most overlays
       icon: {
         path: TEARDROP_PATH,
         scale: 0.78,
@@ -1704,8 +1754,16 @@ async function initHomeBasePins(){
     });
     try { marker.setTitle(''); } catch(_) {}
 
-    // Attach the reliable hover pill
-    attachHoverPill(map, marker, base.name, formatted, base.color);
+    // The InfoWindow pill (as before)
+    const iw = attachHoverPill(map, marker, base.name, formatted, base.color);
+
+    // NEW: invisible hotspot that sits ABOVE polygons and guarantees hover
+    const hotspot = new window.HoverHotspotOverlay(
+      pos, 40,
+      () => { iw.__cancelHide?.(); iw.open(map, marker); },   // enter → open
+      () => { iw.__scheduleHide?.(); }                        // leave → close soon
+    );
+    hotspot.setMap(map);
 
     // Click pastes into first available input and locks it (unchanged behavior)
     marker.addListener('click', () => {
