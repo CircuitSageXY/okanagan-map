@@ -242,8 +242,7 @@ function ensureLiveStyleWrapper(m){
       return;
     }
     const m = mapOrNull(); if(!m) return;
-    ensureLiveStyleWrapper(m);
-
+     
     clearLive();
     // Persist user choices
     try{
