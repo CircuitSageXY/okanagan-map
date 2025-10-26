@@ -267,49 +267,50 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .gm-style .scene-viewcard-button,
 .gm-style .app-viewcard-strip{ display:none !important; }
 
-/* ===== Home-base info bubble (solid colored pill) ===== */
+/* ===== Home-base info bubble (light tinted pill) ===== */
 .hb-iw{
-  --hb-accent:#3B82F6;          /* JS sets this per pin */
+  --hb-accent:#3B82F6;                  /* JS sets per pin */
   display:block;
+  box-sizing:border-box;
   min-width:300px;
+  max-width:min(360px, 82vw);
   padding:10px 14px;
   border-radius:14px;
-  background:var(--hb-accent);  /* solid fill (no gradients) */
-  color:#fff;
-  border:1px solid rgba(0,0,0,.28);   /* subtle edge so it “pops” */
-  box-shadow:0 10px 28px rgba(0,0,0,.25);
+
+  /* light, readable background + subtle border */
+  background: color-mix(in srgb, var(--hb-accent) 16%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--hb-accent) 45%, transparent);
+
+  /* soft shadow like your example */
+  box-shadow:0 10px 28px rgba(0,0,0,.22);
+  color:#0b1320;
 }
 .hb-iw .hb-title{
   font-weight:900;
-  font-size:18px;
-  margin-bottom:4px;
-  color:#fff;
+  font-size:17px;
+  letter-spacing:.25px;
+  margin-bottom:6px;
+  color:#0b1320;
 }
 .hb-iw .hb-addr{
-  font-size:15px;
-  line-height:1.4;
-  color:#fff;
-  opacity:.98;
+  font-size:14.5px;
+  line-height:1.45;
+  color:#0b1320;
+  opacity:.92;
 }
 
-/* Kill Google’s default InfoWindow chrome so only our pill shows */
-.gm-style .gm-style-iw-c,
-.gm-style .gm-style-iw{
+/* ===== Kill Google’s InfoWindow chrome so only our pill shows ===== */
+.gm-style .gm-style-iw,
+.gm-style .gm-style-iw-c{
   background:transparent !important;
-  box-shadow:none !important;
   border:none !important;
+  box-shadow:none !important;
+  padding:0 !important;
 }
-.gm-style .gm-style-iw-tc,
-.gm-style .gm-style-iw-t::after{
-  display:none !important;          /* hide the little white tip */
-}
-.gm-style .gm-style-iw-d{
-  overflow:visible !important;
-  padding:0 !important;             /* no inner padding box */
-}
-.gm-style .gm-ui-hover-effect{      /* close “X” */
-  display:none !important;
-}
+.gm-style .gm-style-iw-t,
+.gm-style .gm-style-iw-t::after{ display:none !important; }
+.gm-style .gm-style-iw-d{ overflow:visible !important; padding:0 !important; }
+.gm-style .gm-ui-hover-effect{ display:none !important; }  /* close “X” */
 
 /* ===========================================================
    RIGHT DRAWER + SLIM TAB (with accent color)
