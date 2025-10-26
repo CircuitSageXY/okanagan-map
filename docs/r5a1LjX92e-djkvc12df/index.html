@@ -1450,7 +1450,8 @@ icon:{
 }
 function clearPreviewPins(){previewPins.forEach(m=>m.setMap(null));previewPins=[];}
 function drawRouteMarkers(points, rows){
-  // Use the pill tooltip that initHomeBasePins() created
+  // Ensure the pill exists
+  initHBTooltip();
   const hbTip = window.__hbTip || null;
 
   points.forEach((p, i) => {
@@ -1463,32 +1464,19 @@ function drawRouteMarkers(points, rows){
     const varName = classLetter ? `--clr${classLetter}` : '--clrDefault';
     const color = (getComputedStyle(document.documentElement).getPropertyValue(varName).trim()) || '#607d8b';
 
-    // Address string for the pill
+    // Address text for the pill
     const address = (rows[i]?.querySelector('.stop')?.value || '').trim();
 
-    // If this point is on top of a home-base pin, reuse that pin and just show the label
+    // If a home-base pin is essentially at this spot, reuse it
     const hb = getHomeBaseAtLatLng(new google.maps.LatLng(p.lat, p.lng), 35);
     if (hb){
-      // label the existing home-base pin with the route letter
+      // Give it our route label letter (keeps its own hover listeners)
       hb.setLabel({ text: letter, color: '#ffffff', fontSize: '16px', fontWeight: '700' });
-
-      // hover: show our pill
-      if (hbTip){
-        let hideTO = null;
-        hb.addListener('mouseover', () => {
-          if (hideTO) { clearTimeout(hideTO); hideTO = null; }
-          hbTip.show(hb.getPosition(), address, address, color);
-        });
-        hb.addListener('mouseout', () => {
-          hideTO = setTimeout(() => hbTip.hide(), 120);
-        });
-      }
-
       try { hb.setZIndex(200); } catch(_) {}
       return; // do not create a duplicate marker
     }
 
-    // Otherwise create a dedicated route marker (NO 'title' property!)
+    // Otherwise create a dedicated route marker
     const marker = new google.maps.Marker({
       position: p,
       map,
@@ -1504,13 +1492,13 @@ function drawRouteMarkers(points, rows){
         anchor: new google.maps.Point(0, 0),
         labelOrigin: new google.maps.Point(0, -16)
       },
-      // IMPORTANT: never set a 'title' here
+      optimized: true
     });
 
-    // Just in case something upstream set it:
+    // Make absolutely sure the native black tooltip never appears
     try { marker.setTitle(''); } catch(_) {}
 
-    // Hover → show pill; mouseout → hide (tiny delay to reduce flicker)
+    // Hover → show our colorful pill; mouseout → hide (tiny delay reduces flicker)
     if (hbTip){
       let hideTO = null;
       marker.addListener('mouseover', () => {
@@ -1642,13 +1630,16 @@ function firstEmptyStopInput() {
   }
   return null;
 }
+/* ===== Colorful hover pill (singleton InfoWindow) ===== */
 function initHBTooltip(){
-  if (window.__hbTip) return;               // already created
+  if (window.__hbTip) return;                     // already created
+  if (!window.google || !window.map) return;      // map not ready yet
 
-  // one reusable element for our pill
+  // The pill element we control
   const el = document.createElement('div');
   el.className = 'hb-iw';
 
+  // One InfoWindow reused for all markers
   const iw = new google.maps.InfoWindow({
     content: el,
     disableAutoPan: true,
@@ -1656,18 +1647,14 @@ function initHBTooltip(){
     maxWidth: 0
   });
 
+  // tiny HTML helper + sanitizer
   const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
-  const html = (name, addr) => `
-    <div class="hb-row">
-      <span class="hb-accent"></span>
-      <div class="hb-text">
-        <div class="hb-title"><span class="hb-pin">📍</span>${esc(name||'')}</div>
-        <div class="hb-addr">${esc(addr||'')}</div>
-      </div>
-    </div>
+  const pillHTML = (title, addr) => `
+    <div class="hb-title">${esc(title || '')}</div>
+    <div class="hb-addr">${esc(addr  || '')}</div>
   `;
 
-  // Prime once so the shell measures correctly
+  // Prime the shell once so sizing is stable
   google.maps.event.addListenerOnce(window.map, 'idle', () => {
     iw.setPosition(window.map.getCenter());
     iw.setContent(el);
@@ -1676,23 +1663,17 @@ function initHBTooltip(){
     setTimeout(() => iw.close(), 0);
   });
 
-  let pending = null;
+  // When Google attaches the shell, ensure our pill fills it
   iw.addListener('domready', () => {
     el.style.width = '100%';
     el.style.margin = '0';
-    if (pending){
-      el.innerHTML = pending.html;
-      el.style.setProperty('--hb-accent', pending.accent || '#3B82F6');
-      pending = null;
-    }
   });
 
+  // Public API
   window.__hbTip = {
-    show(latLng, name, addr, accent){
+    show(latLng, title, addr, accent){
       el.style.setProperty('--hb-accent', accent || '#3B82F6');
-      const h = html(name || addr, addr || name);
-      el.innerHTML = h;                      // immediate
-      pending = { html: h, accent };         // ensure identical after domready
+      el.innerHTML = pillHTML(title, addr);
       iw.setContent(el);
       iw.setPosition(latLng);
       iw.open(window.map);
