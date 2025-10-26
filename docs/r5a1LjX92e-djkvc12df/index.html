@@ -1448,9 +1448,9 @@ function addPreviewPin(latlng,label){
     label:{text:label,color:'#fff',fontSize:'16px',fontWeight:'700'},
 icon:{
   path: TEARDROP_PATH,
-  scale: 0.92,
+  scale: 0.80,
   fillColor: '#607d8b',
-  fillOpacity: 0.9,
+  fillOpacity: 0.75,
   strokeColor: '#000000',
   strokeWeight: 2.0,
   labelOrigin: new google.maps.Point(0,-16),
@@ -1486,12 +1486,12 @@ function drawRouteMarkers(points, rows){
       label: { text: letter, color: '#fff', fontSize: '16px', fontWeight: '700' },
    icon: {
   path: TEARDROP_PATH,
-  scale: 0.82,                       // smaller
+  scale: 0.72,                       // smaller
   fillColor: color,
-  fillOpacity: 0.65,                 // more transparent
+  fillOpacity: 0.5,                 // more transparent
   strokeColor: '#000000',            // solid black outline
   strokeOpacity: 1,
-  strokeWeight: 1.8,
+  strokeWeight: 1.6,
   anchor: new google.maps.Point(0, 0),
   labelOrigin: new google.maps.Point(0, -16)
 },
@@ -1726,12 +1726,12 @@ map.addListener('click', () => hbTip.hide());
       zIndex: 50,
       icon: {
         path: TEARDROP_PATH,
-        scale: 1.0,
+        scale: 0.85,
         fillColor: base.color,
-        fillOpacity: 0.75,
+        fillOpacity: 0.60,
         strokeColor: '#000000',
         strokeOpacity: 1,
-        strokeWeight: 2.2,
+        strokeWeight: 1.8,
         anchor: new google.maps.Point(0, 0),
         labelOrigin: new google.maps.Point(0, -16)
       },
