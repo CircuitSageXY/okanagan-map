@@ -1620,90 +1620,85 @@ function initHBTooltip(){
   // Only after Maps API is ready
   if (!window.google || !google.maps) return;
 
-  // Define the overlay class once
-  if (!window.HBTooltip){
-    class HBTooltip extends google.maps.OverlayView{
-      constructor(){
-        super();
-        this.div = null;
-        this.pos = null;
-        this.name = '';
-        this.addr = '';
-        this.accent = '#3B82F6';
-      }
-
-      // ----- new: single render helper, safe to call anytime -----
-      paint(){
-        if (!this.div) return;
-        const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
-        this.div.style.setProperty('--hb-accent', this.accent);
-        this.div.innerHTML = `<div class="t">${esc(this.name)}</div><div class="a">${esc(this.addr)}</div>`;
-      }
-
-      onAdd(){
-        const d = document.createElement('div');
-        d.className = 'hb-card';
-        d.style.pointerEvents = 'none';   // IMPORTANT: no mouse capture
-        d.style.display = 'none';         // hidden until show()
-        this.div = d;
-        // floatPane so it never becomes a mouse target
-        this.getPanes().floatPane.appendChild(d);
-
-        // ensure initial content is painted as soon as the element exists
-        this.paint();
-      }
-
-      draw(){
-        if (!this.div || !this.pos) return;
-        const proj = this.getProjection();
-        const p = proj && proj.fromLatLngToDivPixel(this.pos);
-        if (!p) return;
-        this.div.style.left = p.x + 'px';
-        this.div.style.top  = (p.y - 12) + 'px';
-        this.div.style.transform = 'translate(-50%,-100%)';
-      }
-
-      onRemove(){
-        this.div?.remove();
-        this.div = null;
-      }
-
-      show(latLng, name, addr, accent){
-        this.pos    = latLng;
-        this.name   = name || '';
-        this.addr   = addr || '';
-        this.accent = accent || '#3B82F6';
-
-        // If already added, paint + show immediately
-        if (this.div){
-          this.paint();
-          this.div.style.display = 'block';
-          this.draw();
-          return;
-        }
-
-         // If not attached yet, ensure attach and retry on next frame
-  if (!this.div){
-    if (!this.getMap() && window.map) this.setMap(window.map);
-    requestAnimationFrame(() => this.show(latLng, name, addr, accent));
+  // If the class already exists, just ensure the singleton is attached to the map and exit
+  if (window.HBTooltip){
+    if (!window.__hbTip) window.__hbTip = new window.HBTooltip();
+    if (window.map && !window.__hbTip.getMap()) window.__hbTip.setMap(window.map);
     return;
   }
-        // A very small defer in case draw doesn't run until next frame
-        requestAnimationFrame(() => {
-          if (this.div){
-            this.paint();
-            this.div.style.display = 'block';
-            this.draw();
-          }
-        });
+
+  class HBTooltip extends google.maps.OverlayView{
+    constructor(){
+      super();
+      this.div = null;
+      this.pos = null;
+      this.name = '';
+      this.addr = '';
+      this.accent = '#3B82F6';
+    }
+
+    onAdd(){
+      const d = document.createElement('div');
+      d.className = 'hb-card';
+      d.style.pointerEvents = 'none';   // do not steal hover/mouse
+      d.style.display = 'none';         // start hidden
+      this.div = d;
+      // Use floatPane so it never blocks marker mouse events
+      this.getPanes().floatPane.appendChild(d);
+    }
+
+    draw(){
+      if (!this.div || !this.pos) return;
+      const proj = this.getProjection();
+      const p = proj && proj.fromLatLngToDivPixel(this.pos);
+      if (!p) return;
+      this.div.style.left = p.x + 'px';
+      this.div.style.top  = (p.y - 12) + 'px';
+      this.div.style.transform = 'translate(-50%,-100%)';
+    }
+
+    onRemove(){
+      if (this.div) this.div.remove();
+      this.div = null;
+    }
+
+    paint(){
+      if (!this.div) return;
+      const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
+      this.div.style.setProperty('--hb-accent', this.accent);
+      this.div.innerHTML = `<div class="t">${esc(this.name)}</div><div class="a">${esc(this.addr)}</div>`;
+    }
+
+    show(latLng, name, addr, accent){
+      this.pos    = latLng;
+      this.name   = name || '';
+      this.addr   = addr || '';
+      this.accent = accent || '#3B82F6';
+
+      // If not attached yet, attach and retry on the next frame
+      if (!this.getMap() && window.map) this.setMap(window.map);
+      if (!this.div){
+        requestAnimationFrame(() => this.show(latLng, name, addr, accent));
+        return;
       }
 
-      hide(){
-        if (this.div) this.div.style.display = 'none';
-      }
+      this.paint();
+      this.div.style.display = 'block';
+      this.draw();
     }
-    window.HBTooltip = HBTooltip;
+
+    hide(){
+      if (this.div) this.div.style.display = 'none';
+    }
   }
+
+  window.HBTooltip = HBTooltip;
+
+  // Singleton instance and attach it immediately so onAdd() runs BEFORE first hover
+  if (!window.__hbTip) window.__hbTip = new HBTooltip();
+  if (window.map && !window.__hbTip.getMap()) window.__hbTip.setMap(window.map);
+}
+
 
   // Singleton instance
   if (!window.__hbTip) window.__hbTip = new window.HBTooltip();
