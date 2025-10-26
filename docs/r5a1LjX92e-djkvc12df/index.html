@@ -1620,12 +1620,8 @@ function initHBTooltip(){
   // Only after Maps API is ready
   if (!window.google || !google.maps) return;
 
-  // If the class already exists, just ensure the singleton is attached to the map and exit
-  if (window.HBTooltip){
-    if (!window.__hbTip) window.__hbTip = new window.HBTooltip();
-    if (window.map && !window.__hbTip.getMap()) window.__hbTip.setMap(window.map);
-    return;
-  }
+  // Define the class exactly once
+  if (window.HBTooltip) return;
 
   class HBTooltip extends google.maps.OverlayView{
     constructor(){
@@ -1640,10 +1636,10 @@ function initHBTooltip(){
     onAdd(){
       const d = document.createElement('div');
       d.className = 'hb-card';
-      d.style.pointerEvents = 'none';   // do not steal hover/mouse
-      d.style.display = 'none';         // start hidden
+      d.style.pointerEvents = 'none'; // never block the mouse
+      d.style.display = 'none';
       this.div = d;
-      // Use floatPane so it never blocks marker mouse events
+      // use floatPane so it never captures mouse and sits above markers
       this.getPanes().floatPane.appendChild(d);
     }
 
@@ -1671,17 +1667,16 @@ function initHBTooltip(){
 
     show(latLng, name, addr, accent){
       this.pos    = latLng;
-      this.name   = name || '';
-      this.addr   = addr || '';
-      this.accent = accent || '#3B82F6';
+      this.name   = name  || '';
+      this.addr   = addr  || '';
+      this.accent = accent|| '#3B82F6';
 
-      // If not attached yet, attach and retry on the next frame
-      if (!this.getMap() && window.map) this.setMap(window.map);
-      if (!this.div){
+      // If we're not attached yet, attach and retry next frame
+      if (!this.getMap() && window.map){
+        this.setMap(window.map);
         requestAnimationFrame(() => this.show(latLng, name, addr, accent));
         return;
       }
-
       this.paint();
       this.div.style.display = 'block';
       this.draw();
@@ -1692,13 +1687,14 @@ function initHBTooltip(){
     }
   }
 
+  // publish the class on window (do NOT overwrite it later)
   window.HBTooltip = HBTooltip;
+}
 
   // Singleton instance and attach it immediately so onAdd() runs BEFORE first hover
   if (!window.__hbTip) window.__hbTip = new HBTooltip();
   if (window.map && !window.__hbTip.getMap()) window.__hbTip.setMap(window.map);
 }
-
 
   // Singleton instance
   if (!window.__hbTip) window.__hbTip = new window.HBTooltip();
@@ -1708,21 +1704,22 @@ function initHBTooltip(){
 
 /** add subdued pins, hover tooltip, and click-to-fill */
 function initHomeBasePins(){
-  if (!window.map || !window.google) return; // run only after Maps is ready
-  console.debug('[home-bases] initializing pins…');
+  if (!window.map || !window.google) return;
 
-  // clean up on re-init
+  // Clean up previous markers
   HOME_BASE_MARKERS.forEach(m => m.setMap(null));
   HOME_BASE_MARKERS = [];
 
   const fit = new google.maps.LatLngBounds();
 
-// define the tooltip class (if not already) and reuse a single instance
-initHBTooltip();
-const hbTip = window.__hbTip;  // singleton
-  
-  // Hide hover card if user clicks elsewhere on the map
-map.addListener('click', () => hbTip.hide());
+  // Define the tooltip class (once) and create a single instance,
+  // then attach it to the map *before* any marker hover happens.
+  initHBTooltip();
+  const hbTip = (window.__hbTip ||= new window.HBTooltip());
+  if (!hbTip.getMap()) hbTip.setMap(window.map);
+
+  // Hide card if user clicks on map
+  map.addListener('click', () => hbTip.hide());
 
   HOME_BASES.forEach(async (base) => {
     // try resolve; if it fails use fallback lat/lng
