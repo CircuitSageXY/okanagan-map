@@ -1367,22 +1367,52 @@ function addPreviewPin(latlng,label){
   previewPins.push(marker);
 }
 function clearPreviewPins(){previewPins.forEach(m=>m.setMap(null));previewPins=[];}
-function drawRouteMarkers(points,rows){
-  points.forEach((p,i)=>{
-    if(!p) return;
-    const b=rows[i]?.querySelector('.bullet'); const letter=b?(b.textContent||'').trim():'';
-    const classLetter=b?[...b.classList].find(c=>/^[A-Z]$/.test(c)):null;
-    const varName=classLetter?`--clr${classLetter}`:'--clrDefault';
-    const color=getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
-    const marker=new google.maps.Marker({
-      position:p,map,
-      label:{text:letter,color:'#fff',fontSize:'16px',fontWeight:'700'},
-      icon:{path:TEARDROP_PATH,scale:1,fillColor:color||'#607d8b',fillOpacity:1,strokeWeight:1.5,strokeColor:'#263238',labelOrigin:new google.maps.Point(0,-16),anchor:new google.maps.Point(0,0)}
+function drawRouteMarkers(points, rows){
+  points.forEach((p, i) => {
+    if (!p) return;
+
+    const b = rows[i]?.querySelector('.bullet');
+    const letter = b ? (b.textContent || '').trim() : '';
+    const classLetter = b ? [...b.classList].find(c => /^[A-Z]$/.test(c)) : null;
+    const varName = classLetter ? `--clr${classLetter}` : '--clrDefault';
+    const color = getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || '#607d8b';
+
+    // --- NEW: If this point sits on a home-base pin, reuse that pin and just label it ---
+    const hb = getHomeBaseAtLatLng(p, 35);   // 35m tolerance; adjust if needed
+    if (hb){
+      hb.setLabel({ text: letter, color: '#ffffff', fontSize: '16px', fontWeight: '700' });
+      // optionally bump zIndex a bit
+      try { hb.setZIndex(200); } catch(_){}
+      return; // don't create a second marker
+    }
+
+    // --- Otherwise, create a dedicated route marker with strong black outline ---
+    const marker = new google.maps.Marker({
+      position: p,
+      map,
+      label: { text: letter, color: '#fff', fontSize: '16px', fontWeight: '700' },
+      icon: {
+        path: TEARDROP_PATH,
+        scale: 1.0,
+        fillColor: color,
+        fillOpacity: 0.85,
+        strokeColor: '#000000',
+        strokeOpacity: 1,
+        strokeWeight: 2.2,
+        labelOrigin: new google.maps.Point(0, -16),
+        anchor: new google.maps.Point(0, 0)
+      }
     });
+
     routeMarkers.push(marker);
   });
 }
-function clearRouteMarkers(){routeMarkers.forEach(m=>m.setMap(null));routeMarkers=[];}
+function clearRouteMarkers(){
+  routeMarkers.forEach(m => m.setMap(null));
+  routeMarkers = [];
+  resetHomeBaseLabels();               // <-- also remove labels from home-base pins
+}
+/* keep your resolveAddress exactly as-is below */
 async function resolveAddress(text){
   const prediction = await new Promise(res=>{
     acService.getPlacePredictions(
@@ -1447,6 +1477,36 @@ const HOME_BASES = [
 
 let HOME_BASE_MARKERS = [];
 
+/* === Home-base helpers (match + reset) === */
+function getHomeBaseAtLatLng(latlng, tolMeters = 30){
+  if (!Array.isArray(HOME_BASE_MARKERS) || !HOME_BASE_MARKERS.length) return null;
+
+  // Haversine distance in meters
+  const toRad = x => x * Math.PI / 180;
+  const R = 6371000;
+  function dist(a, b){
+    const dLat = toRad(b.lat() - a.lat());
+    const dLng = toRad(b.lng() - a.lng());
+    const sa = Math.sin(dLat/2)**2 +
+               Math.cos(toRad(a.lat())) * Math.cos(toRad(b.lat())) *
+               Math.sin(dLng/2)**2;
+    return 2 * R * Math.asin(Math.sqrt(sa));
+  }
+
+  const target = new google.maps.LatLng(latlng.lat, latlng.lng);
+  for (const m of HOME_BASE_MARKERS){
+    try{
+      const d = dist(m.getPosition(), target);
+      if (d <= tolMeters) return m;
+    }catch(_){}
+  }
+  return null;
+}
+
+function resetHomeBaseLabels(){
+  HOME_BASE_MARKERS.forEach(m => m.setLabel(null));
+}
+
 /** first available stop input in current view */
 function firstEmptyStopInput() {
   if (window.flatMode) {
@@ -1499,17 +1559,17 @@ function initHomeBasePins(){
         position: pos,
         map,
         zIndex: 50,
-        icon: {
-          path: TEARDROP_PATH,
-          scale: 0.72,                     // smaller
-          fillColor: base.color,
-          fillOpacity: 0.58,               // more transparent
-          strokeColor: '#263238',
-          strokeOpacity: 0.45,             // lighter edge
-          strokeWeight: 1.0,
-          anchor: new google.maps.Point(0, 0),
-          labelOrigin: new google.maps.Point(0, -16)
-        },
+icon: {
+  path: TEARDROP_PATH,
+  scale: 1.0,
+  fillColor: base.color,
+  fillOpacity: 0.75,
+  strokeColor: '#000000',
+  strokeOpacity: 1,
+  strokeWeight: 2.2,
+  anchor: new google.maps.Point(0, 0),
+  labelOrigin: new google.maps.Point(0, -16)
+},
         title: base.name,
         optimized: true
       });
