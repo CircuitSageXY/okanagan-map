@@ -1617,69 +1617,72 @@ function firstEmptyStopInput() {
   return null;
 }
 function initHBTooltip(){
-  // define once, after Maps API is ready
+  // Only after Maps API is ready
   if (!window.google || !google.maps) return;
-  if (window.__hbTip) return;
 
-  // one reusable content element
-  const el = document.createElement('div');
-  el.className = 'hb-iw';
+  // Define the overlay class once
+  if (!window.HBTooltip){
+    class HBTooltip extends google.maps.OverlayView{
+      constructor(){
+        super();
+        this.div = null;
+        this.pos = null;
+        this.name = '';
+        this.addr = '';
+        this.accent = '#3B82F6';
+      }
 
-  const iw = new google.maps.InfoWindow({
-    content: el,
-    disableAutoPan: true,
-    pixelOffset: new google.maps.Size(0, -16)
-  });
+      onAdd(){
+        const d = document.createElement('div');
+        d.className = 'hb-card';
+        d.style.pointerEvents = 'none';             // IMPORTANT: no mouse capture
+        this.div = d;
+        // floatPane so it never becomes a mouse target
+        this.getPanes().floatPane.appendChild(d);
+      }
 
-  const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
+      draw(){
+        if (!this.div || !this.pos) return;
+        const proj = this.getProjection();
+        const p = proj && proj.fromLatLngToDivPixel(this.pos);
+        if (!p) return;
+        this.div.style.left = p.x + 'px';
+        this.div.style.top  = (p.y - 12) + 'px';
+        this.div.style.transform = 'translate(-50%,-100%)';
+      }
 
-  function setHtml(name, addr, accent){
-    el.style.setProperty('--hb-accent', accent || '#3B82F6');
-    el.innerHTML =
-      `<div class="hb-title">${esc(name||'')}</div>
-       <div class="hb-addr">${esc(addr||'')}</div>`;
-  }
+      onRemove(){
+        this.div?.remove();
+        this.div = null;
+      }
 
-  // --- PRIME the InfoWindow once so the shell is ready before first hover ---
-  let primed = false;
-  function primeOnce(){
-    if (primed || !window.map) return;
-    primed = true;
-    // tiny invisible prime: open with empty content off-screen and close
-    const off = new google.maps.LatLng(
-      window.map.getCenter().lat() + 0.00001,
-      window.map.getCenter().lng() + 0.00001
-    );
-    iw.setContent(document.createElement('div'));
-    iw.setPosition(off);
-    iw.open(window.map);
-    // close on next tick to let the shell construct
-    setTimeout(()=> iw.close(), 0);
-  }
-  // prime after first idle to ensure map is ready
-  google.maps.event.addListenerOnce(window.map, 'idle', primeOnce);
+      show(latLng, name, addr, accent){
+        this.pos    = latLng;
+        this.name   = name || '';
+        this.addr   = addr || '';
+        this.accent = accent || '#3B82F6';
 
-  // ensure the content is correct after the shell attaches
-  let pending = null;
-  iw.addListener('domready', ()=>{
-    if (pending){
-      setHtml(pending.name, pending.addr, pending.accent);
-      pending = null;
+        // paint content
+        if (this.div){
+          const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
+          this.div.style.setProperty('--hb-accent', this.accent);
+          this.div.innerHTML = `<div class="t">${esc(this.name)}</div><div class="a">${esc(this.addr)}</div>`;
+          this.div.style.display = 'block';
+        }
+
+        if (!this.getMap()) this.setMap(window.map);
+        this.draw();
+      }
+
+      hide(){
+        if (this.div) this.div.style.display = 'none';
+      }
     }
-  });
+    window.HBTooltip = HBTooltip;
+  }
 
-  window.__hbTip = {
-    show(latLng, name, addr, accent){
-      // set now…
-      setHtml(name, addr, accent);
-      iw.setContent(el);
-      iw.setPosition(latLng);
-      // …and set once more on domready (covers first-ever open)
-      pending = {name, addr, accent};
-      iw.open(window.map);
-    },
-    hide(){ iw.close(); }
-  };
+  // Singleton instance
+  if (!window.__hbTip) window.__hbTip = new window.HBTooltip();
 }
 
 /** add subdued pins, hover tooltip, and click-to-fill */
