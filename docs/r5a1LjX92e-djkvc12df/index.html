@@ -1469,48 +1469,41 @@ function initHomeBasePins(){
     const pos = new google.maps.LatLng(lat, lng);
     fit.extend(pos);
 
-    const marker = new google.maps.Marker({
-      position: pos,
-      map,
-      zIndex: 50,
-      icon: {
-        path: TEARDROP_PATH,           // from your code
-        scale: 1.0,                    // slightly larger so it’s visible
-        fillColor: base.color,
-        fillOpacity: 0.9,
-        strokeColor: '#263238',
-        strokeOpacity: 0.9,
-        strokeWeight: 1.2,
-        anchor: new google.maps.Point(0, 0),
-        labelOrigin: new google.maps.Point(0, -16)
-      },
-      title: base.name
-    });
+      const marker = new google.maps.Marker({
+        position: pos,
+        map,
+        zIndex: 50,
+        icon: {
+          path: TEARDROP_PATH,
+          scale: 0.72,                     // smaller
+          fillColor: base.color,
+          fillOpacity: 0.58,               // more transparent
+          strokeColor: '#263238',
+          strokeOpacity: 0.45,             // lighter edge
+          strokeWeight: 1.0,
+          anchor: new google.maps.Point(0, 0),
+          labelOrigin: new google.maps.Point(0, -16)
+        },
+        title: base.name,
+        optimized: true
+      });
 
     // hover tooltip
     marker.addListener('mouseover', () => {
-      info.setContent(
-        `<div style="min-width:220px">
-           <div style="font-weight:600;margin-bottom:4px">${base.name}</div>
-           <div style="font-size:12px;color:#475569">${formatted}</div>
-         </div>`
-      );
+      const html =
+        `<div class="hb-iw" style="--hb-accent:${base.color}">
+           <div class="hb-title">${base.name.replace(/</g,'&lt;')}</div>
+           <div class="hb-addr">${formatted.replace(/</g,'&lt;')}</div>
+         </div>`;
+      info.setContent(html);
       info.open({ map, anchor: marker });
     });
     marker.addListener('mouseout', () => info.close());
 
     // click to fill first empty
+    // click to fill: always drops into the first available directions bar (any view)
     marker.addListener('click', () => {
-      const inp = firstEmptyStopInput();
-      if (!inp) return;
-      inp.value = formatted;
-      inp.dataset.lat = String(lat);
-      inp.dataset.lng = String(lng);
-      delete inp.dataset.dirty;
-
-      safeFocus(inp);
-      autoResolveNext = true;
-      scheduleAutoCompute(0, true);
+      fillFirstAvailableAddress(formatted);
       map.panTo(pos);
     });
 
@@ -2743,6 +2736,31 @@ async function globalOptimizeRoute(){
   pruneEmptyRowsAndFrames();
   renumber();
   scheduleAutoCompute(0,true);
+}
+
+/* ===== Home-base info bubble theme ===== */
+.hb-iw {
+  --hb-accent: #3B82F6;
+  min-width: 240px;
+  border-radius: 12px;
+  padding: 8px 10px;
+  background:
+    radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--hb-accent) 22%, #fff), #fff),
+    #fff;
+  border: 1px solid color-mix(in srgb, var(--hb-accent) 45%, transparent);
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+}
+.hb-iw .hb-title {
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: .2px;
+  margin-bottom: 4px;
+  color: #0f1720;
+}
+.hb-iw .hb-addr {
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: #273142;
 }
 </script>
 
