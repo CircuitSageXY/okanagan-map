@@ -1429,27 +1429,29 @@ icon:{
 }
 function clearPreviewPins(){previewPins.forEach(m=>m.setMap(null));previewPins=[];}
 function drawRouteMarkers(points, rows){
+  // Make sure tooltip is ready even if this runs before HB pins
+  if (!window.__hbTip) initHBTooltip();
   const hbTip = window.__hbTip || null;
 
   points.forEach((p, i) => {
     if (!p) return;
 
-    // Letter + color from the UI
+    // Letter + UI color
     const b = rows[i]?.querySelector('.bullet');
     const letter = b ? (b.textContent || '').trim() : '';
     const classLetter = b ? [...b.classList].find(c => /^[A-Z]$/.test(c)) : null;
     const varName = classLetter ? `--clr${classLetter}` : '--clrDefault';
     const color = (getComputedStyle(document.documentElement).getPropertyValue(varName).trim()) || '#607d8b';
 
-    // Address text for tooltip
     const address = (rows[i]?.querySelector('.stop')?.value || '').trim();
 
     // Reuse a nearby home-base pin if present
     const hb = getHomeBaseAtLatLng(new google.maps.LatLng(p.lat, p.lng), 35);
     if (hb){
       hb.setLabel({ text: letter, color: '#ffffff', fontSize: '16px', fontWeight: '700' });
-      try { hb.setZIndex(200); } catch(_) {}
-      // Also show tip when hovering that reused HB pin
+      try { hb.setZIndex(900); } catch(_) {}
+
+      // Also show tip on hover for the reused HB marker
       if (hbTip){
         let hideTO = null;
         hb.addListener('mouseover', () => {
@@ -1460,19 +1462,21 @@ function drawRouteMarkers(points, rows){
           hideTO = setTimeout(() => hbTip.hide(), 150);
         });
       }
-      return; // do not create a duplicate marker
+      return; // no duplicate marker
     }
 
-    // Otherwise create a dedicated route marker
+    // Dedicated route marker
     const marker = new google.maps.Marker({
       position: p,
       map,
+      zIndex: 900,                  // <<< stay above polygons
+      title: address,               // native tooltip fallback
       label: { text: letter, color: '#fff', fontSize: '16px', fontWeight: '700' },
       icon: {
         path: TEARDROP_PATH,
-        scale: 0.78,                 // a touch smaller
+        scale: 0.78,
         fillColor: color,
-        fillOpacity: 0.62,           // a bit more transparent
+        fillOpacity: 0.62,
         strokeColor: '#000000',
         strokeOpacity: 1,
         strokeWeight: 1.6,
@@ -1481,7 +1485,7 @@ function drawRouteMarkers(points, rows){
       }
     });
 
-    // Hover → show pill; brief delay on hide to avoid flicker
+    // Hover → pill
     let hideTO = null;
     marker.addListener('mouseover', () => {
       if (!hbTip) return;
@@ -1614,7 +1618,7 @@ function firstEmptyStopInput() {
   return null;
 }
 function initHBTooltip(){
-  if (window.__hbTip) return;               // singleton
+  if (window.__hbTip) return;               // already created
 
   // one reusable element for our pill
   const el = document.createElement('div');
@@ -1624,35 +1628,28 @@ function initHBTooltip(){
     content: el,
     disableAutoPan: true,
     pixelOffset: new google.maps.Size(0, -16),
-    maxWidth: 0                                   // let content decide width
+    maxWidth: 0
   });
 
   const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
-
-  function html(name, addr){
-    return `
+  const html = (name, addr) => `
       <div class="hb-title">${esc(name||'')}</div>
       <div class="hb-addr">${esc(addr||'')}</div>
     `;
-  }
 
-  // --- PRIME: build the shell once so first hover isn't empty ---
+  // Prime once so the shell measures correctly
   google.maps.event.addListenerOnce(window.map, 'idle', () => {
-    const off = window.map.getCenter();     // anywhere on the map
-    iw.setPosition(off);
+    iw.setPosition(window.map.getCenter());
     iw.setContent(el);
-    el.style.width = '100%';                // fill shell
+    el.style.width = '100%';
     iw.open(window.map);
-    setTimeout(()=> iw.close(), 0);         // close next tick
+    setTimeout(() => iw.close(), 0);
   });
 
-  // --- ensure correct content + sizing once the shell attaches ---
   let pending = null;
   iw.addListener('domready', () => {
-    // force full width on first layout (fixes “narrow pill in big shell”)
     el.style.width = '100%';
     el.style.margin = '0';
-
     if (pending){
       el.innerHTML = pending.html;
       el.style.setProperty('--hb-accent', pending.accent || '#3B82F6');
@@ -1662,13 +1659,10 @@ function initHBTooltip(){
 
   window.__hbTip = {
     show(latLng, name, addr, accent){
-      // set accent immediately so colors are right even pre-domready
       el.style.setProperty('--hb-accent', accent || '#3B82F6');
-
-      // put *something* in now, but also queue the final HTML for domready
-      el.innerHTML = html(name, addr);
-      pending = { html: html(name, addr), accent };
-
+      const h = html(name, addr);
+      el.innerHTML = h;                      // immediate content
+      pending = { html: h, accent };         // ensure same after domready
       iw.setContent(el);
       iw.setPosition(latLng);
       iw.open(window.map);
@@ -1681,9 +1675,9 @@ function initHBTooltip(){
 function initHomeBasePins(){
   if (!window.map || !window.google) return;
 
-  // One tooltip singleton (creates window.__hbTip once)
+  // Ensure the tooltip singleton exists
   initHBTooltip();
-  const hbTip = window.__hbTip;   // ✅ no trailing comma
+  const hbTip = window.__hbTip;
 
   // clear old home-base markers
   HOME_BASE_MARKERS.forEach(m => m.setMap(null));
@@ -1707,7 +1701,8 @@ function initHomeBasePins(){
     const marker = new google.maps.Marker({
       position: pos,
       map,
-      zIndex: 50,
+      zIndex: 800,                    // <<< stay above polygons
+      title: formatted,               // native browser tooltip fallback
       icon: {
         path: TEARDROP_PATH,
         scale: 0.70,
@@ -1722,7 +1717,7 @@ function initHomeBasePins(){
       optimized: true
     });
 
-    // Hover shows the colored pill
+    // Hover shows the colored pill (with small hide delay to avoid flicker)
     let hideTO = null;
     marker.addListener('mouseover', () => {
       if (!hbTip) return;
@@ -2409,28 +2404,29 @@ function areaCodeFromFeature(feat){
 }
 
 function styleFeature(feature){
-  // --- LIVE FEATURES (from events.js) ---
+  // live features
   if (feature.getProperty('__live')) {
     let t = '';
     try { t = feature.getGeometry()?.getType?.() || ''; } catch(_){}
     if (t.includes('Polygon')) {
-      return feature.getProperty('__polyStyle') || { fillColor:'#E64A19', fillOpacity:.26, strokeColor:'#BF360C', strokeWeight:1.2 };
+      return (feature.getProperty('__polyStyle') || {
+        fillColor:'#E64A19', fillOpacity:.26, strokeColor:'#BF360C', strokeWeight:1.2, zIndex: 1
+      });
     }
     if (t.includes('LineString')) {
-      return feature.getProperty('__lineStyle') || { strokeColor:'#F50057', strokeWeight:3, strokeOpacity:.9 };
+      return (feature.getProperty('__lineStyle') || { strokeColor:'#F50057', strokeWeight:3, strokeOpacity:.9, zIndex: 1 });
     }
     if (t === 'Point') {
       return { icon: feature.getProperty('__pointIcon') || {
         path:'M0,-10 L10,0 L0,10 L-10,0 Z',
         fillColor:'#F50057', fillOpacity:1, strokeColor:'#fff', strokeWeight:1.5, scale:1
-      }};
+      }, zIndex: 1 };
     }
-    // default visible if live but no known geometry
-    return { visible:true };
+    return { visible:true, zIndex: 1 };
   }
 
-  // --- NORMAL POLYGONS (your geo areas) ---
-  if (feature.getProperty('__visible') === false) return {visible:false};
+  // normal polygons
+  if (feature.getProperty('__visible') === false) return {visible:false, zIndex: 1};
   const color  = feature.getProperty('__color') || '#607d8b';
   const stroke = feature.getProperty('__stroke') ?? AREA_STROKE_WEIGHT;
   const fillOp = feature.getProperty('__fillOpacity') ??
@@ -2439,11 +2435,13 @@ function styleFeature(feature){
   return {
     fillColor: color, fillOpacity: fillOp,
     strokeColor: color, strokeOpacity: 0.85,
-    strokeWeight: stroke, visible:true
+    strokeWeight: stroke,
+    visible:true,
+    zIndex: 1                         // <<< keep Data Layer below markers
   };
 }
-window.styleFeature = styleFeature;     // keep this
-styleFeature.__isBaseStyle = true;      // harmless tag; safe to keep
+window.styleFeature = styleFeature;
+styleFeature.__isBaseStyle = true;
   
 /* --- persistence --- */
 function loadSaved(key, fallback){ try{ const v = JSON.parse(localStorage.getItem(key)||'null'); return v && typeof v==='object' ? v : fallback; }catch(_){ return fallback; } }
