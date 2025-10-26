@@ -1616,12 +1616,16 @@ function firstEmptyStopInput() {
   }
   return null;
 }
+/* Create the lightweight hover tooltip once and keep a singleton instance */
 function initHBTooltip(){
-  // Only after Maps API is ready
   if (!window.google || !google.maps) return;
 
-  // Define the class exactly once
-  if (window.HBTooltip) return;
+  // If the class is already defined, just make sure the singleton exists and is attached.
+  if (window.HBTooltip){
+    if (!window.__hbTip) window.__hbTip = new window.HBTooltip();
+    if (window.map && !window.__hbTip.getMap()) window.__hbTip.setMap(window.map);
+    return;
+  }
 
   class HBTooltip extends google.maps.OverlayView{
     constructor(){
@@ -1636,11 +1640,11 @@ function initHBTooltip(){
     onAdd(){
       const d = document.createElement('div');
       d.className = 'hb-card';
-      d.style.pointerEvents = 'none'; // never block the mouse
-      d.style.display = 'none';
-      this.div = d;
-      // use floatPane so it never captures mouse and sits above markers
+      d.style.pointerEvents = 'none';   // never block the mouse
+      d.style.display = 'none';         // start hidden
+      // use floatPane so it never steals hover events from markers
       this.getPanes().floatPane.appendChild(d);
+      this.div = d;
     }
 
     draw(){
@@ -1658,7 +1662,7 @@ function initHBTooltip(){
       this.div = null;
     }
 
-    paint(){
+    _paint(){
       if (!this.div) return;
       const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
       this.div.style.setProperty('--hb-accent', this.accent);
@@ -1671,13 +1675,14 @@ function initHBTooltip(){
       this.addr   = addr  || '';
       this.accent = accent|| '#3B82F6';
 
-      // If we're not attached yet, attach and retry next frame
+      // If not attached yet, attach and retry on the next frame
       if (!this.getMap() && window.map){
         this.setMap(window.map);
         requestAnimationFrame(() => this.show(latLng, name, addr, accent));
         return;
       }
-      this.paint();
+
+      this._paint();
       this.div.style.display = 'block';
       this.draw();
     }
@@ -1687,11 +1692,8 @@ function initHBTooltip(){
     }
   }
 
-  // publish the class on window (do NOT overwrite it later)
+  // Publish the class and create the singleton
   window.HBTooltip = HBTooltip;
-}
-
-  // Singleton instance and attach it immediately so onAdd() runs BEFORE first hover
   if (!window.__hbTip) window.__hbTip = new HBTooltip();
   if (window.map && !window.__hbTip.getMap()) window.__hbTip.setMap(window.map);
 }
