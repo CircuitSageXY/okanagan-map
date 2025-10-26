@@ -1429,8 +1429,8 @@ icon:{
 }
 function clearPreviewPins(){previewPins.forEach(m=>m.setMap(null));previewPins=[];}
 function drawRouteMarkers(points, rows){
-  if (!window.__hbTip) initHBTooltip();   // ensure singleton exists
-  const hbTip = window.__hbTip;
+  const hbTip = window.__hbTip || null;
+
   points.forEach((p, i) => {
     if (!p) return;
 
@@ -1449,6 +1449,17 @@ function drawRouteMarkers(points, rows){
     if (hb){
       hb.setLabel({ text: letter, color: '#ffffff', fontSize: '16px', fontWeight: '700' });
       try { hb.setZIndex(200); } catch(_) {}
+      // Also show tip when hovering that reused HB pin
+      if (hbTip){
+        let hideTO = null;
+        hb.addListener('mouseover', () => {
+          if (hideTO) { clearTimeout(hideTO); hideTO = null; }
+          hbTip.show(hb.getPosition(), address, address, color);
+        });
+        hb.addListener('mouseout', () => {
+          hideTO = setTimeout(() => hbTip.hide(), 150);
+        });
+      }
       return; // do not create a duplicate marker
     }
 
@@ -1470,17 +1481,20 @@ function drawRouteMarkers(points, rows){
       }
     });
 
-// Hover → show pill; brief delay on hide to avoid flicker
-let hideTO = null;
-marker.addListener('mouseover', () => {
-  if (!hbTip) return;
-  if (hideTO) { clearTimeout(hideTO); hideTO = null; }
-  hbTip.show(marker.getPosition(), address, address, color);
-});
-marker.addListener('mouseout', () => {
-  if (!hbTip) return;
-  hideTO = setTimeout(() => hbTip.hide(), 180);   // small grace period
-});
+    // Hover → show pill; brief delay on hide to avoid flicker
+    let hideTO = null;
+    marker.addListener('mouseover', () => {
+      if (!hbTip) return;
+      if (hideTO) { clearTimeout(hideTO); hideTO = null; }
+      hbTip.show(marker.getPosition(), address, address, color);
+    });
+    marker.addListener('mouseout', () => {
+      if (!hbTip) return;
+      hideTO = setTimeout(() => hbTip.hide(), 150);
+    });
+
+    routeMarkers.push(marker);
+  });
 }
 
 function clearRouteMarkers(){
@@ -1667,16 +1681,16 @@ function initHBTooltip(){
 function initHomeBasePins(){
   if (!window.map || !window.google) return;
 
-  // One tooltip singleton
+  // One tooltip singleton (creates window.__hbTip once)
   initHBTooltip();
-  const hbTip = window.__hbTip;
+  const hbTip = window.__hbTip;   // ✅ no trailing comma
 
-  // clean old
+  // clear old home-base markers
   HOME_BASE_MARKERS.forEach(m => m.setMap(null));
   HOME_BASE_MARKERS = [];
 
   const fit = new google.maps.LatLngBounds();
-  map.addListener('click', () => hbTip.hide());
+  map.addListener('click', () => hbTip && hbTip.hide());
 
   HOME_BASES.forEach(async (base) => {
     // resolve address (fallback to provided lat/lng)
@@ -1709,12 +1723,20 @@ function initHomeBasePins(){
     });
 
     // Hover shows the colored pill
-    marker.addListener('mouseover', () => hbTip.show(marker.getPosition(), base.name, formatted, base.color));
-    marker.addListener('mouseout',  () => hbTip.hide());
+    let hideTO = null;
+    marker.addListener('mouseover', () => {
+      if (!hbTip) return;
+      if (hideTO) { clearTimeout(hideTO); hideTO = null; }
+      hbTip.show(marker.getPosition(), base.name, formatted, base.color);
+    });
+    marker.addListener('mouseout',  () => {
+      if (!hbTip) return;
+      hideTO = setTimeout(() => hbTip.hide(), 150);
+    });
 
     // Click pastes into first available input and locks it
     marker.addListener('click', () => {
-      hbTip.hide();
+      if (hbTip) hbTip.hide();
       const row = fillFirstAvailableAddress(formatted, { lock:true, coords:{lat,lng} });
       if (!row) {
         if (window.flatMode) {
