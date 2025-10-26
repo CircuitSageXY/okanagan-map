@@ -1682,9 +1682,12 @@ function initHBTooltip(){
           return;
         }
 
-        // Not added yet: attach to map; onAdd/draw will paint on first cycle
-        if (!this.getMap()) this.setMap(window.map);
-
+         // If not attached yet, ensure attach and retry on next frame
+  if (!this.div){
+    if (!this.getMap() && window.map) this.setMap(window.map);
+    requestAnimationFrame(() => this.show(latLng, name, addr, accent));
+    return;
+  }
         // A very small defer in case draw doesn't run until next frame
         requestAnimationFrame(() => {
           if (this.div){
@@ -1704,6 +1707,8 @@ function initHBTooltip(){
 
   // Singleton instance
   if (!window.__hbTip) window.__hbTip = new window.HBTooltip();
+  if (window.map && !window.__hbTip.getMap()) {
+  window.__hbTip.setMap(window.map);
 }
 
 /** add subdued pins, hover tooltip, and click-to-fill */
