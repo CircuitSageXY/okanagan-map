@@ -1456,8 +1456,6 @@ icon:{
 }
 function clearPreviewPins(){previewPins.forEach(m=>m.setMap(null));previewPins=[];}
 function drawRouteMarkers(points, rows){
-  // Ensure tooltip singleton exists
-  initHBTooltip();
   const hbTip = window.__hbTip || null;
 
   points.forEach((p, i) => {
@@ -1470,15 +1468,14 @@ function drawRouteMarkers(points, rows){
     const varName = classLetter ? `--clr${classLetter}` : '--clrDefault';
     const color = (getComputedStyle(document.documentElement).getPropertyValue(varName).trim()) || '#607d8b';
 
-    // Address text for tooltip
     const address = (rows[i]?.querySelector('.stop')?.value || '').trim();
 
-    // Reuse a nearby home-base pin if present (and just label it)
+    // Reuse home-base marker if close
     const hb = getHomeBaseAtLatLng(new google.maps.LatLng(p.lat, p.lng), 35);
     if (hb){
       hb.setLabel({ text: letter, color: '#ffffff', fontSize: '16px', fontWeight: '700' });
-      try { hb.setZIndex(google.maps.Marker.MAX_ZINDEX + 400); } catch(_) {}
-      // Also attach hover handlers to the HB marker so it shows the pill too
+      try { hb.setZIndex(200); } catch(_) {}
+      // Also attach hover handlers to show the pill on home-base pins
       if (hbTip){
         let hideTO = null;
         google.maps.event.clearListeners(hb, 'mouseover');
@@ -1491,15 +1488,13 @@ function drawRouteMarkers(points, rows){
           hideTO = setTimeout(() => hbTip.hide(), 120);
         });
       }
-      return; // no duplicate marker
+      return;
     }
 
-    // Create a dedicated route marker
+    // Dedicated route marker
     const marker = new google.maps.Marker({
       position: p,
       map,
-      zIndex: google.maps.Marker.MAX_ZINDEX + 500,
-      optimized: false, // ensure reliable hover events over custom SVG
       label: { text: letter, color: '#fff', fontSize: '16px', fontWeight: '700' },
       icon: {
         path: TEARDROP_PATH,
@@ -1512,10 +1507,11 @@ function drawRouteMarkers(points, rows){
         anchor: new google.maps.Point(0, 0),
         labelOrigin: new google.maps.Point(0, -16)
       }
+      // IMPORTANT: do not set 'title' here, or a native tooltip will override ours
     });
 
-    // Make absolutely sure the native tooltip never shows
-    try { marker.setTitle(''); } catch(_) {}
+    // Make sure no native tooltip appears (defensive)
+    try { marker.setTitle(''); } catch (_) {}
 
     // Hover → show pill; mouseout → hide (tiny delay to reduce flicker)
     if (hbTip){
@@ -1532,6 +1528,7 @@ function drawRouteMarkers(points, rows){
     routeMarkers.push(marker);
   });
 }
+
 function clearRouteMarkers(){
   routeMarkers.forEach(m => m.setMap(null));
   routeMarkers = [];
@@ -1652,12 +1649,13 @@ function firstEmptyStopInput() {
 function initHBTooltip(){
   // Singleton guard
   if (window.__hbTip) return;
+  if (!window.google || !google.maps || !window.map) return;
 
-  if (!window.google || !window.google.maps || !window.map) return;
-
+  // Reusable pill element
   const el = document.createElement('div');
   el.className = 'hb-iw';
 
+  // Single InfoWindow instance
   const iw = new google.maps.InfoWindow({
     content: el,
     disableAutoPan: true,
@@ -1665,8 +1663,8 @@ function initHBTooltip(){
     maxWidth: 0
   });
 
-  const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]);
-
+  // Safe HTML
+  const esc = s => String(s||'').replace(/[<>&]/g, m => ({ '<':'&lt;', '>':'&gt;', '&':'&amp;' }[m]));
   function pillHTML(title, addr){
     return `
       <div class="hb-title">${esc(title||'')}</div>
@@ -1674,22 +1672,21 @@ function initHBTooltip(){
     `;
   }
 
-  // Prime once so the shell measures correctly the first time we show it
+  // Prime once so the shell sizes correctly the first time we show it
   google.maps.event.addListenerOnce(window.map, 'idle', () => {
     iw.setPosition(window.map.getCenter());
     iw.setContent(el);
-    el.style.width = '100%';
+    el.style.width  = '100%';
     el.style.margin = '0';
     iw.open(window.map);
     setTimeout(() => iw.close(), 0);
   });
 
+  // Ensure our pill fills the InfoWindow shell after it attaches
   let pending = null;
   iw.addListener('domready', () => {
-    // Ensure our pill fills the InfoWindow shell
-    el.style.width = '100%';
+    el.style.width  = '100%';
     el.style.margin = '0';
-
     if (pending){
       el.innerHTML = pending.html;
       el.style.setProperty('--hb-accent', pending.accent || '#3B82F6');
@@ -1697,16 +1694,13 @@ function initHBTooltip(){
     }
   });
 
+  // Public API
   window.__hbTip = {
     show(latLng, title, addr, accent){
-      // Set accent immediately to avoid flash
       el.style.setProperty('--hb-accent', accent || '#3B82F6');
-
-      // Populate now (in case domready hasn’t fired yet) and also queue the definitive HTML
       const html = pillHTML(title, addr);
-      el.innerHTML = html;
-      pending = { html, accent };
-
+      el.innerHTML = html;        // immediate content (pre-domready)
+      pending = { html, accent }; // final content once domready fires
       iw.setContent(el);
       iw.setPosition(latLng);
       iw.open(window.map);
@@ -1719,16 +1713,16 @@ function initHBTooltip(){
 function initHomeBasePins(){
   if (!window.map || !window.google) return;
 
-  // One tooltip singleton for colorful pill
+  // One tooltip singleton for the whole app
   initHBTooltip();
-  const hbTip = window.__hbTip;
+  const hbTip = window.__hbTip || null;
 
-  // clean old
+  // Clear old
   HOME_BASE_MARKERS.forEach(m => m.setMap(null));
   HOME_BASE_MARKERS = [];
 
   const fit = new google.maps.LatLngBounds();
-  map.addListener('click', () => hbTip?.hide());
+  map.addListener('click', () => hbTip && hbTip.hide());
 
   HOME_BASES.forEach(async (base) => {
     // resolve address (fallback to provided lat/lng)
@@ -1757,7 +1751,8 @@ function initHomeBasePins(){
         labelOrigin: new google.maps.Point(0, -16),
         anchor: new google.maps.Point(0, 0)
       },
-      // IMPORTANT: no 'title' here either
+      optimized: true
+      // IMPORTANT: no 'title'
     });
 
     // Make sure no native tooltip appears
@@ -1777,7 +1772,7 @@ function initHomeBasePins(){
 
     // Click pastes into first available input and locks it
     marker.addListener('click', () => {
-      hbTip?.hide();
+      hbTip && hbTip.hide();
       const row = fillFirstAvailableAddress(formatted, { lock:true, coords:{lat,lng} });
       if (!row) {
         if (window.flatMode) {
