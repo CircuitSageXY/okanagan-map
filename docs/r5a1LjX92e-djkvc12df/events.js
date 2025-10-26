@@ -167,34 +167,46 @@ const WORKER_BASE = 'https://okanagan-live-proxy.<your-account>.workers.dev';
     liveFeatures.length = 0;
   }
 function ensureLiveStyleWrapper(m){
-  // If we've already created the wrapper for this map, reuse it.
-  if (m.__liveStyleWrapper) {
-    m.data.setStyle(m.__liveStyleWrapper);
-    return;
+  // Discover the true base style once and memoize it on the map instance
+  if (!m.__liveBaseStyle) {
+    let base = window.styleFeature;
+    // If someone ever handed us a wrapper, peel it until we get the true base
+    while (base && base.__isLiveWrapper && base.__base) base = base.__base;
+    if (!base || !base.__isBaseStyle) base = window.styleFeature;  // final fallback
+    m.__liveBaseStyle = base;
   }
-  const base = window.styleFeature;  // original style function from index.html
 
-  m.__liveStyleWrapper = function(feature){
-    if (feature.getProperty('__live')) {
-      let t = '';
-      try { t = feature.getGeometry()?.getType?.() || ''; } catch(_){}
-      if (t.includes('Polygon')) {
-        return feature.getProperty('__polyStyle') || { fillColor:'#E64A19', fillOpacity:.26, strokeColor:'#BF360C', strokeWeight:1.2 };
+  // Create the wrapper exactly once per map instance
+  if (!m.__liveStyleWrapper) {
+    const base = m.__liveBaseStyle;
+    const wrapper = function(feature){
+      if (feature.getProperty('__live')) {
+        let t = '';
+        try { t = feature.getGeometry()?.getType?.() || ''; } catch(_){}
+        if (t.includes('Polygon')) {
+          return feature.getProperty('__polyStyle') || { fillColor:'#E64A19', fillOpacity:.26, strokeColor:'#BF360C', strokeWeight:1.2 };
+        }
+        if (t.includes('LineString')) {
+          return feature.getProperty('__lineStyle') || { strokeColor:'#F50057', strokeWeight:3, strokeOpacity:.9 };
+        }
+        if (t === 'Point') {
+          return { icon: feature.getProperty('__pointIcon') || {
+            path:'M0,-10 L10,0 L0,10 L-10,0 Z',
+            fillColor:'#F50057', fillOpacity:1, strokeColor:'#fff', strokeWeight:1.5, scale:1
+          }};
+        }
       }
-      if (t.includes('LineString')) {
-        return feature.getProperty('__lineStyle') || { strokeColor:'#F50057', strokeWeight:3, strokeOpacity:.9 };
-      }
-      if (t === 'Point') {
-        return { icon: feature.getProperty('__pointIcon') || {
-          path:'M0,-10 L10,0 L0,10 L-10,0 Z',
-          fillColor:'#F50057', fillOpacity:1, strokeColor:'#fff', strokeWeight:1.5, scale:1
-        }};
-      }
-    }
-    // Fall back to your normal polygon styling
-    return base(feature);
-  };
+      // Non-live features → original polygon style
+      return base(feature);
+    };
+    // tag the wrapper and remember what it wraps
+    wrapper.__isLiveWrapper = true;
+    wrapper.__base = m.__liveBaseStyle;
 
+    m.__liveStyleWrapper = wrapper;
+  }
+
+  // Always reapply the same wrapper (never re-wrap)
   m.data.setStyle(m.__liveStyleWrapper);
 }
 
