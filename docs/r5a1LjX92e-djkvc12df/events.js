@@ -6,14 +6,13 @@
 (() => {
   const VERSION = '2024-08-02';
 
-  /* ********** SET THIS TO YOUR CLOUDFLARE WORKER BASE URL **********
-     Example (once deployed):
-       'https://okanagan-live-proxy.yourname.workers.dev'
-     Tip: leave it as '' to disable external feeds (only Traffic works).
-  ******************************************************************* */
-  const WORKER_BASE = 'https://okanagan-live-proxy.<your-account>.workers.dev';
+  /* **********  SET THIS TO YOUR CLOUDFLARE WORKER BASE URL  ********** */
+  // Example once deployed: 'https://okanagan-live-proxy.yourname.workers.dev'
+  // Leave as empty string to disable external feeds safely.
+  const WORKER_BASE = '';
+  /* ******************************************************************* */
 
-  // Central Okanagan bbox (used to pre-filter external feeds)
+  // Central Okanagan bbox
   const BBOX = { w: -119.8, s: 49.6, e: -119.15, n: 50.2 };
 
   // Optional feeds (only used if WORKER_BASE is set)
@@ -29,7 +28,6 @@
       style: { fillColor: '#E64A19', fillOpacity: 0.26, strokeColor: '#BF360C', strokeWeight: 1.2 }
     },
     drivebc: {
-      // Open511 events filtered by bbox; Worker adds CORS and returns GeoJSON
       direct:
         `https://api.open511.gov.bc.ca/events?format=geojson` +
         `&bbox=${BBOX.w},${BBOX.s},${BBOX.e},${BBOX.n}` +
@@ -37,15 +35,18 @@
       kind: 'mixed',
       pointIcon: {
         path: 'M0,-10 L10,0 L0,10 L-10,0 Z',
-        fillColor: '#F50057', fillOpacity: 1,
-        strokeColor: '#ffffff', strokeWeight: 1.5, scale: 1
+        fillColor: '#F50057',
+        fillOpacity: 1,
+        strokeColor: '#ffffff',
+        strokeWeight: 1.5,
+        scale: 1
       },
       lineStyle: { strokeColor: '#F50057', strokeWeight: 3, strokeOpacity: 0.9 }
     }
   };
 
   /* ============== SAFE BOOT ============== */
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
   async function waitForMap(ms = 15000) {
     const t0 = Date.now();
     while (Date.now() - t0 < ms) {
@@ -56,6 +57,58 @@
     return false;
   }
   const mapOrNull = () => (window.map && window.map.data ? window.map : null);
+
+  /* ============== Wrap the base style exactly once (no recursion) ============== */
+  function ensureLiveStyleWrapper(m) {
+    if (!m || !m.data || typeof window.styleFeature !== 'function') return;
+
+    // Discover the true base style once and memoize it on the map instance
+    if (!m.__liveBaseStyle) {
+      let base = window.styleFeature;
+      // If someone ever handed us a wrapper, peel it until we get the true base
+      while (base && base.__isLiveWrapper && base.__base) base = base.__base;
+      m.__liveBaseStyle = base;
+    }
+
+    // Create the wrapper exactly once per map instance
+    if (!m.__liveStyleWrapper) {
+      const base = m.__liveBaseStyle;
+      const wrapper = function (feature) {
+        if (feature?.getProperty && feature.getProperty('__live')) {
+          let t = '';
+          try { t = feature.getGeometry()?.getType?.() || ''; } catch (_){}
+          if (t.includes('Polygon')) {
+            return feature.getProperty('__polyStyle') || { fillColor: '#E64A19', fillOpacity: 0.26, strokeColor: '#BF360C', strokeWeight: 1.2 };
+          }
+          if (t.includes('LineString')) {
+            return feature.getProperty('__lineStyle') || { strokeColor: '#F50057', strokeWeight: 3, strokeOpacity: 0.9 };
+          }
+          if (t === 'Point') {
+            return {
+              icon: feature.getProperty('__pointIcon') || {
+                path: 'M0,-10 L10,0 L0,10 L-10,0 Z',
+                fillColor: '#F50057',
+                fillOpacity: 1,
+                strokeColor: '#fff',
+                strokeWeight: 1.5,
+                scale: 1
+              }
+            };
+          }
+          return { visible: true };
+        }
+        // Non-live features → original polygon style
+        return base(feature);
+      };
+      // Tag wrapper and remember what it wraps
+      wrapper.__isLiveWrapper = true;
+      wrapper.__base = m.__liveBaseStyle;
+      m.__liveStyleWrapper = wrapper;
+    }
+
+    // Apply (only if not already applied)
+    m.data.setStyle(m.__liveStyleWrapper);
+  }
 
   /* ============== UI (button + menu) ============== */
   let btn, menu, trafficLayer = null, trafficOn = false;
@@ -112,36 +165,37 @@
 
     // Wire up controls
     const ckTraffic = menu.querySelector('#ckTraffic');
-    const ckWild = menu.querySelector('#ckWildfires');
-    const ckDrive = menu.querySelector('#ckDriveBC');
-    const wfHint = menu.querySelector('#wfHint');
-    const dbcHint = menu.querySelector('#dbcHint');
+    const ckWild    = menu.querySelector('#ckWildfires');
+    const ckDrive   = menu.querySelector('#ckDriveBC');
+    const wfHint    = menu.querySelector('#wfHint');
+    const dbcHint   = menu.querySelector('#dbcHint');
 
     // Disable external if no proxy configured
-    if (!WORKER_BASE || WORKER_BASE.includes('<your-account>')) {
+    if (!WORKER_BASE) {
       ckWild.disabled = true; ckDrive.disabled = true;
       wfHint.textContent = 'proxy off'; dbcHint.textContent = 'proxy off';
     }
 
     ckTraffic.addEventListener('change', () => setTraffic(ckTraffic.checked));
-    ckWild.addEventListener('change', () => { extWildfireOn = ckWild.checked; reloadExternal(); });
-    ckDrive.addEventListener('change', () => { extDriveBCOn = ckDrive.checked; reloadExternal(); });
+    ckWild  .addEventListener('change', () => { extWildfireOn = ckWild.checked; reloadExternal(); });
+    ckDrive .addEventListener('change', () => { extDriveBCOn  = ckDrive.checked;  reloadExternal(); });
     menu.querySelector('#btnReload').addEventListener('click', reloadExternal);
     menu.querySelector('#btnClose').addEventListener('click', toggleMenu);
 
     // restore previous state
     try {
-      trafficOn = localStorage.getItem('live_trafficOn') === '1';
-      extWildfireOn = localStorage.getItem('live_wfOn') === '1';
-      extDriveBCOn = localStorage.getItem('live_dbcOn') === '1';
-    } catch (_) { /* ignore */ }
+      trafficOn     = localStorage.getItem('live_trafficOn') === '1';
+      extWildfireOn = localStorage.getItem('live_wfOn')     === '1';
+      extDriveBCOn  = localStorage.getItem('live_dbcOn')    === '1';
+    } catch (_){}
+
     ckTraffic.checked = trafficOn;
-    ckWild.checked = extWildfireOn && !!WORKER_BASE && !WORKER_BASE.includes('<your-account>');
-    ckDrive.checked = extDriveBCOn && !!WORKER_BASE && !WORKER_BASE.includes('<your-account>');
+    ckWild.checked    = extWildfireOn && !!WORKER_BASE;
+    ckDrive.checked   = extDriveBCOn  && !!WORKER_BASE;
 
     // apply immediately
     setTraffic(trafficOn);
-    if (WORKER_BASE && !WORKER_BASE.includes('<your-account>')) reloadExternal();
+    if (WORKER_BASE) reloadExternal();
   }
 
   function toggleMenu() {
@@ -150,8 +204,7 @@
 
   /* ============== Google Traffic ============== */
   function setTraffic(on) {
-    const m = mapOrNull();
-    if (!m) return;
+    const m = mapOrNull(); if (!m) return;
     if (on) {
       if (!trafficLayer) trafficLayer = new google.maps.TrafficLayer();
       trafficLayer.setMap(m);
@@ -159,7 +212,7 @@
       trafficLayer?.setMap(null);
     }
     trafficOn = !!on;
-    try { localStorage.setItem('live_trafficOn', trafficOn ? '1' : '0'); } catch (_) {}
+    try { localStorage.setItem('live_trafficOn', trafficOn ? '1' : '0'); } catch (_){}
   }
 
   /* ============== External feeds via Worker (safe, optional) ============== */
@@ -167,62 +220,14 @@
 
   function clearLive() {
     const m = mapOrNull(); if (!m) return;
-    liveFeatures.forEach((f) => m.data.remove(f));
+    liveFeatures.forEach(f => m.data.remove(f));
     liveFeatures.length = 0;
   }
 
-  // ---- CRITICAL: wrap the base styler exactly once, no recursion ----
-  function ensureLiveStyleWrapper(m) {
-    // Discover the true base style once and memoize it on the map instance
-    if (!m.__liveBaseStyle) {
-      let base = window.styleFeature;
-      // If someone ever handed us a wrapper, peel until we get the true base
-      while (base && base.__isLiveWrapper && base.__base) base = base.__base;
-      if (!base || !base.__isBaseStyle) base = window.styleFeature; // final fallback
-      m.__liveBaseStyle = base;
-    }
-
-    // Create the wrapper exactly once per map instance
-    if (!m.__liveStyleWrapper) {
-      const base = m.__liveBaseStyle;
-      const wrapper = function (feature) {
-        if (feature.getProperty('__live')) {
-          let t = '';
-          try { t = feature.getGeometry()?.getType?.() || ''; } catch (_) {}
-          if (t.includes('Polygon')) {
-            return feature.getProperty('__polyStyle') || { fillColor: '#E64A19', fillOpacity: .26, strokeColor: '#BF360C', strokeWeight: 1.2 };
-          }
-          if (t.includes('LineString')) {
-            return feature.getProperty('__lineStyle') || { strokeColor: '#F50057', strokeWeight: 3, strokeOpacity: .9 };
-          }
-          if (t === 'Point') {
-            return {
-              icon: feature.getProperty('__pointIcon') || {
-                path: 'M0,-10 L10,0 L0,10 L-10,0 Z',
-                fillColor: '#F50057', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 1.5, scale: 1
-              }
-            };
-          }
-          return { visible: true };
-        }
-        // Non-live features → original style
-        return base(feature);
-      };
-      // tag the wrapper and remember what it wraps
-      wrapper.__isLiveWrapper = true;
-      wrapper.__base = m.__liveBaseStyle;
-
-      m.__liveStyleWrapper = wrapper;
-    }
-
-    // Always reapply the same wrapper (never re-wrap)
-    m.data.setStyle(m.__liveStyleWrapper);
-  }
-
   async function fetchViaWorker(url) {
-    if (!WORKER_BASE || WORKER_BASE.includes('<your-account>')) throw new Error('proxy not configured');
+    if (!WORKER_BASE) throw new Error('proxy not configured');
     const prox = `${WORKER_BASE}/proxy?u=${encodeURIComponent(url)}`;
-    const res = await fetch(prox, { cache: 'no-store' });
+    const res  = await fetch(prox, { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
     try { return JSON.parse(text); }
@@ -232,7 +237,8 @@
   async function addFeed(key) {
     const feed = FEEDS[key];
     const gj = await fetchViaWorker(feed.direct);
-    gj.features?.forEach((ft) => {
+
+    gj.features?.forEach(ft => {
       ft.properties = ft.properties || {};
       ft.properties.__live = true;
       ft.properties.__feed = key;
@@ -240,33 +246,33 @@
       if (feed.pointIcon) ft.properties.__pointIcon = feed.pointIcon;
       if (feed.lineStyle) ft.properties.__lineStyle = feed.lineStyle;
     });
+
     const m = mapOrNull(); if (!m) return;
+    ensureLiveStyleWrapper(m);
     const feats = m.data.addGeoJson(gj);
-    feats.forEach((f) => { f.setProperty('__live', true); liveFeatures.push(f); });
+    feats.forEach(f => { f.setProperty('__live', true); liveFeatures.push(f); });
   }
 
   async function reloadExternal() {
-    if (!WORKER_BASE || WORKER_BASE.includes('<your-account>')) {
+    if (!WORKER_BASE) {
       console.info('[live] proxy not configured; external feeds disabled.');
       return;
     }
     const m = mapOrNull(); if (!m) return;
-
-    // IMPORTANT: set our wrapper exactly once
     ensureLiveStyleWrapper(m);
 
     clearLive();
-
     // Persist user choices
     try {
-      localStorage.setItem('live_wfOn', extWildfireOn ? '1' : '0');
-      localStorage.setItem('live_dbcOn', extDriveBCOn ? '1' : '0');
-    } catch (_) {}
+      localStorage.setItem('live_wfOn',  extWildfireOn ? '1' : '0');
+      localStorage.setItem('live_dbcOn', extDriveBCOn  ? '1' : '0');
+    } catch (_){}
 
     // Load selectively
     try { if (extWildfireOn) await addFeed('wildfirePerimeters'); }
     catch (e) { console.warn('[live] wildfirePerimeters:', e.message); }
-    try { if (extDriveBCOn) await addFeed('drivebc'); }
+
+    try { if (extDriveBCOn)  await addFeed('drivebc'); }
     catch (e) { console.warn('[live] driveBC:', e.message); }
   }
 
@@ -276,8 +282,8 @@
     const ok = await waitForMap();
     if (!ok) return;
 
-    // Ensure wrapper once as soon as the map exists (harmless if also called in reloadExternal)
-    const m = mapOrNull(); if (m) ensureLiveStyleWrapper(m);
+    // Ensure we never re-wrap the style or call ourselves
+    ensureLiveStyleWrapper(mapOrNull());
 
     makeButton();
   })();
