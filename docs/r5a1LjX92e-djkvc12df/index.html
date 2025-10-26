@@ -267,49 +267,70 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .gm-style .scene-viewcard-button,
 .gm-style .app-viewcard-strip{ display:none !important; }
 
-/* ===== Home-base info bubble (pill) ===== */
+/* ===== Home-base / Marker info bubble (fun look) ===== */
 .hb-iw{
-  --hb-accent:#3B82F6;
+  --hb-accent:#3B82F6;                 /* dynamic accent; JS sets this */
   display:block;
   box-sizing:border-box;
-  min-width:300px;
-  max-width:min(360px, 82vw);
-  padding:10px 14px;
-  border-radius:14px;
+  width:100%;                          /* fill the InfoWindow shell */
+  min-width:320px;
+  max-width:min(420px, 86vw);
+  padding:14px 16px;
+  border-radius:16px;
 
-  /* make sure the pill fills the InfoWindow shell */
-  width:100%;                 /* ← add this */
-  margin:0;                   /* ← and this */
-
-  /* fallback look (works everywhere) */
-  background:#ffffff;
-  border:1px solid rgba(0,0,0,.18);
-  box-shadow:0 10px 28px rgba(0,0,0,.22);
+  /* soft glassy gradient with accent tint */
+  background: color-mix(in srgb, var(--hb-accent) 16%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--hb-accent) 45%, transparent);
+  box-shadow: 0 14px 34px rgba(0,0,0,.28);
   color:#0b1320;
+  backdrop-filter: blur(4px);
 }
 
-@supports (background: color-mix(in srgb, white, black)){
-  .hb-iw{
-    background: color-mix(in srgb, var(--hb-accent) 16%, #ffffff);
-    border: 1px solid color-mix(in srgb, var(--hb-accent) 45%, transparent);
-  }
+/* layout: tiny accent bar + text column */
+.hb-iw .hb-row{
+  display:grid;
+  grid-template-columns: 10px 1fr;
+  gap:12px;
+  align-items:flex-start;
 }
 
+.hb-iw .hb-accent{
+  width:10px; height:42px; margin-top:2px;
+  background:var(--hb-accent);
+  border-radius:6px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.55), 0 0 0 1px rgba(0,0,0,.05);
+}
+
+.hb-iw .hb-text{ display:block; }
+
+/* fun title line */
 .hb-iw .hb-title{
+  display:flex; align-items:center; gap:8px;
   font-weight:900;
-  font-size:17px;
+  font-size:19px;
   letter-spacing:.25px;
-  margin-bottom:6px;
+  line-height:1.2;
   color:#0b1320;
 }
+.hb-iw .hb-title .hb-pin{ font-size:18px; line-height:1; }
+
+/* address */
 .hb-iw .hb-addr{
-  font-size:14.5px;
+  margin-top:4px;
+  font-size:15px;
   line-height:1.45;
-  color:#0b1320;
-  opacity:.92;
+  color:#1f2b3a;
+  opacity:.94;
 }
 
-/* Make Google’s shell invisible (no black border) */
+/* subtle halo around the pill */
+.hb-iw::after{
+  content:"";
+  position:absolute; inset:-14px -18px -18px -18px; z-index:-1;
+  background: radial-gradient(150px 80px at 50% 62%, rgba(15,23,32,.16), transparent 65%);
+}
+
+/* Make Google’s InfoWindow shell invisible so only our pill shows */
 .gm-style .gm-style-iw,
 .gm-style .gm-style-iw-c{
   background:transparent !important;
@@ -1633,9 +1654,14 @@ function initHBTooltip(){
 
   const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
   const html = (name, addr) => `
-      <div class="hb-title">${esc(name||'')}</div>
-      <div class="hb-addr">${esc(addr||'')}</div>
-    `;
+    <div class="hb-row">
+      <span class="hb-accent"></span>
+      <div class="hb-text">
+        <div class="hb-title"><span class="hb-pin">📍</span>${esc(name||'')}</div>
+        <div class="hb-addr">${esc(addr||'')}</div>
+      </div>
+    </div>
+  `;
 
   // Prime once so the shell measures correctly
   google.maps.event.addListenerOnce(window.map, 'idle', () => {
@@ -1660,9 +1686,9 @@ function initHBTooltip(){
   window.__hbTip = {
     show(latLng, name, addr, accent){
       el.style.setProperty('--hb-accent', accent || '#3B82F6');
-      const h = html(name, addr);
-      el.innerHTML = h;                      // immediate content
-      pending = { html: h, accent };         // ensure same after domready
+      const h = html(name || addr, addr || name);
+      el.innerHTML = h;                      // immediate
+      pending = { html: h, accent };         // ensure identical after domready
       iw.setContent(el);
       iw.setPosition(latLng);
       iw.open(window.map);
