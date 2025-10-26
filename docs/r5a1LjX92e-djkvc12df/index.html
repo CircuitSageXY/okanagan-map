@@ -254,7 +254,7 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   box-shadow: inset 0 1px 0 rgba(255,255,255,.6); }
 .title{ font-weight:800; letter-spacing:.35px; text-transform:uppercase; white-space:nowrap; font-size:14px; }
 .close{ margin-left:6px; width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center;
-  background:#fff; border:1px solid #var(--label-border); box-shadow:0 1px 1px rgba(0,0,0,.06); color:#4b5563; font-size:16px; line-height:16px; cursor:pointer; }
+  background:#fff; border:1px solid var(--label-border); box-shadow:0 1px 1px rgba(0,0,0,.06); color:#4b5563; font-size:16px; line-height:16px; cursor:pointer; }
 .close:hover{ color:#000; }
 
 @media (prefers-reduced-motion: reduce){
@@ -298,6 +298,35 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   line-height: 1.38;
   color:#1f2937;           /* darker address text */
   opacity:.95;
+}
+/* Google InfoWindow chrome → transparent so only our colored card shows */
+.gm-style .gm-style-iw-c{ background:transparent !important; box-shadow:none !important; }
+.gm-style .gm-style-iw-t::after{ display:none !important; }
+
+/* Our hover card: larger, clearer */
+.hb-iw{
+  --hb-accent:#3B82F6;          /* overridden per pin */
+  min-width: 280px;
+  border-radius: 14px;
+  padding: 10px 12px;
+  background:
+    radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--hb-accent) 22%, #fff), #fff),
+    #fff;
+  border: 1px solid color-mix(in srgb, var(--hb-accent) 55%, transparent);
+  box-shadow: 0 10px 28px rgba(0,0,0,.22);
+}
+.hb-iw .hb-title{
+  font-weight: 900;
+  font-size: 17px;
+  letter-spacing: .25px;
+  margin-bottom: 6px;
+  color:#0b1320;
+}
+.hb-iw .hb-addr{
+  font-size: 14.5px;
+  line-height: 1.45;
+  color:#0b1320;
+  opacity:.92;
 }
 
 /* ===========================================================
@@ -1471,7 +1500,16 @@ function addPreviewPin(latlng,label){
   const marker=new google.maps.Marker({
     position:latlng,map,
     label:{text:label,color:'#fff',fontSize:'16px',fontWeight:'700'},
-    icon:{path:TEARDROP_PATH,scale:1,fillColor:'#4285F4',fillOpacity:1,strokeWeight:1.5,strokeColor:'#263238',labelOrigin:new google.maps.Point(0,-16),anchor:new google.maps.Point(0,0)}
+icon:{
+  path: TEARDROP_PATH,
+  scale: 0.92,
+  fillColor: color || '#607d8b',
+  fillOpacity: 0.9,
+  strokeColor: '#000000',
+  strokeWeight: 2.0,
+  labelOrigin: new google.maps.Point(0,-16),
+  anchor: new google.maps.Point(0,0)
+}
   });
   previewPins.push(marker);
 }
@@ -1500,17 +1538,17 @@ function drawRouteMarkers(points, rows){
       position: p,
       map,
       label: { text: letter, color: '#fff', fontSize: '16px', fontWeight: '700' },
-      icon: {
-        path: TEARDROP_PATH,
-        scale: 1.0,
-        fillColor: color,
-        fillOpacity: 0.85,
-        strokeColor: '#000000',
-        strokeOpacity: 1,
-        strokeWeight: 2.2,
-        labelOrigin: new google.maps.Point(0, -16),
-        anchor: new google.maps.Point(0, 0)
-      }
+   icon: {
+  path: TEARDROP_PATH,
+  scale: 0.82,                       // smaller
+  fillColor: base.color,
+  fillOpacity: 0.65,                 // more transparent
+  strokeColor: '#000000',            // solid black outline
+  strokeOpacity: 1,
+  strokeWeight: 1.8,
+  anchor: new google.maps.Point(0, 0),
+  labelOrigin: new google.maps.Point(0, -16)
+},
     });
 
     routeMarkers.push(marker);
@@ -1697,7 +1735,7 @@ marker.addListener('mouseout', () => {
 
 // click to fill: always drops into the first available directions bar (any view)
 marker.addListener('click', () => {
-  fillFirstAvailableAddress(formatted);
+  fillFirstAvailableAddress(formatted, { lock:true, coords:{lat, lng} });
   map.panTo(pos);
 });
 
@@ -1714,9 +1752,9 @@ marker.addListener('click', () => {
   }, 0);
 }
 
-/* Find or create the first available directions input and fill it */
-function fillFirstAvailableAddress(addr){
-  let input = null;
+/* Find/create first available input, fill it, optionally lock and set coords. */
+function fillFirstAvailableAddress(addr, { lock=false, coords=null } = {}){
+  let input = null, row = null;
 
   if (flatMode){
     input = [...document.querySelectorAll('#addrList .stop')].find(i=>!i.value.trim());
@@ -1725,34 +1763,45 @@ function fillFirstAvailableAddress(addr){
       input = r.querySelector('.stop');
     }
   } else {
-    // visible (non-collapsed) frames in order
     const frames = FRAMES.filter(fr=>{
       const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
       const visible = (fr.shift==='day'&&dayVisible) || (fr.shift==='night'&&nightVisible);
       return visible && sec && !sec.classList.contains('collapsed') && sec.style.display!=='none';
     });
-
     for (const fr of frames){
       const list = document.getElementById('frame-'+fr.id);
       input = [...list.querySelectorAll('.stop')].find(i=>!i.value.trim());
       if (input) break;
     }
     if (!input && frames.length){
-      // no empties; add one to the first visible frame
       const r = addRowToFrame(frames[0].id, true, false);
       input = r.querySelector('.stop');
     }
   }
 
-  if (input){
-    input.value = addr;
-    input.dataset.lat=''; input.dataset.lng='';
-    input.dataset.dirty='1';
-    safeFocus(input);
-    renumber();
-    autoResolveNext = true;          // resolve + route on next compute
-    scheduleAutoCompute(0, true);
+  if (!input) return null;
+
+  row = input.closest('.row');
+  input.value = addr;
+
+  if (coords && Number.isFinite(coords.lat) && Number.isFinite(coords.lng)){
+    input.dataset.lat = String(coords.lat);
+    input.dataset.lng = String(coords.lng);
+    delete input.dataset.dirty;
+  }else{
+    input.dataset.lat=''; input.dataset.lng=''; input.dataset.dirty='1';
   }
+
+  if (lock && row){
+    row.classList.add('locked');
+    row.dataset.locked = '1';
+  }
+
+  safeFocus(input);
+  renumber();
+  autoResolveNext = true;
+  scheduleAutoCompute(0, true);
+  return row;
 }
 
 /* Create subtle teardrop markers for each home base */
