@@ -1429,6 +1429,8 @@ icon:{
 }
 function clearPreviewPins(){previewPins.forEach(m=>m.setMap(null));previewPins=[];}
 function drawRouteMarkers(points, rows){
+  if (!window.__hbTip) initHBTooltip();   // ensure singleton exists
+  const hbTip = window.__hbTip;
   points.forEach((p, i) => {
     if (!p) return;
 
@@ -1468,16 +1470,17 @@ function drawRouteMarkers(points, rows){
       }
     });
 
-    // Hover → show pill; mouseout → hide
-    marker.addListener('mouseover', () => {
-      if (window.__hbTip) window.__hbTip.show(marker.getPosition(), address, address, color);
-    });
-    marker.addListener('mouseout', () => {
-      if (window.__hbTip) window.__hbTip.hide();
-    });
-
-    routeMarkers.push(marker);
-  });
+// Hover → show pill; brief delay on hide to avoid flicker
+let hideTO = null;
+marker.addListener('mouseover', () => {
+  if (!hbTip) return;
+  if (hideTO) { clearTimeout(hideTO); hideTO = null; }
+  hbTip.show(marker.getPosition(), address, address, color);
+});
+marker.addListener('mouseout', () => {
+  if (!hbTip) return;
+  hideTO = setTimeout(() => hbTip.hide(), 180);   // small grace period
+});
 }
 
 function clearRouteMarkers(){
