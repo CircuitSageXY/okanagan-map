@@ -1674,7 +1674,49 @@ function firstEmptyStopInput() {
   }
   return null;
 }
+function initHBTooltip(){
+  if (window.HBTooltip) return;
 
+  class HBTooltip extends google.maps.OverlayView{
+    constructor(){
+      super();
+      this.div = null;
+      this.position = null;
+      this.accent = '#3B82F6';
+      this.name = '';
+      this.addr = '';
+    }
+    set(position, name, addr, accent){
+      this.position = position;
+      this.name = name || '';
+      this.addr = addr || '';
+      this.accent = accent || '#3B82F6';
+      if (!this.getMap()) this.setMap(window.map);
+      else this.draw();
+    }
+    hide(){ this.setMap(null); }
+
+    onAdd(){
+      const d = document.createElement('div');
+      d.className = 'hb-card';
+      this.div = d;
+      this.getPanes().overlayMouseTarget.appendChild(d);
+    }
+    draw(){
+      if (!this.div) return;
+      this.div.style.setProperty('--hb-accent', this.accent);
+      const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
+      this.div.innerHTML = `<div class="t">${esc(this.name)}</div><div class="a">${esc(this.addr)}</div>`;
+      const px = this.getProjection().fromLatLngToDivPixel(this.position);
+      this.div.style.left = px.x + 'px';
+      this.div.style.top  = (px.y - 12) + 'px';
+      this.div.style.transform = 'translate(-50%,-100%)';
+    }
+    onRemove(){ this.div?.remove(); this.div=null; }
+  }
+
+  window.HBTooltip = HBTooltip;
+}
 /** add subdued pins, hover tooltip, and click-to-fill */
 function initHomeBasePins(){
   if (!window.map || !window.google) return; // run only after Maps is ready
@@ -1729,13 +1771,6 @@ icon: {
 // ===== hover: show our custom colored card (no white bubble) =====
 initHBTooltip();
 const hbTip = window.__hbTip || (window.__hbTip = new HBTooltip());
-
-marker.addListener('mouseover', () => {
-  hbTip.set(pos, base.name, formatted, base.color);
-});
-marker.addListener('mouseout', () => {
-  hbTip.hide();
-});
 
 // click to fill: always drops into the first available directions bar (any view)
 marker.addListener('click', () => {
@@ -1836,21 +1871,6 @@ async function addHomeBasePins(){
       // faint label letter (optional: comment out next line to remove)
       label: { text: '•', fontSize: '10px', fontWeight: '700', color: '#ffffff' },
       title: hb.name
-    });
-
-    marker.addListener('mouseover', ()=>{
-      hbInfoWin.setContent(
-        `<div style="line-height:1.25">
-           <div style="font-weight:600">${hb.name}</div>
-           <div style="font-size:12px;color:#444">${hb.address}</div>
-         </div>`
-      );
-      hbInfoWin.open({map, anchor: marker});
-    });
-    marker.addListener('mouseout', ()=> hbInfoWin.close());
-
-    marker.addListener('click', ()=>{
-      fillFirstAvailableAddress(hb.address);
     });
 
     HOME_BASE_MARKERS.push(marker);
