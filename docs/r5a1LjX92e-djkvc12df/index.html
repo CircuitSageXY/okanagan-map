@@ -1682,13 +1682,6 @@ function initHBTooltip(){
   };
 }
 
-    window.HBTooltip = HBTooltip;
-  }
-
-  // Singleton instance
-  if (!window.__hbTip) window.__hbTip = new window.HBTooltip();
-}
-
 /** add subdued pins, hover tooltip, and click-to-fill */
 function initHomeBasePins(){
   if (!window.map || !window.google) return; // run only after Maps is ready
