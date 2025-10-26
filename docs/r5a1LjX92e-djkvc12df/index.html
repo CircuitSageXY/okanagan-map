@@ -1432,42 +1432,83 @@ function drawRouteMarkers(points, rows){
   points.forEach((p, i) => {
     if (!p) return;
 
+    // Letter + color from the UI
     const b = rows[i]?.querySelector('.bullet');
     const letter = b ? (b.textContent || '').trim() : '';
     const classLetter = b ? [...b.classList].find(c => /^[A-Z]$/.test(c)) : null;
     const varName = classLetter ? `--clr${classLetter}` : '--clrDefault';
-    const color = getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || '#607d8b';
+    const color = (getComputedStyle(document.documentElement)
+                  .getPropertyValue(varName).trim()) || '#607d8b';
 
-    // --- NEW: If this point sits on a home-base pin, reuse that pin and just label it ---
-    const hb = getHomeBaseAtLatLng(p, 35);   // 35m tolerance; adjust if needed
+    // Address text for tooltip
+    const address = (rows[i]?.querySelector('.stop')?.value || '').trim();
+    const title   = address || `Stop ${letter}`;
+
+    // Reuse a nearby home-base pin if present
+    const hb = getHomeBaseAtLatLng(p, 35);   // 35 m tolerance
     if (hb){
       hb.setLabel({ text: letter, color: '#ffffff', fontSize: '16px', fontWeight: '700' });
-      // optionally bump zIndex a bit
-      try { hb.setZIndex(200); } catch(_){}
-      return; // don't create a second marker
+      try { hb.setZIndex(200); } catch(_) {}
+      return; // do not create a duplicate marker
     }
 
-    // --- Otherwise, create a dedicated route marker with strong black outline ---
+    // Otherwise create a dedicated route marker
     const marker = new google.maps.Marker({
       position: p,
       map,
       label: { text: letter, color: '#fff', fontSize: '16px', fontWeight: '700' },
-   icon: {
-  path: TEARDROP_PATH,
-  scale: 0.72,                       // smaller
-  fillColor: color,
-  fillOpacity: 0.5,                 // more transparent
-  strokeColor: '#000000',            // solid black outline
-  strokeOpacity: 1,
-  strokeWeight: 1.6,
-  anchor: new google.maps.Point(0, 0),
-  labelOrigin: new google.maps.Point(0, -16)
-},
+      icon: {
+        path: TEARDROP_PATH,
+        scale: 0.82,
+        fillColor: color,
+        fillOpacity: 0.65,
+        strokeColor: '#000000',
+        strokeOpacity: 1,
+        strokeWeight: 1.8,
+        anchor: new google.maps.Point(0, 0),
+        labelOrigin: new google.maps.Point(0, -16)
+      }
     });
 
-    routeMarkers.push(marker);
+    // hover handlers
+marker.addListener('mouseover', () => {
+  if (!window.__hbTip) return;
+  const pos    = marker.getPosition();
+  const name   = base.name || '';
+  const addr   = formatted || base.address || '';
+  const accent = base.color || '#3B82F6';
+  window.__hbTip.show(pos, name, addr, accent);
+});
+
+marker.addListener('mouseout', () => {
+  if (window.__hbTip) window.__hbTip.hide();
+});
+
+// click → paste first available input, lock it, set coords, recompute
+marker.addListener('click', () => {
+  if (window.__hbTip) window.__hbTip.hide();
+  const row = fillFirstAvailableAddress(formatted, {
+    lock: true,
+    coords: { lat, lng }
   });
-}
+  if (!row) {
+    if (window.flatMode) {
+      const r = addRowToAddrBar(true, false);
+      fillFirstAvailableAddress(formatted, { lock: true, coords: { lat, lng } });
+    } else {
+      const vis = FRAMES.find(fr => {
+        const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
+        return ((fr.shift==='day' && dayVisible) || (fr.shift==='night' && nightVisible)) &&
+               sec && !sec.classList.contains('collapsed') && sec.style.display!=='none';
+      });
+      if (vis) {
+        addRowToFrame(vis.id, true, false);
+        fillFirstAvailableAddress(formatted, { lock: true, coords: { lat, lng } });
+      }
+    }
+  }
+});
+
 function clearRouteMarkers(){
   routeMarkers.forEach(m => m.setMap(null));
   routeMarkers = [];
@@ -1683,31 +1724,39 @@ map.addListener('click', () => hbTip.hide());
     const pos = new google.maps.LatLng(lat, lng);
     fit.extend(pos);
 
-    const marker = new google.maps.Marker({
-      position: pos,
-      map,
-      zIndex: 50,
-      icon: {
-        path: TEARDROP_PATH,
-        scale: 0.75,
-        fillColor: base.color,
-        fillOpacity: 0.60,
-        strokeColor: '#000000',
-        strokeOpacity: 1,
-        strokeWeight: 1.8,
-        anchor: new google.maps.Point(0, 0),
-        labelOrigin: new google.maps.Point(0, -16)
-      },
-      title: '',
-      optimized: true
-    });
-
-// hover handlers
-marker.addListener('mouseover', (e) => {
-  const at = (e && e.latLng) ? e.latLng : marker.getPosition();
-  hbTip.show(at, base.name, formatted, base.color);
+   // Otherwise create a dedicated route marker
+const marker = new google.maps.Marker({
+  position: p,
+  map,
+  label: { text: letter, color: '#fff', fontSize: '16px', fontWeight: '700' },
+  icon: {
+    path: TEARDROP_PATH,
+    scale: 0.78,                 // a touch smaller
+    fillColor: color,
+    fillOpacity: 0.62,           // a bit more transparent
+    strokeColor: '#000000',
+    strokeOpacity: 1,
+    strokeWeight: 1.6,
+    anchor: new google.maps.Point(0, 0),
+    labelOrigin: new google.maps.Point(0, -16)
+  }
 });
-marker.addListener('mouseout', () => hbTip.hide());
+
+// Build tooltip content from this row
+const addrText = (rows[i]?.querySelector('.stop')?.value || '').trim();
+const nameText = addrText;              // no separate name; use the address
+const accent   = color;                 // match marker color
+
+// Hover → show pill; mouseout → hide
+marker.addListener('mouseover', () => {
+  if (!window.__hbTip) return;
+  window.__hbTip.show(marker.getPosition(), nameText, addrText, accent);
+});
+marker.addListener('mouseout', () => {
+  if (window.__hbTip) window.__hbTip.hide();
+});
+
+routeMarkers.push(marker);
 
 // click → paste first available input, lock it, set coords, recompute
 marker.addListener('click', () => {
