@@ -1620,7 +1620,9 @@ function firstEmptyStopInput() {
   return null;
 }
 function initHBTooltip(){
-  if (window.HBTooltip) return;
+  // do nothing until the Maps API is ready
+  if (!window.google || !google.maps) return;
+  if (window.HBTooltip) return;  // define once
 
   class HBTooltip extends google.maps.OverlayView{
     constructor(){
@@ -1662,6 +1664,7 @@ function initHBTooltip(){
 
   window.HBTooltip = HBTooltip;
 }
+
 /** add subdued pins, hover tooltip, and click-to-fill */
 function initHomeBasePins(){
   if (!window.map || !window.google) return; // run only after Maps is ready
