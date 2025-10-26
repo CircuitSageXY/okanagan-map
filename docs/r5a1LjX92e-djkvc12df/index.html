@@ -1456,7 +1456,7 @@ icon:{
 }
 function clearPreviewPins(){previewPins.forEach(m=>m.setMap(null));previewPins=[];}
 function drawRouteMarkers(points, rows){
-  // Make sure our pill exists
+  // Ensure tooltip singleton exists
   initHBTooltip();
   const hbTip = window.__hbTip || null;
 
@@ -1470,21 +1470,36 @@ function drawRouteMarkers(points, rows){
     const varName = classLetter ? `--clr${classLetter}` : '--clrDefault';
     const color = (getComputedStyle(document.documentElement).getPropertyValue(varName).trim()) || '#607d8b';
 
-    // Address for the hover pill
+    // Address text for tooltip
     const address = (rows[i]?.querySelector('.stop')?.value || '').trim();
 
-    // If a home-base pin is essentially at this spot, reuse it
+    // Reuse a nearby home-base pin if present (and just label it)
     const hb = getHomeBaseAtLatLng(new google.maps.LatLng(p.lat, p.lng), 35);
     if (hb){
       hb.setLabel({ text: letter, color: '#ffffff', fontSize: '16px', fontWeight: '700' });
-      try { hb.setZIndex(google.maps.Marker.MAX_ZINDEX + 300); } catch(_) {}
-      return;
+      try { hb.setZIndex(google.maps.Marker.MAX_ZINDEX + 400); } catch(_) {}
+      // Also attach hover handlers to the HB marker so it shows the pill too
+      if (hbTip){
+        let hideTO = null;
+        google.maps.event.clearListeners(hb, 'mouseover');
+        google.maps.event.clearListeners(hb, 'mouseout');
+        hb.addListener('mouseover', () => {
+          if (hideTO) { clearTimeout(hideTO); hideTO = null; }
+          hbTip.show(hb.getPosition(), address, address, color);
+        });
+        hb.addListener('mouseout', () => {
+          hideTO = setTimeout(() => hbTip.hide(), 120);
+        });
+      }
+      return; // no duplicate marker
     }
 
-    // Create a dedicated route marker:
+    // Create a dedicated route marker
     const marker = new google.maps.Marker({
       position: p,
       map,
+      zIndex: google.maps.Marker.MAX_ZINDEX + 500,
+      optimized: false, // ensure reliable hover events over custom SVG
       label: { text: letter, color: '#fff', fontSize: '16px', fontWeight: '700' },
       icon: {
         path: TEARDROP_PATH,
@@ -1496,36 +1511,27 @@ function drawRouteMarkers(points, rows){
         strokeWeight: 1.6,
         anchor: new google.maps.Point(0, 0),
         labelOrigin: new google.maps.Point(0, -16)
-      },
-      // Critical bits so hover always works and sits on top:
-      optimized: false,                                      // deliver DOM events reliably
-      zIndex: google.maps.Marker.MAX_ZINDEX + 500,           // above polygons/data layer
-      clickable: true,
-      cursor: 'pointer'
+      }
     });
 
-    // Nuke any native tooltips completely
+    // Make absolutely sure the native tooltip never shows
     try { marker.setTitle(''); } catch(_) {}
-    try { marker.set('title', null); } catch(_) {}
 
-    // Hover → show pill; small delay on mouseout to avoid flicker
+    // Hover → show pill; mouseout → hide (tiny delay to reduce flicker)
     if (hbTip){
       let hideTO = null;
-
       marker.addListener('mouseover', () => {
         if (hideTO) { clearTimeout(hideTO); hideTO = null; }
         hbTip.show(marker.getPosition(), address, address, color);
       });
-
       marker.addListener('mouseout', () => {
-        hideTO = setTimeout(() => hbTip.hide(), 140);
+        hideTO = setTimeout(() => hbTip.hide(), 120);
       });
     }
 
     routeMarkers.push(marker);
   });
 }
-
 function clearRouteMarkers(){
   routeMarkers.forEach(m => m.setMap(null));
   routeMarkers = [];
@@ -1644,14 +1650,14 @@ function firstEmptyStopInput() {
 }
 /* ===== Colorful hover pill (singleton InfoWindow) ===== */
 function initHBTooltip(){
-  if (window.__hbTip) return;                     // already created
-  if (!window.google || !window.map) return;      // map not ready yet
+  // Singleton guard
+  if (window.__hbTip) return;
 
-  // The pill element we control
+  if (!window.google || !window.google.maps || !window.map) return;
+
   const el = document.createElement('div');
   el.className = 'hb-iw';
 
-  // One InfoWindow reused for all markers
   const iw = new google.maps.InfoWindow({
     content: el,
     disableAutoPan: true,
@@ -1659,33 +1665,48 @@ function initHBTooltip(){
     maxWidth: 0
   });
 
-  // tiny HTML helper + sanitizer
-  const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
-  const pillHTML = (title, addr) => `
-    <div class="hb-title">${esc(title || '')}</div>
-    <div class="hb-addr">${esc(addr  || '')}</div>
-  `;
+  const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]);
 
-  // Prime the shell once so sizing is stable
+  function pillHTML(title, addr){
+    return `
+      <div class="hb-title">${esc(title||'')}</div>
+      <div class="hb-addr">${esc(addr||'')}</div>
+    `;
+  }
+
+  // Prime once so the shell measures correctly the first time we show it
   google.maps.event.addListenerOnce(window.map, 'idle', () => {
     iw.setPosition(window.map.getCenter());
     iw.setContent(el);
     el.style.width = '100%';
+    el.style.margin = '0';
     iw.open(window.map);
     setTimeout(() => iw.close(), 0);
   });
 
-  // When Google attaches the shell, ensure our pill fills it
+  let pending = null;
   iw.addListener('domready', () => {
+    // Ensure our pill fills the InfoWindow shell
     el.style.width = '100%';
     el.style.margin = '0';
+
+    if (pending){
+      el.innerHTML = pending.html;
+      el.style.setProperty('--hb-accent', pending.accent || '#3B82F6');
+      pending = null;
+    }
   });
 
-  // Public API
   window.__hbTip = {
     show(latLng, title, addr, accent){
+      // Set accent immediately to avoid flash
       el.style.setProperty('--hb-accent', accent || '#3B82F6');
-      el.innerHTML = pillHTML(title, addr);
+
+      // Populate now (in case domready hasn’t fired yet) and also queue the definitive HTML
+      const html = pillHTML(title, addr);
+      el.innerHTML = html;
+      pending = { html, accent };
+
       iw.setContent(el);
       iw.setPosition(latLng);
       iw.open(window.map);
