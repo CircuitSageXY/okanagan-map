@@ -15,29 +15,23 @@ const WORKER_BASE = 'https://okanagan-live-proxy.<your-account>.workers.dev';
   const BBOX = { w:-119.8, s:49.6, e:-119.15, n:50.2 };
 
   // Optional feeds (only used if WORKER_BASE is set)
-  const FEEDS = {
-    wildfirePerimeters: {
-      // ArcGIS FeatureServer filtered by bbox; Worker adds CORS and returns GeoJSON
-      direct: `https://services1.arcgis.com/6p2tH2h9U98dYnj4/arcgis/rest/services/Current_Wildfire_Perimeters_Public/FeatureServer/0/query` +
-        `?where=1%3D1&geometry=${BBOX.w}%2C${BBOX.s}%2C${BBOX.e}%2C${BBOX.n}` +
-        `&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects` +
-        `&outFields=*&returnGeometry=true&outSR=4326&f=geojson`,
-      kind: 'polygon',
-      style: { fillColor:'#E64A19', fillOpacity:0.26, strokeColor:'#BF360C', strokeWeight:1.2 }
-    },
-    drivebc: {
-      direct: `https://api.open511.gov.bc.ca/events?format=geojson` +
-              `&bbox=${BBOX.w},${BBOX.s},${BBOX.e},${BBOX.n}` +
-              `&event_type=INCIDENT,CONSTRUCTION`,
-      kind: 'mixed',
-      pointIcon: {
-        path:'M0,-10 L10,0 L0,10 L-10,0 Z',
-        fillColor:'#F50057', fillOpacity:1,
-        strokeColor:'#ffffff', strokeWeight:1.5, scale:1
-      },
-      lineStyle: { strokeColor:'#F50057', strokeWeight:3, strokeOpacity:0.9 }
-    }
-  };
+ const FEEDS = {
+  wildfirePerimeters: {
+    direct:
+      `https://services1.arcgis.com/6p2tH2h9U98dYnj4/arcgis/rest/services/Current_Wildfire_Perimeters_Public/FeatureServer/0/query` +
+      `?where=1%3D1&geometry=${BBOX.w}%2C${BBOX.s}%2C${BBOX.e}%2C${BBOX.n}` +
+      `&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects` +
+      `&outFields=*&returnGeometry=true&outSR=4326&f=geojson`,
+    /* … */
+  },
+  drivebc: {
+    direct:
+      `https://api.open511.gov.bc.ca/events?format=geojson` +
+      `&bbox=${BBOX.w},${BBOX.s},${BBOX.e},${BBOX.n}` +
+      `&event_type=INCIDENT,CONSTRUCTION`,
+    /* … */
+  }
+};
 
   /* ============== SAFE BOOT ============== */
   const sleep = ms => new Promise(r=>setTimeout(r,ms));
