@@ -330,9 +330,11 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   background: radial-gradient(150px 80px at 50% 62%, rgba(15,23,32,.16), transparent 65%);
 }
 
-/* Make Google’s InfoWindow shell invisible so only our pill shows */
+/* Make Google’s InfoWindow shell invisible so only our pill shows,
+   but ensure the shell actually renders (display:block) */
 .gm-style .gm-style-iw,
 .gm-style .gm-style-iw-c{
+  display:block !important;              /* <-- add this */
   background:transparent !important;
   border:none !important;
   box-shadow:none !important;
@@ -340,7 +342,11 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 }
 .gm-style .gm-style-iw-t,
 .gm-style .gm-style-iw-t::after{ display:none !important; }
-.gm-style .gm-style-iw-d{ overflow:visible !important; padding:0 !important; }
+.gm-style .gm-style-iw-d{
+  overflow:visible !important;
+  padding:0 !important;
+  pointer-events:auto !important;        /* defensive: allow hover */
+}
 .gm-style .gm-ui-hover-effect{ display:none !important; }
 
 /* ===========================================================
@@ -1450,7 +1456,7 @@ icon:{
 }
 function clearPreviewPins(){previewPins.forEach(m=>m.setMap(null));previewPins=[];}
 function drawRouteMarkers(points, rows){
-  // Ensure the pill exists
+  // Make sure our pill exists
   initHBTooltip();
   const hbTip = window.__hbTip || null;
 
@@ -1464,49 +1470,55 @@ function drawRouteMarkers(points, rows){
     const varName = classLetter ? `--clr${classLetter}` : '--clrDefault';
     const color = (getComputedStyle(document.documentElement).getPropertyValue(varName).trim()) || '#607d8b';
 
-    // Address text for the pill
+    // Address for the hover pill
     const address = (rows[i]?.querySelector('.stop')?.value || '').trim();
 
     // If a home-base pin is essentially at this spot, reuse it
     const hb = getHomeBaseAtLatLng(new google.maps.LatLng(p.lat, p.lng), 35);
     if (hb){
-      // Give it our route label letter (keeps its own hover listeners)
       hb.setLabel({ text: letter, color: '#ffffff', fontSize: '16px', fontWeight: '700' });
-      try { hb.setZIndex(200); } catch(_) {}
-      return; // do not create a duplicate marker
+      try { hb.setZIndex(google.maps.Marker.MAX_ZINDEX + 300); } catch(_) {}
+      return;
     }
 
-    // Otherwise create a dedicated route marker
+    // Create a dedicated route marker:
     const marker = new google.maps.Marker({
       position: p,
       map,
       label: { text: letter, color: '#fff', fontSize: '16px', fontWeight: '700' },
       icon: {
         path: TEARDROP_PATH,
-        scale: 0.78,                 // a touch smaller
+        scale: 0.78,
         fillColor: color,
-        fillOpacity: 0.62,           // a bit more transparent
+        fillOpacity: 0.62,
         strokeColor: '#000000',
         strokeOpacity: 1,
         strokeWeight: 1.6,
         anchor: new google.maps.Point(0, 0),
         labelOrigin: new google.maps.Point(0, -16)
       },
-      optimized: true
+      // Critical bits so hover always works and sits on top:
+      optimized: false,                                      // deliver DOM events reliably
+      zIndex: google.maps.Marker.MAX_ZINDEX + 500,           // above polygons/data layer
+      clickable: true,
+      cursor: 'pointer'
     });
 
-    // Make absolutely sure the native black tooltip never appears
+    // Nuke any native tooltips completely
     try { marker.setTitle(''); } catch(_) {}
+    try { marker.set('title', null); } catch(_) {}
 
-    // Hover → show our colorful pill; mouseout → hide (tiny delay reduces flicker)
+    // Hover → show pill; small delay on mouseout to avoid flicker
     if (hbTip){
       let hideTO = null;
+
       marker.addListener('mouseover', () => {
         if (hideTO) { clearTimeout(hideTO); hideTO = null; }
         hbTip.show(marker.getPosition(), address, address, color);
       });
+
       marker.addListener('mouseout', () => {
-        hideTO = setTimeout(() => hbTip.hide(), 120);
+        hideTO = setTimeout(() => hbTip.hide(), 140);
       });
     }
 
