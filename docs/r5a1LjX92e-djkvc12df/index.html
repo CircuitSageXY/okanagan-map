@@ -1573,7 +1573,6 @@ const HOME_BASES = [
   {
     name: 'Lake Country Community Health Centre',
     address: '10080 Main St, Lake Country, BC V4V 1T8',
-    // fallback coords (approx)
     lat: 50.03263, lng: -119.41377,
     color: '#2A9D8F'
   },
@@ -1602,10 +1601,7 @@ let HOME_BASE_MARKERS = [];
 /* === Home-base helpers (match + reset) === */
 function getHomeBaseAtLatLng(latlng, tolMeters = 30){
   if (!Array.isArray(HOME_BASE_MARKERS) || !HOME_BASE_MARKERS.length) return null;
-
-  // Haversine distance in meters
-  const toRad = x => x * Math.PI / 180;
-  const R = 6371000;
+  const toRad = x => x * Math.PI / 180, R = 6371000;
   function dist(a, b){
     const dLat = toRad(b.lat() - a.lat());
     const dLng = toRad(b.lng() - a.lng());
@@ -1614,33 +1610,60 @@ function getHomeBaseAtLatLng(latlng, tolMeters = 30){
                Math.sin(dLng/2)**2;
     return 2 * R * Math.asin(Math.sqrt(sa));
   }
-
   const target = new google.maps.LatLng(latlng.lat, latlng.lng);
   for (const m of HOME_BASE_MARKERS){
-    try{
-      const d = dist(m.getPosition(), target);
-      if (d <= tolMeters) return m;
-    }catch(_){}
+    try{ if (dist(m.getPosition(), target) <= tolMeters) return m; }catch(_){}
   }
   return null;
 }
+function resetHomeBaseLabels(){ HOME_BASE_MARKERS.forEach(m => m.setLabel(null)); }
 
-function resetHomeBaseLabels(){
-  HOME_BASE_MARKERS.forEach(m => m.setLabel(null));
-}
-
-/* -------- helper: safe HTML + pill content (matches your CSS) -------- */
+/* -------- small helpers for the colorful pill -------- */
 function __hbEsc(s){ return String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m])); }
-function __hbPillHTML(title, addr){
+function __hbPillHTML(title, addr, accent){
   return `
-    <div class="hb-iw" style="--hb-accent:var(--hb-accent, #3B82F6)">
-      <div class="hb-title">${__hbEsc(title||'')}</div>
+    <div class="hb-iw" style="--hb-accent:${accent || '#3B82F6'}">
+      <div class="hb-title"><span class="hb-pin">📍</span>${__hbEsc(title||'')}</div>
       <div class="hb-addr">${__hbEsc(addr||'')}</div>
     </div>
   `;
 }
 
-/** add subdued pins and per-marker hover tooltip (no singleton dependency) */
+/** Create a per-marker hover InfoWindow that stays open while you hover it */
+function attachHoverPill(map, marker, title, addr, accent){
+  const shell = document.createElement('div');
+  shell.innerHTML = __hbPillHTML(title, addr, accent);
+  const pill = shell.firstElementChild;
+
+  const iw = new google.maps.InfoWindow({
+    content: pill,
+    disableAutoPan: true,
+    pixelOffset: new google.maps.Size(0, -18),
+    maxWidth: 0
+  });
+
+  let hideTO = null;
+  function cancelHide(){ if(hideTO){ clearTimeout(hideTO); hideTO = null; } }
+  function scheduleHide(){ hideTO = setTimeout(()=> iw.close(), 160); }
+
+  // Open on marker hover
+  marker.addListener('mouseover', () => { cancelHide(); iw.open(map, marker); });
+  // If we leave the marker, close soon — unless we move into the pill
+  marker.addListener('mouseout',  () => scheduleHide());
+
+  // Keep open while hovering the pill; close after leaving it
+  iw.addListener('domready', () => {
+    // ensure width/stretch each time it renders
+    pill.style.width = '100%';
+    pill.style.margin = '0';
+    pill.addEventListener('mouseenter', cancelHide);
+    pill.addEventListener('mouseleave', scheduleHide);
+  });
+
+  return iw;
+}
+
+/** Add the four colored home-base pins with reliable hover popups */
 async function initHomeBasePins(){
   if (!window.map || !window.google) return;
 
@@ -1649,10 +1672,9 @@ async function initHomeBasePins(){
   HOME_BASE_MARKERS = [];
 
   const fit = new google.maps.LatLngBounds();
-  map.addListener('click', () => {/* no-op, keep parity with old code */});
 
   for (const base of HOME_BASES){
-    // resolve address (fallback to provided lat/lng)
+    // Resolve to precise coords (fallback to provided)
     let resolved = null;
     try { resolved = await resolveAddress(base.address); } catch {}
     const lat = resolved?.lat ?? base.lat;
@@ -1669,50 +1691,24 @@ async function initHomeBasePins(){
       zIndex: 50,
       icon: {
         path: TEARDROP_PATH,
-        scale: 0.70,
+        scale: 0.78,
         fillColor: base.color,
-        fillOpacity: 0.70,
+        fillOpacity: 0.72,
         strokeColor: '#000000',
-        strokeOpacity: 0.9,
+        strokeOpacity: 1,
         strokeWeight: 1.6,
         labelOrigin: new google.maps.Point(0, -16),
         anchor: new google.maps.Point(0, 0)
       },
       optimized: true
     });
-
-    // ensure no native browser tooltip
     try { marker.setTitle(''); } catch(_) {}
 
-    // Create a dedicated InfoWindow for this marker (your pill styling)
-    const iw = new google.maps.InfoWindow({
-      content: __hbPillHTML(base.name, formatted),
-      disableAutoPan: true,
-      pixelOffset: new google.maps.Size(0, -16),
-      maxWidth: 0
-    });
+    // Attach the reliable hover pill
+    attachHoverPill(map, marker, base.name, formatted, base.color);
 
-    // Hover behavior: open/close the pill (tiny delay to debounce flicker)
-    let hideTO = null;
-    marker.addListener('mouseover', () => {
-      if (hideTO){ clearTimeout(hideTO); hideTO = null; }
-      // refresh content in case of theme accent change
-      const div = document.createElement('div');
-      div.innerHTML = __hbPillHTML(base.name, formatted);
-      // set accent color on root node
-      if (div.firstElementChild){
-        div.firstElementChild.style.setProperty('--hb-accent', base.color || '#3B82F6');
-      }
-      iw.setContent(div);
-      iw.open(map, marker);
-    });
-    marker.addListener('mouseout', () => {
-      hideTO = setTimeout(() => iw.close(), 120);
-    });
-
-    // Click pastes into first available input and locks it
+    // Click pastes into first available input and locks it (unchanged behavior)
     marker.addListener('click', () => {
-      iw.close();
       const row = fillFirstAvailableAddress(formatted, { lock:true, coords:{lat,lng} });
       if (!row) {
         if (window.flatMode) {
@@ -1735,7 +1731,7 @@ async function initHomeBasePins(){
     HOME_BASE_MARKERS.push(marker);
   }
 
-  // keep markers in view (leave space for left panel)
+  // Keep all four in view with room for the left panel
   setTimeout(() => {
     if (HOME_BASE_MARKERS.length) {
       try { map.fitBounds(fit, { top:60, right:40, bottom:80, left:380 }); } catch {}
