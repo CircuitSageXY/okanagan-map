@@ -1617,75 +1617,39 @@ function firstEmptyStopInput() {
   return null;
 }
 function initHBTooltip(){
-  // Only define once and only after Maps is ready
-  if (!window.google || !google.maps) return;
-  if (window.HBTooltip) return;
+  // Define once
+  if (window.__hbTip) return;
 
-  class HBTooltip extends google.maps.OverlayView{
-    constructor(){
-      super();
-      this.div = null;
-      this.position = null;
-      this.accent = '#3B82F6';
-      this.name = '';
-      this.addr = '';
-    }
+  // One InfoWindow reused for all pins
+  const el = document.createElement('div');
+  el.className = 'hb-iw';
+  const iw = new google.maps.InfoWindow({
+    content: el,
+    disableAutoPan: true,
+    pixelOffset: new google.maps.Size(0, -16) // nudge above the pin
+  });
 
-    set(position, name, addr, accent){
-      // accept google.maps.LatLng or plain {lat,lng}
-      this.position = (position && typeof position.lat === 'function')
-        ? position
-        : new google.maps.LatLng(position.lat, position.lng);
+  const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
 
-      this.name = name || '';
-      this.addr = addr || '';
-      this.accent = accent || '#3B82F6';
-
-      if (!this.getMap()) {
-        this.setMap(window.map);   // triggers onAdd → draw()
-      } else {
-        this.draw();
-      }
-    }
-
-    hide(){
-      if (this.getMap()) this.setMap(null);
-    }
-
-    onAdd(){
-      const d = document.createElement('div');
-      d.className = 'hb-card';
-      d.style.zIndex = '1000';           // ensure above markers
-      d.style.display = 'block';
-      this.div = d;
-      // << key change: attach to floatPane so it renders above markers/labels
-      this.getPanes().floatPane.appendChild(d);
-    }
-
-    draw(){
-      if (!this.div || !this.position) return;
-
-      this.div.style.setProperty('--hb-accent', this.accent);
-
-      const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
-      this.div.innerHTML =
-        `<div class="t">${esc(this.name)}</div><div class="a">${esc(this.addr)}</div>`;
-
-      const px = this.getProjection().fromLatLngToDivPixel(this.position);
-      if (!px) return;
-      this.div.style.left = px.x + 'px';
-      this.div.style.top  = (px.y - 12) + 'px';
-      this.div.style.transform = 'translate(-50%,-100%)';
-      this.div.style.display = 'block';
-    }
-
-    onRemove(){
-      this.div?.remove();
-      this.div = null;
-    }
+  function setHtml(name, addr, accent){
+    el.style.setProperty('--hb-accent', accent || '#3B82F6');
+    el.innerHTML = `
+      <div class="hb-title">${esc(name||'')}</div>
+      <div class="hb-addr">${esc(addr||'')}</div>
+    `;
   }
 
-  window.HBTooltip = HBTooltip;
+  window.__hbTip = {
+    show(latLng, name, addr, accent){
+      setHtml(name, addr, accent);
+      iw.setContent(el);
+      iw.setPosition(latLng);
+      iw.open(window.map);
+    },
+    hide(){
+      iw.close();
+    }
+  };
 }
 
 /** add subdued pins, hover tooltip, and click-to-fill */
@@ -1701,8 +1665,8 @@ function initHomeBasePins(){
 
   // define the tooltip class (if not already) and reuse a single instance
   initHBTooltip();
-  const hbTip = (window.__hbTip ||= new HBTooltip());
-
+  const hbTip = window.__hbTip;  // the singleton from initHBTooltip()
+  
   // Hide hover card if user clicks elsewhere on the map
 map.addListener('click', () => hbTip.hide());
 
