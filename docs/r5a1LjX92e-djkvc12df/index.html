@@ -32,15 +32,12 @@
 
   --pxPerMin:2;
 
-  /* -------- Label palette (map-tuned) -------- */
+  /* Label palette (map-tuned) */
   --accent-teal:#2A9D8F;
   --accent-blue:#3B82F6;
-<html>
---accent-slate:#475569;l      *Please pick up service plan for   
-  
-  
-  . Thank you - spia10--accent-olive:#6B8E23;
-  
+  --accent-slate:#475569;
+  --accent-olive:#6B8E23;
+
   --label-paper:#ffffff;
   --label-ink:#0f1720;
   --label-border:rgba(15,23,32,.14);
@@ -1452,7 +1449,7 @@ function addPreviewPin(latlng,label){
 icon:{
   path: TEARDROP_PATH,
   scale: 0.92,
-  fillColor: color || '#607d8b',
+  fillColor: '#607d8b',
   fillOpacity: 0.9,
   strokeColor: '#000000',
   strokeWeight: 2.0,
@@ -1490,7 +1487,7 @@ function drawRouteMarkers(points, rows){
    icon: {
   path: TEARDROP_PATH,
   scale: 0.82,                       // smaller
-  fillColor: base.color,
+  fillColor: color,
   fillOpacity: 0.65,                 // more transparent
   strokeColor: '#000000',            // solid black outline
   strokeOpacity: 1,
@@ -1674,15 +1671,16 @@ function initHomeBasePins(){
   HOME_BASE_MARKERS.forEach(m => m.setMap(null));
   HOME_BASE_MARKERS = [];
 
-  const info = new google.maps.InfoWindow();
   const fit = new google.maps.LatLngBounds();
+
+  // define the tooltip class (if not already) and reuse a single instance
+  initHBTooltip();
+  const hbTip = (window.__hbTip ||= new HBTooltip());
 
   HOME_BASES.forEach(async (base) => {
     // try resolve; if it fails use fallback lat/lng
     let resolved = null;
-    try {
-      resolved = await resolveAddress(base.address);
-    } catch (_) {}
+    try { resolved = await resolveAddress(base.address); } catch {}
 
     const lat = resolved?.lat ?? base.lat;
     const lng = resolved?.lng ?? base.lng;
@@ -1696,47 +1694,45 @@ function initHomeBasePins(){
     const pos = new google.maps.LatLng(lat, lng);
     fit.extend(pos);
 
-      const marker = new google.maps.Marker({
-        position: pos,
-        map,
-        zIndex: 50,
-icon: {
-  path: TEARDROP_PATH,
-  scale: 1.0,
-  fillColor: base.color,
-  fillOpacity: 0.75,
-  strokeColor: '#000000',
-  strokeOpacity: 1,
-  strokeWeight: 2.2,
-  anchor: new google.maps.Point(0, 0),
-  labelOrigin: new google.maps.Point(0, -16)
-},
-        title: '',
-        optimized: true
-      });
+    const marker = new google.maps.Marker({
+      position: pos,
+      map,
+      zIndex: 50,
+      icon: {
+        path: TEARDROP_PATH,
+        scale: 1.0,
+        fillColor: base.color,
+        fillOpacity: 0.75,
+        strokeColor: '#000000',
+        strokeOpacity: 1,
+        strokeWeight: 2.2,
+        anchor: new google.maps.Point(0, 0),
+        labelOrigin: new google.maps.Point(0, -16)
+      },
+      title: '',
+      optimized: true
+    });
 
-    // hover tooltip
+    // hover tooltip handlers
+    marker.addListener('mouseover', () => {
+      hbTip.set(pos, base.name, formatted, base.color);
+    });
+    marker.addListener('mouseout', () => hbTip.hide());
 
     HOME_BASE_MARKERS.push(marker);
   });
 
-  // if we actually added markers, keep them in view (without fighting your UI)
+  // keep markers in view (leaving space for the left panel)
   setTimeout(() => {
     if (HOME_BASE_MARKERS.length) {
       try {
-        map.fitBounds(fit, { top: 60, right: 40, bottom: 80, left: 380 }); // leave space for panel
-      } catch(_) {}
+        map.fitBounds(fit, { top: 60, right: 40, bottom: 80, left: 380 });
+      } catch {}
     }
   }, 0);
 }
-// ===== hover: show our custom colored card (no white bubble) =====
-initHBTooltip();
-const hbTip = window.__hbTip || (window.__hbTip = new HBTooltip());
 
-marker.addListener('mouseover', () => {
-  hbTip.set(pos, base.name, formatted, base.color);
-});
-marker.addListener('mouseout', () => hbTip.hide());
+// ===== hover: show our custom colored card (no white bubble) =====
   
 /* Find/create first available input, fill it, optionally lock and set coords. */
 function fillFirstAvailableAddress(addr, { lock=false, coords=null } = {}){
