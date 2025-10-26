@@ -267,9 +267,11 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
 .gm-style .scene-viewcard-button,
 .gm-style .app-viewcard-strip{ display:none !important; }
 
-/* ===== Home-base info bubble (light tinted pill) ===== */
+/* ===== Home-base info bubble (pill) ===== */
 .hb-iw{
-  --hb-accent:#3B82F6;                  /* JS sets per pin */
+  /* JS sets this per pin (e.g., #2A9D8F, #F59E0B, #3B82F6, #8B5CF6) */
+  --hb-accent:#3B82F6;
+
   display:block;
   box-sizing:border-box;
   min-width:300px;
@@ -277,14 +279,21 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   padding:10px 14px;
   border-radius:14px;
 
-  /* light, readable background + subtle border */
-  background: color-mix(in srgb, var(--hb-accent) 16%, #ffffff);
-  border: 1px solid color-mix(in srgb, var(--hb-accent) 45%, transparent);
-
-  /* soft shadow like your example */
+  /* Fallback first (for browsers without color-mix): light white card */
+  background:#ffffff;
+  border:1px solid rgba(0,0,0,.18);
   box-shadow:0 10px 28px rgba(0,0,0,.22);
   color:#0b1320;
 }
+
+/* If color-mix is supported, upgrade to a tinted background & accent border */
+@supports (background: color-mix(in srgb, white, black)){
+  .hb-iw{
+    background: color-mix(in srgb, var(--hb-accent) 16%, #ffffff);
+    border: 1px solid color-mix(in srgb, var(--hb-accent) 45%, transparent);
+  }
+}
+
 .hb-iw .hb-title{
   font-weight:900;
   font-size:17px;
@@ -299,13 +308,13 @@ input.stop:focus{outline:none;border-color:var(--clrPanelStripe);box-shadow:0 0 
   opacity:.92;
 }
 
-/* ===== Kill Google’s InfoWindow chrome so only our pill shows ===== */
+/* ===== Make Google’s InfoWindow chrome invisible (no black border) ===== */
 .gm-style .gm-style-iw,
 .gm-style .gm-style-iw-c{
   background:transparent !important;
   border:none !important;
   box-shadow:none !important;
-  padding:0 !important;
+  padding:0 !important;      /* let .hb-iw control padding/size */
 }
 .gm-style .gm-style-iw-t,
 .gm-style .gm-style-iw-t::after{ display:none !important; }
