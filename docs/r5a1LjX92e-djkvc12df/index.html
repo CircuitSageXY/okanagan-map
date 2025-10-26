@@ -1722,16 +1722,13 @@ marker.addListener('mouseover', () => {
 });
 marker.addListener('mouseout', () => hbTip.hide());
 
-// NEW: click → paste into first available bar, lock it, set coords, recompute
+// click → paste first available input, lock it, set coords, recompute
 marker.addListener('click', () => {
   hbTip.hide();
-
   const row = fillFirstAvailableAddress(formatted, {
     lock: true,
     coords: { lat, lng }
   });
-
-  // Defensive: if no row existed, create one then fill again
   if (!row) {
     if (window.flatMode) {
       const r = addRowToAddrBar(true, false);
@@ -2438,18 +2435,41 @@ function areaCodeFromFeature(feat){
 }
 
 function styleFeature(feature){
-  if(feature.getProperty('__visible') === false) return {visible:false};
-  const color = feature.getProperty('__color') || '#607d8b';
+  // --- LIVE FEATURES (from events.js) ---
+  if (feature.getProperty('__live')) {
+    let t = '';
+    try { t = feature.getGeometry()?.getType?.() || ''; } catch(_){}
+    if (t.includes('Polygon')) {
+      return feature.getProperty('__polyStyle') || { fillColor:'#E64A19', fillOpacity:.26, strokeColor:'#BF360C', strokeWeight:1.2 };
+    }
+    if (t.includes('LineString')) {
+      return feature.getProperty('__lineStyle') || { strokeColor:'#F50057', strokeWeight:3, strokeOpacity:.9 };
+    }
+    if (t === 'Point') {
+      return { icon: feature.getProperty('__pointIcon') || {
+        path:'M0,-10 L10,0 L0,10 L-10,0 Z',
+        fillColor:'#F50057', fillOpacity:1, strokeColor:'#fff', strokeWeight:1.5, scale:1
+      }};
+    }
+    // default visible if live but no known geometry
+    return { visible:true };
+  }
+
+  // --- NORMAL POLYGONS (your geo areas) ---
+  if (feature.getProperty('__visible') === false) return {visible:false};
+  const color  = feature.getProperty('__color') || '#607d8b';
   const stroke = feature.getProperty('__stroke') ?? AREA_STROKE_WEIGHT;
-  const fillOp = feature.getProperty('__fillOpacity') ?? (feature.getProperty('__code')==='MISS2' ? Math.min(AREA_FILL_OPACITY, 0.12) : AREA_FILL_OPACITY);
+  const fillOp = feature.getProperty('__fillOpacity') ??
+                 (feature.getProperty('__code')==='MISS2' ? Math.min(AREA_FILL_OPACITY, 0.12) : AREA_FILL_OPACITY);
+
   return {
     fillColor: color, fillOpacity: fillOp,
     strokeColor: color, strokeOpacity: 0.85,
     strokeWeight: stroke, visible:true
   };
 }
-window.styleFeature = styleFeature;
-styleFeature.__isBaseStyle = true;
+window.styleFeature = styleFeature;     // keep this
+styleFeature.__isBaseStyle = true;      // harmless tag; safe to keep
   
 /* --- persistence --- */
 function loadSaved(key, fallback){ try{ const v = JSON.parse(localStorage.getItem(key)||'null'); return v && typeof v==='object' ? v : fallback; }catch(_){ return fallback; } }
