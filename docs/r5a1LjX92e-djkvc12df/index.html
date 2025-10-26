@@ -1632,13 +1632,25 @@ function initHBTooltip(){
         this.accent = '#3B82F6';
       }
 
+      // ----- new: single render helper, safe to call anytime -----
+      paint(){
+        if (!this.div) return;
+        const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
+        this.div.style.setProperty('--hb-accent', this.accent);
+        this.div.innerHTML = `<div class="t">${esc(this.name)}</div><div class="a">${esc(this.addr)}</div>`;
+      }
+
       onAdd(){
         const d = document.createElement('div');
         d.className = 'hb-card';
-        d.style.pointerEvents = 'none';             // IMPORTANT: no mouse capture
+        d.style.pointerEvents = 'none';   // IMPORTANT: no mouse capture
+        d.style.display = 'none';         // hidden until show()
         this.div = d;
         // floatPane so it never becomes a mouse target
         this.getPanes().floatPane.appendChild(d);
+
+        // ensure initial content is painted as soon as the element exists
+        this.paint();
       }
 
       draw(){
@@ -1662,16 +1674,25 @@ function initHBTooltip(){
         this.addr   = addr || '';
         this.accent = accent || '#3B82F6';
 
-        // paint content
+        // If already added, paint + show immediately
         if (this.div){
-          const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
-          this.div.style.setProperty('--hb-accent', this.accent);
-          this.div.innerHTML = `<div class="t">${esc(this.name)}</div><div class="a">${esc(this.addr)}</div>`;
+          this.paint();
           this.div.style.display = 'block';
+          this.draw();
+          return;
         }
 
+        // Not added yet: attach to map; onAdd/draw will paint on first cycle
         if (!this.getMap()) this.setMap(window.map);
-        this.draw();
+
+        // A very small defer in case draw doesn't run until next frame
+        requestAnimationFrame(() => {
+          if (this.div){
+            this.paint();
+            this.div.style.display = 'block';
+            this.draw();
+          }
+        });
       }
 
       hide(){
