@@ -166,15 +166,6 @@ const WORKER_BASE = 'https://okanagan-live-proxy.<your-account>.workers.dev';
     liveFeatures.forEach(f => m.data.remove(f));
     liveFeatures.length = 0;
   }
-function ensureLiveStyleWrapper(m){
-  // Discover the true base style once and memoize it on the map instance
-  if (!m.__liveBaseStyle) {
-    let base = window.styleFeature;
-    // If someone ever handed us a wrapper, peel it until we get the true base
-    while (base && base.__isLiveWrapper && base.__base) base = base.__base;
-    if (!base || !base.__isBaseStyle) base = window.styleFeature;  // final fallback
-    m.__liveBaseStyle = base;
-  }
 
   // Create the wrapper exactly once per map instance
   if (!m.__liveStyleWrapper) {
@@ -205,10 +196,6 @@ function ensureLiveStyleWrapper(m){
 
     m.__liveStyleWrapper = wrapper;
   }
-
-  // Always reapply the same wrapper (never re-wrap)
-  m.data.setStyle(m.__liveStyleWrapper);
-}
 
   async function fetchViaWorker(url){
     if(!WORKER_BASE) throw new Error('proxy not configured');
