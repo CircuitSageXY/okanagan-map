@@ -1617,9 +1617,9 @@ function firstEmptyStopInput() {
   return null;
 }
 function initHBTooltip(){
-  // do nothing until the Maps API is ready
+  // define once, after Maps API is ready
   if (!window.google || !google.maps) return;
-  if (window.HBTooltip) return;  // define once
+  if (window.HBTooltip) return;
 
   class HBTooltip extends google.maps.OverlayView{
     constructor(){
@@ -1629,34 +1629,66 @@ function initHBTooltip(){
       this.accent = '#3B82F6';
       this.name = '';
       this.addr = '';
+      this._setting = false;   // re-entrancy guard
+      this._lastKey = '';
     }
+
     set(position, name, addr, accent){
-      this.position = position;
-      this.name = name || '';
-      this.addr = addr || '';
-      this.accent = accent || '#3B82F6';
-      if (!this.getMap()) this.setMap(window.map);
-      else this.draw();
+      // prevent recursive updates on identical payloads
+      const lat = typeof position?.lat === 'function' ? position.lat() : position?.lat;
+      const lng = typeof position?.lng === 'function' ? position.lng() : position?.lng;
+      const key = `${lat},${lng}|${name}|${addr}|${accent}`;
+      if (this._setting || key === this._lastKey) return;
+
+      this._setting = true;
+      try{
+        this.position = position;
+        this.name = name || '';
+        this.addr = addr || '';
+        this.accent = accent || '#3B82F6';
+        if (!this.getMap()) this.setMap(window.map);
+        this.draw();
+        if (this.div) this.div.style.display = 'block';
+        this._lastKey = key;
+      } finally {
+        this._setting = false;
+      }
     }
-    hide(){ this.setMap(null); }
+
+    hide(){
+      this._lastKey = '';
+      if (this.div) this.div.style.display = 'none';
+    }
 
     onAdd(){
       const d = document.createElement('div');
       d.className = 'hb-card';
+      // absolutely critical: do NOT capture mouse events
+      d.style.pointerEvents = 'none';
       this.div = d;
-      this.getPanes().overlayMouseTarget.appendChild(d);
+      // put in FLOAT PANE so it never becomes a mouse target
+      this.getPanes().floatPane.appendChild(d);
     }
+
     draw(){
-      if (!this.div) return;
+      if (!this.div || !this.position) return;
       this.div.style.setProperty('--hb-accent', this.accent);
+
       const esc = s => String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
-      this.div.innerHTML = `<div class="t">${esc(this.name)}</div><div class="a">${esc(this.addr)}</div>`;
-      const px = this.getProjection().fromLatLngToDivPixel(this.position);
+      this.div.innerHTML =
+        `<div class="t">${esc(this.name)}</div><div class="a">${esc(this.addr)}</div>`;
+
+      const px = this.getProjection()?.fromLatLngToDivPixel(this.position);
+      if (!px) return;
       this.div.style.left = px.x + 'px';
       this.div.style.top  = (px.y - 12) + 'px';
       this.div.style.transform = 'translate(-50%,-100%)';
     }
-    onRemove(){ this.div?.remove(); this.div=null; }
+
+    onRemove(){
+      this.div?.remove();
+      this.div = null;
+    }
   }
 
   window.HBTooltip = HBTooltip;
@@ -1716,9 +1748,10 @@ map.addListener('click', () => hbTip.hide());
       optimized: true
     });
 
-// hover tooltip handlers
-marker.addListener('mouseover', () => {
-  hbTip.set(pos, base.name, formatted, base.color);
+// HOVER → show tooltip at the event latLng (fallback to marker pos)
+marker.addListener('mouseover', (e) => {
+  const at = e?.latLng || marker.getPosition();
+  hbTip.set(at, base.name, formatted, base.color);
 });
 marker.addListener('mouseout', () => hbTip.hide());
 
@@ -1814,39 +1847,6 @@ function fillFirstAvailableAddress(addr, { lock=false, coords=null } = {}){
   return row;
 }
 
-/* Create subtle teardrop markers for each home base */
-async function addHomeBasePins(){
-  // clear old
-  HOME_BASE_MARKERS.forEach(m=>m.setMap(null));
-  HOME_BASE_MARKERS = [];
-
-  for (const hb of HOME_BASES){
-    const loc = await resolveAddress(hb.address); // your existing resolver
-    if (!loc) continue;
-
-    const marker = new google.maps.Marker({
-      position: {lat: loc.lat, lng: loc.lng},
-      map,
-      // small, discreet pin that still reads well
-      icon: {
-        path: TEARDROP_PATH,
-        scale: 0.70,
-        fillColor: hb.color,
-        fillOpacity: 0.95,
-        strokeColor: '#263238',
-        strokeOpacity: 0.6,
-        strokeWeight: 1.2,
-        labelOrigin: new google.maps.Point(0,-16),
-        anchor: new google.maps.Point(0,0)
-      },
-      // faint label letter (optional: comment out next line to remove)
-      label: { text: '•', fontSize: '10px', fontWeight: '700', color: '#ffffff' },
-      title: hb.name
-    });
-
-    HOME_BASE_MARKERS.push(marker);
-  }
-}
 async function ensureCoords(rows,{parallel=false}={}){
   const tasks = rows.map(row=>async ()=>{
     const inp=row.querySelector('.stop');
