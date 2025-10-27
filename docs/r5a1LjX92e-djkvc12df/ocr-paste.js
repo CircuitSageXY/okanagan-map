@@ -87,7 +87,9 @@ const ADDRESS_GLOB_RX = new RegExp(
 
 function extractAddresses(text){
   if (!text) return [];
-  ADDRESS_GLOB_RX.lastIndex = 0;   // <-- IMPORTANT: reset global regex state
+  // Reset global regex state before each sweep
+  ADDRESS_GLOB_RX.lastIndex = 0;
+
   const found = [];
   let m;
   while ((m = ADDRESS_GLOB_RX.exec(text)) !== null){
@@ -95,18 +97,10 @@ function extractAddresses(text){
     const name   = m[2].replace(/\s+/g,' ').trim();
     const type   = m[3];
     const addr   = `${number} ${name} ${type}`.replace(/\s+/g,' ').trim();
-    found.push(addr);
+    found.push(addr); // keep every match, including duplicates
   }
-  // Dedup while preserving order
-  const seen = new Set();
-  const out = [];
-  for (const a of found){
-    const k = a.toLowerCase();
-    if (!seen.has(k)){ seen.add(k); out.push(a); }
-  }
-  return out;
+  return found;
 }
-
 /* ---------- Fill helper: put each address into its own stop ---------- */
 async function fillSequentialFrom(input, addresses){
   if (!addresses.length) return;
