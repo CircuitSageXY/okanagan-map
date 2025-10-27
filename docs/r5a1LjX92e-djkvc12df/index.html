@@ -2356,31 +2356,43 @@ function pruneEmptyRowsAndFrames(){
 
 /* =================== OPTIMIZE BY FRAMES (exact with DP across frames) =================== */
 async function optimizeByFrames(){
-  if (flatMode){ return; }
+  if (flatMode) { return; }
 
+  // Drop only truly-consecutive duplicates prior to optimizing
   preCompressConsecutiveDuplicates();
 
-  // collect visible (and not collapsed) frames in order
-  const activeFrames = FRAMES.filter(fr=>{
-
-  // collect visible (and not collapsed) frames in order
-  const activeFrames = FRAMES.filter(fr=>{
-    const visible=(fr.shift==='day'&&dayVisible)||(fr.shift==='night'&&nightVisible);
-    const sec=document.querySelector(`.frame[data-frame="${fr.id}"]`);
-    return visible && sec && !sec.classList.contains('collapsed') && sec.style.display!=='none';
+  // Collect visible (and not-collapsed) frames in order
+  const activeFrames = FRAMES.filter(fr => {
+    const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
+    const visible =
+      (fr.shift === 'day'   && dayVisible) ||
+      (fr.shift === 'night' && nightVisible);
+    return visible && sec && !sec.classList.contains('collapsed') && sec.style.display !== 'none';
   });
 
-  // rows per frame + ensure coords
-  const perFrame = activeFrames.map(fr=>{
-    const list = document.getElementById('frame-'+fr.id);
-    const rows = [...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
-    return {fr, rows};
+  // rows per frame + ensure the row has a non-empty stop
+  const perFrame = activeFrames.map(fr => {
+    const list = document.getElementById('frame-' + fr.id);
+    const rows = [...list.querySelectorAll('.row')]
+      .filter(r => r.querySelector('.stop').value.trim());
+    return { fr, rows };
   });
-  const allRows = perFrame.flatMap(x=>x.rows);
-  if(allRows.length<=1){ pruneEmptyRowsAndFrames(); renumber(); scheduleAutoCompute(0,true); return; }
 
-  const ok = await ensureCoords(allRows,{parallel:true});
-  if(!ok){ document.getElementById('msg').textContent='One or more stops can’t be located – please edit.'; return; }
+  const allRows = perFrame.flatMap(x => x.rows);
+  if (allRows.length < 1) {
+    pruneEmptyRowsAndFrames();
+    renumber();
+    scheduleAutoCompute(0, true);
+    return;
+  }
+
+  // Ensure coordinates for everything we’re going to optimize
+  const ok = await ensureCoords(allRows, { parallel: true });
+  if (!ok) {
+    const m = document.getElementById('msg');
+    if (m) m.textContent = 'One or more stops can’t be located – please edit.';
+    return;
+  }
 
   // Gather all points and map to global indices
   const allPoints = [];
