@@ -1508,23 +1508,31 @@ function drawRouteMarkers(points, rows){
       return; // don't create a second marker
     }
 
-    // --- Otherwise, create a dedicated route marker with strong black outline ---
-    const marker = new google.maps.Marker({
-      position: p,
-      map,
-      label: { text: letter, color: '#fff', fontSize: '16px', fontWeight: '700' },
-   icon: {
-  path: TEARDROP_PATH,
-  scale: 0.86,                       // smaller
-  fillColor: color,
-  fillOpacity: 0.5,                 // more transparent
-  strokeColor: '#000000',            // solid black outline
-  strokeOpacity: 1,
-  strokeWeight: 1.6,
-  anchor: new google.maps.Point(0, 0),
-  labelOrigin: new google.maps.Point(0, -18)
-},
-    });
+// --- Otherwise, create a dedicated route marker with strong black outline ---
+const SCALE_ROUTE = 0.80;                            // a touch larger than before
+const LABEL_Y = -16 * (SCALE_ROUTE / 0.72);          // keep label centered as scale changes
+
+const marker = new google.maps.Marker({
+  position: p,
+  map,
+  label: {
+    text: letter,
+    color: '#fff',
+    fontSize: '16px',
+    fontWeight: '700'
+  },
+  icon: {
+    path: TEARDROP_PATH,
+    scale: SCALE_ROUTE,
+    fillColor: color,
+    fillOpacity: 0.50,
+    strokeColor: '#000000',
+    strokeOpacity: 1,
+    strokeWeight: 1.6,
+    anchor: new google.maps.Point(0, 0),             // tip of the teardrop
+    labelOrigin: new google.maps.Point(0, LABEL_Y)   // <-- centered for any scale
+  }
+});
 
     routeMarkers.push(marker);
   });
