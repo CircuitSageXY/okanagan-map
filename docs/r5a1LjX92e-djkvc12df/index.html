@@ -733,6 +733,35 @@ const fetchPredictions = debounce((text, cb)=>{
   );
 }, 120);
 
+  /* If only one prediction remains, auto-complete + compute; otherwise show our dropdown */
+function autofillSinglePrediction(input, predictions){
+  const preds = Array.isArray(predictions) ? predictions.slice(0,5) : [];
+
+  if (preds.length !== 1) {
+    SG.openFor(input, preds);
+    return;
+  }
+
+  const p = preds[0];
+  placeSvc.getDetails(
+    { placeId: p.place_id, fields: ['formatted_address', 'geometry'] },
+    (place, st) => {
+      if (st === google.maps.places.PlacesServiceStatus.OK && place?.geometry) {
+        input.value       = place.formatted_address || input.value;
+        input.dataset.lat = place.geometry.location.lat();
+        input.dataset.lng = place.geometry.location.lng();
+        delete input.dataset.dirty;
+
+        SG.hide();
+        clearTimeout(autoTimer);             // cancel the “while typing” compute
+        scheduleAutoCompute(0, true);        // this triggers pin/route in any view
+      } else {
+        SG.openFor(input, preds);
+      }
+    }
+  );
+}
+
 /* Focus helper */
 function safeFocus(el){ if(!el) return; try{ el.focus({preventScroll:true}); }catch{} setTimeout(()=>{ try{ el.focus({preventScroll:true}); }catch{} },0); }
 
@@ -1095,9 +1124,9 @@ function attachInputEvents(inp){
   inp.addEventListener('focus', e=>{
     inp.closest('.row').classList.add('focused');
     setTimeout(()=>e.target.select(),0);
-    if(!inp.dataset.lat && (inp.value||'').trim().length>=3){
-      fetchPredictions(inp.value, preds => SG.openFor(inp, preds));
-    }
+   if(!inp.dataset.lat && (inp.value||'').trim().length>=3){
+  fetchPredictions(inp.value, preds => autofillSinglePrediction(inp, preds));
+}
   });
   inp.addEventListener('blur',()=>{
     inp.closest('.row').classList.remove('focused');
@@ -1107,10 +1136,10 @@ function attachInputEvents(inp){
     inp.dataset.dirty='1'; inp.dataset.lat=''; inp.dataset.lng='';
     scheduleAutoCompute(200,false);
     if((inp.value||'').trim().length>=3){
-      fetchPredictions(inp.value, preds => SG.openFor(inp, preds));
-    }else{
-      SG.hide();
-    }
+  fetchPredictions(inp.value, preds => autofillSinglePrediction(inp, preds));
+}else{
+  SG.hide();
+}
   });
 
   inp.addEventListener('keydown', e=>{
