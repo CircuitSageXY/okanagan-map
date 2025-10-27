@@ -1489,54 +1489,99 @@ icon:{
   previewPins.push(marker);
 }
 function clearPreviewPins(){previewPins.forEach(m=>m.setMap(null));previewPins=[];}
-function drawRouteMarkers(points, rows){
+
+/* place this helper anywhere above drawRouteMarkers */
+function __offsetDuplicatePoints(points, radiusM = 8){
+  const R = 6371000; // meters
+  const groups = new Map();
+  const key = p => `${(+p.lat).toFixed(5)},${(+p.lng).toFixed(5)}`; // ~1m buckets
+
   points.forEach((p, i) => {
+    const k = key(p);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(i);
+  });
+
+  const out = points.map(p => ({ lat:+p.lat, lng:+p.lng }));
+
+  for (const idxs of groups.values()){
+    const n = idxs.length;
+    if (n <= 1) continue;
+
+    const base = out[idxs[0]];
+    const latRad = base.lat * Math.PI/180;
+
+    const m2degLat = (radiusM / R) * (180/Math.PI);
+    const m2degLng = (radiusM / (R * Math.cos(latRad))) * (180/Math.PI);
+
+    idxs.forEach((ix, j) => {
+      const a = (2*Math.PI * j) / n; // ring
+      out[ix] = {
+        lat: base.lat + Math.sin(a) * m2degLat,
+        lng: base.lng + Math.cos(a) * m2degLng
+      };
+    });
+  }
+  return out;
+}
+
+/* REPLACE your existing drawRouteMarkers with this (same name) */
+function drawRouteMarkers(points, rows){
+  points.forEach((p, i) => { if (!p) return; }); // keep signature identical
+
+  // clear current pins first (your function already calls this elsewhere if needed)
+  // clearRouteMarkers();
+
+  // 1) separate exact-overlap points so A/B/etc aren’t stacked
+  const adjusted = __offsetDuplicatePoints(points, 8); // 8 m ring
+
+  adjusted.forEach((p, i) => {
     if (!p) return;
 
     const b = rows[i]?.querySelector('.bullet');
     const letter = b ? (b.textContent || '').trim() : '';
     const classLetter = b ? [...b.classList].find(c => /^[A-Z]$/.test(c)) : null;
     const varName = classLetter ? `--clr${classLetter}` : '--clrDefault';
-    const color = getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || '#607d8b';
+    const color = getComputedStyle(document.documentElement)
+                    .getPropertyValue(varName).trim() || '#607d8b';
 
-    // --- NEW: If this point sits on a home-base pin, reuse that pin and just label it ---
-    const hb = getHomeBaseAtLatLng(p, 35);   // 35m tolerance; adjust if needed
+    // Re-use a home-base marker if we're on top of one
+    const hb = getHomeBaseAtLatLng(p, 35);
     if (hb){
       hb.setLabel({ text: letter, color: '#ffffff', fontSize: '16px', fontWeight: '700' });
-      // optionally bump zIndex a bit
       try { hb.setZIndex(200); } catch(_){}
-      return; // don't create a second marker
+      return;
     }
 
-// --- Otherwise, create a dedicated route marker with strong black outline ---
-const SCALE_ROUTE = 0.80;                            // a touch larger than before
-const LABEL_Y = -16 * (SCALE_ROUTE / 0.72);          // keep label centered as scale changes
-
-const marker = new google.maps.Marker({
-  position: p,
-  map,
-  label: {
-    text: letter,
-    color: '#fff',
-    fontSize: '16px',
-    fontWeight: '700'
-  },
-  icon: {
-    path: TEARDROP_PATH,
-    scale: SCALE_ROUTE,
-    fillColor: color,
-    fillOpacity: 0.50,
-    strokeColor: '#000000',
-    strokeOpacity: 1,
-    strokeWeight: 1.6,
-    anchor: new google.maps.Point(0, 0),             // tip of the teardrop
-    labelOrigin: new google.maps.Point(0, LABEL_Y)   // <-- centered for any scale
-  }
-});
+    // Route pin: slightly bigger + centered label
+    const marker = new google.maps.Marker({
+      position: p,
+      map,
+      zIndex: 150,
+      label: {
+        text: letter,
+        color: '#ffffff',
+        fontSize: '16px',
+        fontWeight: '700'
+      },
+      icon: {
+        path: TEARDROP_PATH,
+        scale: 0.86,                 // a bit larger than before
+        fillColor: color,
+        fillOpacity: 0.55,
+        strokeColor: '#000000',
+        strokeOpacity: 1,
+        strokeWeight: 1.8,
+        anchor: new google.maps.Point(0, 0),      // keep tip on the exact point
+        labelOrigin: new google.maps.Point(0, -13) // ↓ centers the letter vertically
+      },
+      optimized: true
+    });
 
     routeMarkers.push(marker);
   });
 }
+
 function clearRouteMarkers(){
   routeMarkers.forEach(m => m.setMap(null));
   routeMarkers = [];
