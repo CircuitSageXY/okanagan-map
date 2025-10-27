@@ -2238,6 +2238,64 @@ async function collapseConsecutiveDuplicatesCurrentView(){
     }
   }
 }
+// Collapse only *adjacent* duplicate stops inside each visible frame.
+// Text-normalized compare; does not move anything, only removes the 2nd of a run.
+function compressConsecutiveDupsPerFrame(){
+  const normalize = s => (s||'')
+    .toLowerCase()
+    .replace(/\s+/g,' ')
+    .replace(/[,\s]+(canada|bc|british columbia)\b/g,'')
+    .trim();
+
+  document.querySelectorAll('.frame').forEach(sec=>{
+    if (sec.classList.contains('collapsed') || sec.style.display === 'none') return;
+
+    const rows = Array.from(sec.querySelectorAll('.row'));
+    let last = null;
+    for (let i=0; i<rows.length; i++){
+      const stop = rows[i].querySelector('.stop');
+      if (!stop) continue;
+      const cur = normalize(stop.value);
+      if (last && cur && cur === last){
+        rows[i].remove();   // remove only if it’s immediately repeated
+        continue;           // keep `last` as-is (we’re still in the run)
+      }
+      last = cur;
+    }
+  });
+  
+  /* =================== COMPRESS CONSECUTIVE DUPS (per visible frame) =================== */
+/* Removes only immediately-adjacent duplicates INSIDE each visible frame.
+   Runs fast, preserves order, and does NOT touch non-consecutive repeats. */
+async function compressConsecutiveDupsPerFrame(){
+  // Build list of visible (and not-collapsed) frames
+  const visibleFrames = FRAMES.filter(fr=>{
+    const sec = document.querySelector(`.frame[data-frame="${fr.id}"]`);
+    const vis = (fr.shift==='day' && dayVisible) || (fr.shift==='night' && nightVisible);
+    return vis && sec && !sec.classList.contains('collapsed') && sec.style.display!=='none';
+  });
+
+  // For each frame, ensure coords (for accurate equality) then drop only adjacent dups
+  for (const fr of visibleFrames){
+    const list = document.getElementById('frame-'+fr.id);
+    const rows = [...list.querySelectorAll('.row')].filter(r => r.querySelector('.stop').value.trim());
+    if (rows.length <= 1) continue;
+
+    await ensureCoords(rows, { parallel:true });
+
+    for (let i = rows.length - 2; i >= 0; i--){
+      if (rowsSamePlace(rows[i], rows[i+1])){
+        rows[i+1].remove();
+      }
+    }
+  }
+
+  renumber();
+}
+
+
+  if (window.renumber) window.renumber();
+}
 
 /* =================== PRUNE EMPTY ROWS & FRAMES (after optimize) =================== */
 function pruneEmptyRowsAndFrames(){
@@ -2270,6 +2328,12 @@ function pruneEmptyRowsAndFrames(){
 /* =================== OPTIMIZE BY FRAMES (exact with DP across frames) =================== */
 async function optimizeByFrames(){
   if (flatMode){ return; }
+
+  // ➊ Drop only truly-consecutive duplicates per frame before optimizing
+  await compressConsecutiveDupsPerFrame();
+
+  // collect visible (and not collapsed) frames in order
+  const activeFrames = FRAMES.filter(fr=>{
 
   // collect visible (and not collapsed) frames in order
   const activeFrames = FRAMES.filter(fr=>{
@@ -2939,6 +3003,10 @@ if (window.__mapsApiReady) { window.routePlannerInit(); }
 /* --------- Flat-view optimizer (exact) --------- */
 async function globalOptimizeRoute(){
   if(!flatMode){ return; }
+
+  // ➊ Always drop only truly-consecutive duplicates in flat view before optimizing
+  await collapseConsecutiveDuplicatesCurrentView();
+
   const list = document.getElementById('addrList');
 
   // Remove blanks first
