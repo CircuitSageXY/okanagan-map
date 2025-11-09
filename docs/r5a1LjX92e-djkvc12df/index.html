@@ -2381,194 +2381,102 @@ async function optimizeRowsInPlace(rows) {
     const msgEl = flatMode
       ? document.getElementById('flatMsg')
       : document.getElementById('msg');
-    if (msgEl) msgEl.textContent = 'One or more stops can’t be located – please edit.';
+    if (msgEl) {
+      msgEl.textContent = 'One or more stops can’t be located – please edit.';
+    }
     return;
   }
 
   const parent = rows[0].parentElement;
   const n      = rows.length;
 
-  // Build a point array once
+  // 2) Build the point list for the DistanceMatrix
   const pts = rows.map(r => {
     const inp = r.querySelector('.stop');
     return { lat: +inp.dataset.lat, lng: +inp.dataset.lng };
   });
 
-  // Which rows are locked?
+  // 3) Full driving-time matrix (minutes, or km fallback)
+  const Dglobal = await buildDrivingMatrixAll(pts);
+
+  // 4) Which indices are locked in this block?
   const lockedSet = new Set(
     rows.map((r, i) => (isLocked(r) ? i : -1)).filter(i => i >= 0)
   );
 
-  // Small helper: factorial + hard cap on how many Directions calls we’ll do
-  const MAX_DIRECTIONS_CALLS = 60;       // 3! = 6, 4! = 24, 5! = 120 (too big)
-  const factorial = (k) => {
-    let f = 1;
-    for (let i = 2; i <= k; i++) f *= i;
-    return f;
-  };
+  // Helper: best order for the run [lo..hi] (inclusive),
+  // given optional locked neighbours at lo-1 and hi+1.
+  function optimizeRun(lo, hi) {
+    const sub = [];
+    for (let k = lo; k <= hi; k++) sub.push(k);
+    const m = sub.length;
+    if (m <= 1) return sub;
 
-  // Exact cost of *this particular ordering* using the Directions API itself.
-  async function routeCostForOrder(order) {
-    return new Promise((resolve) => {
-      if (!window.dirSvc) {
-        resolve(Infinity);
-        return;
-      }
-
-      const seq = order.map(i => pts[i]);
-      if (seq.length <= 1) {
-        resolve(0);
-        return;
-      }
-
-      const req = {
-        origin: seq[0],
-        destination: seq[seq.length - 1],
-        waypoints: seq.slice(1, -1).map(p => ({ location: p, stopover: true })),
-        travelMode: google.maps.TravelMode.DRIVING
-      };
-
-      dirSvc.route(req, (res, status) => {
-        if (status !== 'OK' || !res?.routes?.[0]?.legs) {
-          resolve(Infinity);
-          return;
+    // Local Dblock for this run
+    const Dblock = Array.from({ length: m }, () => Array(m).fill(0));
+    for (let i = 0; i < m; i++) {
+      for (let j = 0; j < m; j++) {
+        if (i === j) {
+          Dblock[i][j] = 0;
+        } else {
+          Dblock[i][j] = Dglobal[sub[i]][sub[j]];
         }
-        let minutes = 0;
-        for (const leg of res.routes[0].legs) {
-          if (leg.duration && leg.duration.value != null) {
-            minutes += leg.duration.value / 60;
-          } else if (leg.distance && leg.distance.value != null) {
-            minutes += leg.distance.value / 1000;
-          }
-        }
-        resolve(minutes);
-      });
-    });
-  }
-
-  // Simple recursive permutation generator (synchronous).
-  function* permute(arr, l = 0) {
-    if (l === arr.length - 1) {
-      yield arr.slice();
-    } else {
-      for (let i = l; i < arr.length; i++) {
-        [arr[l], arr[i]] = [arr[i], arr[l]];
-        yield* permute(arr, l + 1);
-        [arr[l], arr[i]] = [arr[i], arr[l]];
-      }
-    }
-  }
-
-  // ----------------- CASE A: no locks + very small N -----------------
-  if (lockedSet.size === 0 && factorial(n) <= MAX_DIRECTIONS_CALLS) {
-    const baseIdxs = [...Array(n).keys()];
-
-    let bestOrder = baseIdxs.slice();
-    let bestCost  = Infinity;
-
-    for (const perm of permute(baseIdxs.slice())) {
-      const cost = await routeCostForOrder(perm);
-      if (cost < bestCost) {
-        bestCost  = cost;
-        bestOrder = perm.slice();
       }
     }
 
-    const orderedRows = bestOrder.map(i => rows[i]);
-    orderedRows.forEach(r => parent.appendChild(r));
-    return;
-  }
+    const hk = shortestHamiltonianPaths(Dblock);
 
-  // ----------------- CASE B: general solver (uses DistanceMatrix) ----
+    // Anchors (in global indices)
+    const leftLock  = (lo - 1 >= 0 && lockedSet.has(lo - 1)) ? (lo - 1) : null;
+    const rightLock = (hi + 1 < n  && lockedSet.has(hi + 1)) ? (hi + 1) : null;
 
-  // Build the full driving-time matrix once for this block.
-  const D = await buildDrivingMatrixAll(pts);   // minutes (or km fallback)
+    let bestCost = Infinity;
+    let bestPathLocal = null;
 
-  // Small helpers for the TSP solver
-  function bruteBestOrder(Dblock) {
-    const m = Dblock.length;
-    if (m <= 1) return [...Array(m).keys()];
+    const allLocal = [...Array(m).keys()];
 
-    const used  = new Array(m).fill(false);
-    let bestOrd = null;
-    let bestVal = Infinity;
+    for (let s = 0; s < m; s++) {
+      for (let t = 0; t < m; t++) {
+        if (m > 1 && s === t) continue;
 
-    function dfs(lastIdx, depth, costSoFar, ord) {
-      if (depth === m) {
-        if (costSoFar < bestVal) {
-          bestVal = costSoFar;
-          bestOrd = ord.slice();
+        const inner = hk.cost[s][t];
+        if (!Number.isFinite(inner)) continue;
+
+        let total = inner;
+
+        // cost from left locked neighbour → first in run
+        if (leftLock != null) {
+          total += Dglobal[leftLock][sub[s]];
         }
-        return;
-      }
-      for (let i = 0; i < m; i++) {
-        if (used[i]) continue;
-        const extra    = (lastIdx == null ? 0 : Dblock[lastIdx][i]);
-        const nextCost = costSoFar + extra;
-        if (nextCost >= bestVal) continue;
+        // cost from last in run → right locked neighbour
+        if (rightLock != null) {
+          total += Dglobal[sub[t]][rightLock];
+        }
 
-        used[i] = true;
-        ord.push(i);
-        dfs(i, depth + 1, nextCost, ord);
-        ord.pop();
-        used[i] = false;
+        if (total < bestCost) {
+          bestCost = total;
+          // hk.path[s][t] is the optimal local order for the run
+          bestPathLocal = hk.path[s][t] ? hk.path[s][t].slice() : allLocal.slice();
+        }
       }
     }
 
-    dfs(null, 0, 0, []);
-    return bestOrd || [...Array(m).keys()];
-  }
-
-  function greedyOrder(Dblock) {
-    const m = Dblock.length;
-    if (m <= 1) return [...Array(m).keys()];
-
-    const used  = new Array(m).fill(false);
-    const order = [];
-    let current = null;
-
-    for (let step = 0; step < m; step++) {
-      let bestIdx  = -1;
-      let bestCost = Infinity;
-
-      for (let i = 0; i < m; i++) {
-        if (used[i]) continue;
-        const cost = (current == null ? 0 : Dblock[current][i]);
-        if (cost < bestCost) {
-          bestCost = cost;
-          bestIdx  = i;
-        }
-      }
-
-      used[bestIdx] = true;
-      order.push(bestIdx);
-      current = bestIdx;
+    if (!bestPathLocal) {
+      bestPathLocal = allLocal;
     }
-    return order;
+
+    // Map local indices back to global row indices
+    return bestPathLocal.map(li => sub[li]);
   }
 
-  function bestOrderForBlock(Dblock) {
-    const m = Dblock.length;
-    if (m <= 9) return bruteBestOrder(Dblock);  // exact wrt Dblock
-    return greedyOrder(Dblock);                 // fast fallback
-  }
-
-  // If there are *no* locks we just optimise the whole list in one shot.
-  if (lockedSet.size === 0) {
-    const ord         = bestOrderForBlock(D);
-    const orderedRows = ord.map(i => rows[i]);
-    orderedRows.forEach(r => parent.appendChild(r));
-    return;
-  }
-
-  // With locks: keep locked rows fixed and optimise contiguous unlocked runs.
-  const finalOrder = [];
-  const idxs       = [...Array(n).keys()];
-
+  // 5) Build the final global index order; locked rows stay put,
+  //    unlocked segments are optimized with respect to their neighbours.
+  const finalIdxOrder = [];
   let i = 0;
+
   while (i < n) {
     if (lockedSet.has(i)) {
-      finalOrder.push(i);
+      finalIdxOrder.push(i);
       i++;
       continue;
     }
@@ -2577,28 +2485,12 @@ async function optimizeRowsInPlace(rows) {
     while (i < n && !lockedSet.has(i)) i++;
     const hi = i - 1;
 
-    const subIdxs = idxs.slice(lo, hi + 1);
-    const m       = subIdxs.length;
-
-    if (m === 1) {
-      finalOrder.push(subIdxs[0]);
-      continue;
-    }
-
-    const Dblock = Array.from({ length: m }, () => Array(m).fill(0));
-    for (let a = 0; a < m; a++) {
-      for (let b = 0; b < m; b++) {
-        if (a === b) Dblock[a][b] = 0;
-        else         Dblock[a][b] = D[subIdxs[a]][subIdxs[b]];
-      }
-    }
-
-    const localOrd = bestOrderForBlock(Dblock);
-    const mapped   = localOrd.map(k => subIdxs[k]);
-    finalOrder.push(...mapped);
+    const bestRun = optimizeRun(lo, hi);
+    finalIdxOrder.push(...bestRun);
   }
 
-  const orderedRows = finalOrder.map(k => rows[k]);
+  // 6) Re-append rows to the parent in the new order
+  const orderedRows = finalIdxOrder.map(idx => rows[idx]);
   orderedRows.forEach(r => parent.appendChild(r));
 }
 
