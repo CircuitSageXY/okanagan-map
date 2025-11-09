@@ -741,6 +741,13 @@ function autofillSinglePrediction(input, predictions){
     return;
   }
 
+  // If this input has already auto-completed once,
+  // never auto-complete automatically again; just show suggestions.
+  if (input.dataset.autoDone === '1') {
+    SG.openFor(input, preds);
+    return;
+  }
+
   // If the user has typed fewer than 7 characters,
   // NEVER auto-complete – just show suggestions.
   if (raw.length < 7) {
@@ -754,7 +761,7 @@ function autofillSinglePrediction(input, predictions){
     return;
   }
 
-  // 7+ characters AND exactly one prediction → auto-complete it.
+  // 7+ characters AND exactly one prediction → auto-complete it ONCE.
   const p = preds[0];
   placeSvc.getDetails(
     { placeId: p.place_id, fields: ['formatted_address', 'geometry'] },
@@ -765,9 +772,12 @@ function autofillSinglePrediction(input, predictions){
         input.dataset.lng = place.geometry.location.lng();
         delete input.dataset.dirty;
 
+        // mark this input as having auto-completed once
+        input.dataset.autoDone = '1';
+
         SG.hide();
-        clearTimeout(autoTimer);
-        scheduleAutoCompute(0, true);
+        clearTimeout(autoTimer);             // cancel “while typing” compute
+        scheduleAutoCompute(0, true);        // trigger pins/route
       } else {
         SG.openFor(input, preds);
       }
@@ -1145,14 +1155,29 @@ function attachInputEvents(inp){
     inp.closest('.row').classList.remove('focused');
     setTimeout(()=>{ if(document.activeElement!==inp) SG.hide(); }, 150);
   });
-  inp.addEventListener('input',()=>{
-    inp.dataset.dirty='1'; inp.dataset.lat=''; inp.dataset.lng='';
+  inp.addEventListener('input', () => {
+    const raw = (inp.value || '').trim();
+
+    if (raw.length === 0) {
+      // fully cleared → reset everything, including auto-complete state
+      inp.dataset.lat  = '';
+      inp.dataset.lng  = '';
+      delete inp.dataset.dirty;
+      delete inp.dataset.autoDone;
+    } else {
+      // edited but not empty → mark dirty and clear coords
+      inp.dataset.dirty = '1';
+      inp.dataset.lat   = '';
+      inp.dataset.lng   = '';
+    }
+
     scheduleAutoCompute(200,false);
-    if((inp.value||'').trim().length>=3){
-  fetchPredictions(inp.value, preds => autofillSinglePrediction(inp, preds));
-}else{
-  SG.hide();
-}
+
+    if (raw.length >= 3) {
+      fetchPredictions(inp.value, preds => autofillSinglePrediction(inp, preds));
+    } else {
+      SG.hide();
+    }
   });
 
   inp.addEventListener('keydown', e=>{
@@ -1438,7 +1463,14 @@ function clearAllStops(){
   document.querySelectorAll('.row').forEach(row=>{
     const inp=row.querySelector('.stop');
     row.classList.remove('invalid','selected','focused');
-    if(inp){inp.value='';inp.dataset.lat='';inp.dataset.lng='';inp.placeholder='Enter stop'; delete inp.dataset.dirty;}
+    if (inp) {
+      inp.value = '';
+      inp.dataset.lat = '';
+      inp.dataset.lng = '';
+      inp.placeholder = 'Enter stop';
+      delete inp.dataset.dirty;
+      delete inp.dataset.autoDone;   // reset auto-complete state
+    }
   });
   frameInitialized.clear();
   clearPreviewPins();clearDirections();clearLegDisplays();
@@ -1455,7 +1487,11 @@ function clearFilledCurrentView(){
       if((inp.value||'').trim()){
         const r = inp.closest('.row');
         r?.classList.remove('invalid');
-        inp.value=''; inp.dataset.lat=''; inp.dataset.lng=''; delete inp.dataset.dirty;
+        inp.value = '';
+        inp.dataset.lat = '';
+        inp.dataset.lng = '';
+        delete inp.dataset.dirty;
+        delete inp.dataset.autoDone;   // reset
       }
     });
   } else {
@@ -1467,7 +1503,11 @@ function clearFilledCurrentView(){
         if((inp.value||'').trim()){
           const r = inp.closest('.row');
           r?.classList.remove('invalid');
-          inp.value=''; inp.dataset.lat=''; inp.dataset.lng=''; delete inp.dataset.dirty;
+          inp.value = '';
+          inp.dataset.lat = '';
+          inp.dataset.lng = '';
+          delete inp.dataset.dirty;
+          delete inp.dataset.autoDone;  // reset
         }
       });
     });
