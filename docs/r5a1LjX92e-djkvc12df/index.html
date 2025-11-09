@@ -733,12 +733,28 @@ const fetchPredictions = debounce((text, cb)=>{
   /* If only one prediction remains, auto-complete + compute; otherwise show our dropdown */
 function autofillSinglePrediction(input, predictions){
   const preds = Array.isArray(predictions) ? predictions.slice(0,5) : [];
+  const raw   = (input.value || '').trim();
 
+  // No predictions → hide dropdown & bail
+  if (!preds.length) {
+    SG.hide();
+    return;
+  }
+
+  // If the user has typed fewer than 7 characters,
+  // NEVER auto-complete – just show suggestions.
+  if (raw.length < 7) {
+    SG.openFor(input, preds);
+    return;
+  }
+
+  // 7+ characters but more than one suggestion → still show the dropdown
   if (preds.length !== 1) {
     SG.openFor(input, preds);
     return;
   }
 
+  // 7+ characters AND exactly one prediction → auto-complete it.
   const p = preds[0];
   placeSvc.getDetails(
     { placeId: p.place_id, fields: ['formatted_address', 'geometry'] },
@@ -750,8 +766,8 @@ function autofillSinglePrediction(input, predictions){
         delete input.dataset.dirty;
 
         SG.hide();
-        clearTimeout(autoTimer);             // cancel the “while typing” compute
-        scheduleAutoCompute(0, true);        // this triggers pin/route in any view
+        clearTimeout(autoTimer);
+        scheduleAutoCompute(0, true);
       } else {
         SG.openFor(input, preds);
       }
