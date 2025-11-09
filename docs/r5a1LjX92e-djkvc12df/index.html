@@ -2266,32 +2266,6 @@ function preCompressConsecutiveDuplicates(){
 
   if (typeof renumber === 'function') renumber();
 }
-
-// Collapse only *adjacent* duplicate stops inside each visible frame.
-// Text-normalized compare; does not move anything, only removes the 2nd of a run.
-function compressConsecutiveDupsPerFrame(){
-  const normalize = s => (s||'')
-    .toLowerCase()
-    .replace(/\s+/g,' ')
-    .replace(/[,\s]+(canada|bc|british columbia)\b/g,'')
-    .trim();
-
-  document.querySelectorAll('.frame').forEach(sec=>{
-    if (sec.classList.contains('collapsed') || sec.style.display === 'none') return;
-
-    const rows = Array.from(sec.querySelectorAll('.row'));
-    let last = null;
-    for (let i=0; i<rows.length; i++){
-      const stop = rows[i].querySelector('.stop');
-      if (!stop) continue;
-      const cur = normalize(stop.value);
-      if (last && cur && cur === last){
-        rows[i].remove();   // remove only if it’s immediately repeated
-        continue;           // keep `last` as-is (we’re still in the run)
-      }
-      last = cur;
-    }
-  });
   
   /* =================== COMPRESS CONSECUTIVE DUPS (per visible frame) =================== */
 /* Removes only immediately-adjacent duplicates INSIDE each visible frame.
@@ -2321,7 +2295,6 @@ async function compressConsecutiveDupsPerFrame(){
 
   renumber();
 }
-
 
   if (window.renumber) window.renumber();
 }
