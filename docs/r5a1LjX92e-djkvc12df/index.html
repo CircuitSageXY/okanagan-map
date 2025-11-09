@@ -2354,6 +2354,183 @@ function pruneEmptyRowsAndFrames(){
   scheduleTimelineBuild();
 }
 
+  // Optimize a list of DOM rows *in place* (used by flat + framed views)
+// - rows: array of .row elements, all sharing the same parent
+// Respects "locked" rows; only reorders unlocked ones between anchors.
+async function optimizeRowsInPlace(rows) {
+  if (!rows || rows.length <= 1) return;
+
+  // 1) Ensure we have coords for all rows in this block
+  const ok = await ensureCoords(rows, { parallel: true });
+  if (!ok) {
+    const msgEl = flatMode
+      ? document.getElementById('flatMsg')
+      : document.getElementById('msg');
+    if (msgEl) msgEl.textContent = 'One or more stops can’t be located – please edit.';
+    return;
+  }
+
+  const parent = rows[0].parentElement;
+  const n = rows.length;
+
+  // Build points and distance matrix for this block only
+  const pts = rows.map(r => {
+    const inp = r.querySelector('.stop');
+    return { lat: +inp.dataset.lat, lng: +inp.dataset.lng };
+  });
+
+  const D = await buildDrivingMatrixAll(pts);
+
+  // Which indices are locked?
+  const lockedSet = new Set(
+    rows.map((r, i) => (isLocked(r) ? i : -1)).filter(i => i >= 0)
+  );
+
+  // ---------- Case 1: no locks at all ⇒ global shortest path ----------
+  if (lockedSet.size === 0) {
+    const { cost, path } = shortestHamiltonianPaths(D);
+    let bestC = 1e18, bestS = 0, bestT = n - 1;
+
+    for (let s = 0; s < n; s++) {
+      for (let t = 0; t < n; t++) {
+        if (n > 1 && s === t) continue;
+        const c = cost[s][t];
+        if (c < bestC) {
+          bestC = c;
+          bestS = s;
+          bestT = t;
+        }
+      }
+    }
+
+    const ord = path[bestS][bestT] || [...Array(n).keys()];
+    const orderedRows = ord.map(i => rows[i]);
+    orderedRows.forEach(r => parent.appendChild(r));
+    return;
+  }
+
+  // ---------- Case 2: there are locks ----------
+  // We keep locked rows exactly where they are, and only optimize
+  // the unlocked runs between them.
+
+  function optimizeRun(lo, hi, leftAnchorIdx, rightAnchorIdx) {
+    // indices [lo..hi] are all UNLOCKED local indices into rows[]
+    const idxs = [];
+    for (let i = lo; i <= hi; i++) idxs.push(i);
+    if (idxs.length <= 1) return idxs;
+
+    const m = idxs.length;
+
+    // local distance block
+    const Dblock = Array.from({ length: m }, () => Array(m).fill(0));
+    for (let i = 0; i < m; i++) {
+      for (let j = 0; j < m; j++) {
+        Dblock[i][j] = (i === j) ? 0 : D[idxs[i]][idxs[j]];
+      }
+    }
+
+    const hk = shortestHamiltonianPaths(Dblock);
+
+    // helper to map hk.path indices back to global indices
+    const remap = (seq) => (seq || [...Array(m).keys()]).map(k => idxs[k]);
+
+    // both anchors present: L -> ... -> R
+    if (leftAnchorIdx != null && rightAnchorIdx != null) {
+      let best = 1e18, bestPath = null;
+      for (let s = 0; s < m; s++) {
+        for (let t = 0; t < m; t++) {
+          if (m > 1 && s === t) continue;
+          const inner = hk.cost[s][t];
+          if (!Number.isFinite(inner)) continue;
+          const tot = D[leftAnchorIdx][idxs[s]] + inner + D[idxs[t]][rightAnchorIdx];
+          if (tot < best) {
+            best = tot;
+            bestPath = hk.path[s][t];
+          }
+        }
+      }
+      return remap(bestPath);
+    }
+
+    // only left anchor: L -> ...
+    if (leftAnchorIdx != null && rightAnchorIdx == null) {
+      let best = 1e18, bestPath = null;
+      for (let s = 0; s < m; s++) {
+        for (let t = 0; t < m; t++) {
+          if (m > 1 && s === t) continue;
+          const inner = hk.cost[s][t];
+          if (!Number.isFinite(inner)) continue;
+          const tot = D[leftAnchorIdx][idxs[s]] + inner;
+          if (tot < best) {
+            best = tot;
+            bestPath = hk.path[s][t];
+          }
+        }
+      }
+      return remap(bestPath);
+    }
+
+    // only right anchor: ... -> R
+    if (leftAnchorIdx == null && rightAnchorIdx != null) {
+      let best = 1e18, bestPath = null;
+      for (let s = 0; s < m; s++) {
+        for (let t = 0; t < m; t++) {
+          if (m > 1 && s === t) continue;
+          const inner = hk.cost[s][t];
+          if (!Number.isFinite(inner)) continue;
+          const tot = inner + D[idxs[t]][rightAnchorIdx];
+          if (tot < best) {
+            best = tot;
+            bestPath = hk.path[s][t];
+          }
+        }
+      }
+      return remap(bestPath);
+    }
+
+    // no anchors inside this run (shouldn’t really happen here, but safe):
+    let best = 1e18, bestPath = null;
+    for (let s = 0; s < m; s++) {
+      for (let t = 0; t < m; t++) {
+        if (m > 1 && s === t) continue;
+        const inner = hk.cost[s][t];
+        if (!Number.isFinite(inner)) continue;
+        if (inner < best) {
+          best = inner;
+          bestPath = hk.path[s][t];
+        }
+      }
+    }
+    return remap(bestPath);
+  }
+
+  const finalOrder = [];
+  let i = 0;
+
+  while (i < n) {
+    if (lockedSet.has(i)) {
+      // locked row stays exactly here
+      finalOrder.push(i);
+      i++;
+      continue;
+    }
+
+    // contiguous unlocked run [lo..hi]
+    const lo = i;
+    while (i < n && !lockedSet.has(i)) i++;
+    const hi = i - 1;
+
+    const leftAnchorIdx  = (lo - 1 >= 0 && lockedSet.has(lo - 1)) ? (lo - 1) : null;
+    const rightAnchorIdx = (hi + 1 < n && lockedSet.has(hi + 1)) ? (hi + 1) : null;
+
+    const bestIdxs = optimizeRun(lo, hi, leftAnchorIdx, rightAnchorIdx);
+    finalOrder.push(...bestIdxs);
+  }
+
+  const orderedRows = finalOrder.map(k => rows[k]);
+  orderedRows.forEach(r => parent.appendChild(r));
+}
+
 /* =================== OPTIMIZE BY FRAMES (exact with DP across frames) =================== */
 async function optimizeByFrames(){
   if (flatMode) { return; }
@@ -3040,52 +3217,38 @@ window.routePlannerInit=()=>{
 /* If Maps loaded before this script, init() already ran and set the flag. */
 if (window.__mapsApiReady) { window.routePlannerInit(); }
 
-/* --------- Flat-view optimizer (exact) --------- */
-async function globalOptimizeRoute(){
-  if(!flatMode){ return; }
+/* --------- Flat-view optimizer (exact, with locks respected) --------- */
+async function globalOptimizeRoute() {
+  if (!flatMode) return;
 
-    preCompressConsecutiveDuplicates();
-
-  // ➊ Always drop only truly-consecutive duplicates in flat view before optimizing
+  // Remove consecutive duplicates first (text + coord-based)
+  preCompressConsecutiveDuplicates();
   await collapseConsecutiveDuplicatesCurrentView();
 
   const list = document.getElementById('addrList');
 
-  // Remove blanks first
-  [...list.querySelectorAll('.row')].forEach(r=>{
-    if(!r.querySelector('.stop').value.trim()) r.remove();
+  // Drop blank rows
+  [...list.querySelectorAll('.row')].forEach(r => {
+    const v = (r.querySelector('.stop').value || '').trim();
+    if (!v) r.remove();
   });
 
-  const rows = [...list.querySelectorAll('.row')].filter(r=>r.querySelector('.stop').value.trim());
-  if(rows.length <= 1){ renumber(); scheduleAutoCompute(0,true); return; }
+  const rows = [...list.querySelectorAll('.row')]
+    .filter(r => r.querySelector('.stop').value.trim());
 
-  const ok = await ensureCoords(rows,{parallel:true});
-  if(!ok){ const fm=document.getElementById('flatMsg'); if(fm) fm.textContent='One or more stops can’t be located – please edit.'; return; }
-
-  // Points in current order
-  const pts = rows.map(r=>({lat:+r.querySelector('.stop').dataset.lat, lng:+r.querySelector('.stop').dataset.lng}));
-
-  // Distance matrix (driving)
-  const D = await buildDrivingMatrixAll(pts);
-
-  // Split into segments separated by locked anchors
-  const lockedIdxs = rows.map((r,i)=>isLocked(r)?i:-1).filter(i=>i>=0);
-
-  // If nothing is locked, do your standard global HK route
-  if(lockedIdxs.length === 0){
-    const {cost, path} = shortestHamiltonianPaths(D);
-    let bestC=1e18, bestS=0, bestT=rows.length-1;
-    for(let s=0;s<rows.length;s++){
-      for(let t=0;t<rows.length;t++){
-        if(s===t && rows.length>1) continue;
-        if(cost[s][t] < bestC){ bestC=cost[s][t]; bestS=s; bestT=t; }
-      }
-    }
-    const ord = path[bestS][bestT] || [...rows.keys()];
-    const ordered=ord.map(i=>rows[i]);
-    ordered.forEach(r=>list.appendChild(r));
-    pruneEmptyRowsAndFrames(); renumber(); scheduleAutoCompute(0,true); return;
+  if (rows.length <= 1) {
+    renumber();
+    scheduleAutoCompute(0, true);
+    return;
   }
+
+  // Optimize these rows in-place (respects locks)
+  await optimizeRowsInPlace(rows);
+
+  pruneEmptyRowsAndFrames();   // cleans up empties if any
+  renumber();
+  scheduleAutoCompute(0, true);  // redraws directions + totals
+}
 
   // Build final order honoring locked anchors
   // Strategy: keep locked rows fixed in place; optimize each free run between anchors.
