@@ -2051,24 +2051,24 @@ function clearLegDisplays(){document.querySelectorAll('.leg-display').forEach(d=
 
 /* =================== DRIVING DISTANCE MATRIX (exact) =================== */
 async function buildDrivingMatrixAll(points){
-  // Build full NxN driving-time matrix using Google DistanceMatrixService, chunked.
-  // Costs are in *minutes*; we fall back to straight-line km if needed.
+  // Full NxN driving-time matrix using DistanceMatrix.
+  // We minimize *minutes* between points.
   const n = points.length;
   const D = Array.from({length:n}, () => Array(n).fill(0));
-  const MAX = 25; // API limit per dimension
+  const MAX = 25; // DistanceMatrix limit
 
   async function getBlock(oStart, oEnd, dStart, dEnd){
     return new Promise((resolve)=>{
       dmSvc.getDistanceMatrix({
-        origins: points.slice(oStart, oEnd),
+        origins:      points.slice(oStart, oEnd),
         destinations: points.slice(dStart, dEnd),
-        travelMode: google.maps.TravelMode.DRIVING,
-        unitSystem: google.maps.UnitSystem.METRIC
+        travelMode:   google.maps.TravelMode.DRIVING,
+        unitSystem:   google.maps.UnitSystem.METRIC
       }, (res, status)=>{
         if (status !== 'OK' || !res?.rows){
-          // Fallback: straight-line distance (km) if the API fails completely
-          for (let i = oStart; i < oEnd; i++){
-            for (let j = dStart; j < dEnd; j++){
+          // Fallback: straight-line km if DistanceMatrix fails
+          for (let i=oStart; i<oEnd; i++){
+            for (let j=dStart; j<dEnd; j++){
               if (i === j){ D[i][j] = 0; continue; }
               D[i][j] = haversine(points[i], points[j]); // km
             }
@@ -2077,25 +2077,25 @@ async function buildDrivingMatrixAll(points){
           return;
         }
 
-        for (let i = oStart; i < oEnd; i++){
+        for (let i=oStart; i<oEnd; i++){
           const row = res.rows[i - oStart];
-          for (let j = dStart; j < dEnd; j++){
+          for (let j=dStart; j<dEnd; j++){
             const el = row.elements[j - dStart];
             if (i === j){ D[i][j] = 0; continue; }
 
             if (el?.status === 'OK'){
-              // Prefer duration (seconds → minutes). If missing, fall back to distance.
-              const sec    = el.duration  && el.duration.value;
-              const meters = el.distance  && el.distance.value;
+              const sec    = el.duration && el.duration.value;
+              const meters = el.distance && el.distance.value;
+
               if (sec != null){
-                D[i][j] = sec / 60;              // minutes  ← we minimize this
-              } else if (meters != null){
-                D[i][j] = meters / 1000;         // km fallback
-              } else {
-                D[i][j] = haversine(points[i], points[j]); // ultimate fallback
+                D[i][j] = sec / 60;          // minutes – main cost
+              }else if (meters != null){
+                D[i][j] = meters / 1000;     // km fallback
+              }else{
+                D[i][j] = haversine(points[i], points[j]);
               }
-            } else {
-              D[i][j] = haversine(points[i], points[j]);   // no route ⇒ straight-line
+            }else{
+              D[i][j] = haversine(points[i], points[j]);
             }
           }
         }
@@ -2104,10 +2104,9 @@ async function buildDrivingMatrixAll(points){
     });
   }
 
-  for (let oi = 0; oi < n; oi += MAX){
-    for (let dj = 0; dj < n; dj += MAX){
-      await getBlock(oi, Math.min(oi+MAX, n),
-                     dj, Math.min(dj+MAX, n));
+  for (let oi=0; oi<n; oi+=MAX){
+    for (let dj=0; dj<n; dj+=MAX){
+      await getBlock(oi, Math.min(oi+MAX,n), dj, Math.min(dj+MAX,n));
     }
   }
   return D;
@@ -2335,9 +2334,44 @@ function pruneEmptyRowsAndFrames(){
   scheduleTimelineBuild();
 }
 
+// Brute-force best visiting order using cost matrix D (minutes).
+// Exact for n <= 9 – safe for flat view.
+function bestHamiltonianOrder(D){
+  const n = D.length;
+  if (n <= 1) return [...Array(n).keys()];
+
+  const used = new Array(n).fill(false);
+  let bestOrder = null;
+  let bestCost  = Infinity;
+
+  function dfs(lastIdx, depth, costSoFar, order){
+    if (depth === n){
+      if (costSoFar < bestCost){
+        bestCost  = costSoFar;
+        bestOrder = order.slice();
+      }
+      return;
+    }
+
+    for (let i=0; i<n; i++){
+      if (used[i]) continue;
+      const extra    = (lastIdx == null ? 0 : D[lastIdx][i]);
+      const nextCost = costSoFar + extra;
+      if (nextCost >= bestCost) continue;      // prune
+
+      used[i] = true;
+      order.push(i);
+      dfs(i, depth+1, nextCost, order);
+      order.pop();
+      used[i] = false;
+    }
+  }
+
+  dfs(null, 0, 0, []);
+  return bestOrder || [...Array(n).keys()];
+}
+
   // Optimize a list of DOM rows *in place* (used by flat + framed views)
-// - rows: array of .row elements, all sharing the same parent
-// Respects "locked" rows; only reorders unlocked ones between anchors.
 async function optimizeRowsInPlace(rows) {
   if (!rows || rows.length <= 1) return;
 
@@ -2354,169 +2388,141 @@ async function optimizeRowsInPlace(rows) {
   const parent = rows[0].parentElement;
   const n = rows.length;
 
-  // Build points and distance matrix for this block only
+  // Build points and distance-time matrix for this block only
   const pts = rows.map(r => {
     const inp = r.querySelector('.stop');
     return { lat: +inp.dataset.lat, lng: +inp.dataset.lng };
   });
 
-  const D = await buildDrivingMatrixAll(pts);
+  const D = await buildDrivingMatrixAll(pts);   // should be in minutes or km
 
+  // --- helpers for local reordering -------------------------------------
+
+  // Exact brute-force best order using matrix Dblock (size m x m)
+  function bruteBestOrder(Dblock) {
+    const m = Dblock.length;
+    if (m <= 1) return [...Array(m).keys()];
+
+    const used  = new Array(m).fill(false);
+    let bestOrd = null;
+    let bestVal = Infinity;
+
+    function dfs(lastIdx, depth, costSoFar, ord) {
+      if (depth === m) {
+        if (costSoFar < bestVal) {
+          bestVal = costSoFar;
+          bestOrd = ord.slice();
+        }
+        return;
+      }
+      for (let i = 0; i < m; i++) {
+        if (used[i]) continue;
+        const extra    = (lastIdx == null ? 0 : Dblock[lastIdx][i]);
+        const nextCost = costSoFar + extra;
+        if (nextCost >= bestVal) continue;   // prune
+
+        used[i] = true;
+        ord.push(i);
+        dfs(i, depth + 1, nextCost, ord);
+        ord.pop();
+        used[i] = false;
+      }
+    }
+
+    dfs(null, 0, 0, []);
+    return bestOrd || [...Array(m).keys()];
+  }
+
+  // Greedy nearest-neighbour (fast fallback for bigger segments)
+  function greedyOrder(Dblock) {
+    const m = Dblock.length;
+    if (m <= 1) return [...Array(m).keys()];
+
+    const used  = new Array(m).fill(false);
+    const order = [];
+    let current = null;
+
+    for (let step = 0; step < m; step++) {
+      let bestIdx  = -1;
+      let bestCost = Infinity;
+
+      for (let i = 0; i < m; i++) {
+        if (used[i]) continue;
+        const cost = (current == null ? 0 : Dblock[current][i]);
+        if (cost < bestCost) {
+          bestCost = cost;
+          bestIdx  = i;
+        }
+      }
+
+      used[bestIdx] = true;
+      order.push(bestIdx);
+      current = bestIdx;
+    }
+    return order;
+  }
+
+  // Choose brute vs greedy for a block
+  function bestOrderForBlock(Dblock) {
+    const m = Dblock.length;
+    if (m <= 9) return bruteBestOrder(Dblock);  // exact
+    return greedyOrder(Dblock);                 // approximate for large m
+  }
+
+  // -----------------------------------------------------------------------
   // Which indices are locked?
   const lockedSet = new Set(
     rows.map((r, i) => (isLocked(r) ? i : -1)).filter(i => i >= 0)
   );
 
-  // ---------- Case 1: no locks at all ⇒ global shortest path ----------
+  // ---------- Case 1: no locks at all ⇒ optimize whole list ----------
   if (lockedSet.size === 0) {
-
-    // For small N, brute-force the best order by *time*.
-    // This is exact and guarantees the shortest total minutes.
-    if (n <= 9) {
-      const ord         = bestHamiltonianOrder(D);    // uses minutes matrix
-      const orderedRows = ord.map(i => rows[i]);
-      orderedRows.forEach(r => parent.appendChild(r));
-      return;
-    }
-
-    // For larger N, fall back to Held-Karp DP (still time-based).
-    const { cost, path } = shortestHamiltonianPaths(D);
-    let bestC = 1e18, bestS = 0, bestT = n - 1;
-
-    for (let s = 0; s < n; s++) {
-      for (let t = 0; t < n; t++) {
-        if (n > 1 && s === t) continue;
-        const c = cost[s][t];
-        if (c < bestC) {
-          bestC = c;
-          bestS = s;
-          bestT = t;
-        }
-      }
-    }
-
-    const ord         = path[bestS][bestT] || [...Array(n).keys()];
+    const ord = bestOrderForBlock(D);
     const orderedRows = ord.map(i => rows[i]);
     orderedRows.forEach(r => parent.appendChild(r));
     return;
   }
 
-  // ---------- Case 2: there are locks ----------
-  // We keep locked rows exactly where they are, and only optimize
+  // ---------- Case 2: some rows locked ----------
+  // Keep locked rows exactly where they are, and only optimize
   // the unlocked runs between them.
-
-  function optimizeRun(lo, hi, leftAnchorIdx, rightAnchorIdx) {
-    // indices [lo..hi] are all UNLOCKED local indices into rows[]
-    const idxs = [];
-    for (let i = lo; i <= hi; i++) idxs.push(i);
-    if (idxs.length <= 1) return idxs;
-
-    const m = idxs.length;
-
-    // local distance block
-    const Dblock = Array.from({ length: m }, () => Array(m).fill(0));
-    for (let i = 0; i < m; i++) {
-      for (let j = 0; j < m; j++) {
-        Dblock[i][j] = (i === j) ? 0 : D[idxs[i]][idxs[j]];
-      }
-    }
-
-    const hk = shortestHamiltonianPaths(Dblock);
-
-    // helper to map hk.path indices back to global indices
-    const remap = (seq) => (seq || [...Array(m).keys()]).map(k => idxs[k]);
-
-    // both anchors present: L -> ... -> R
-    if (leftAnchorIdx != null && rightAnchorIdx != null) {
-      let best = 1e18, bestPath = null;
-      for (let s = 0; s < m; s++) {
-        for (let t = 0; t < m; t++) {
-          if (m > 1 && s === t) continue;
-          const inner = hk.cost[s][t];
-          if (!Number.isFinite(inner)) continue;
-          const tot = D[leftAnchorIdx][idxs[s]] + inner + D[idxs[t]][rightAnchorIdx];
-          if (tot < best) {
-            best = tot;
-            bestPath = hk.path[s][t];
-          }
-        }
-      }
-      return remap(bestPath);
-    }
-
-    // only left anchor: L -> ...
-    if (leftAnchorIdx != null && rightAnchorIdx == null) {
-      let best = 1e18, bestPath = null;
-      for (let s = 0; s < m; s++) {
-        for (let t = 0; t < m; t++) {
-          if (m > 1 && s === t) continue;
-          const inner = hk.cost[s][t];
-          if (!Number.isFinite(inner)) continue;
-          const tot = D[leftAnchorIdx][idxs[s]] + inner;
-          if (tot < best) {
-            best = tot;
-            bestPath = hk.path[s][t];
-          }
-        }
-      }
-      return remap(bestPath);
-    }
-
-    // only right anchor: ... -> R
-    if (leftAnchorIdx == null && rightAnchorIdx != null) {
-      let best = 1e18, bestPath = null;
-      for (let s = 0; s < m; s++) {
-        for (let t = 0; t < m; t++) {
-          if (m > 1 && s === t) continue;
-          const inner = hk.cost[s][t];
-          if (!Number.isFinite(inner)) continue;
-          const tot = inner + D[idxs[t]][rightAnchorIdx];
-          if (tot < best) {
-            best = tot;
-            bestPath = hk.path[s][t];
-          }
-        }
-      }
-      return remap(bestPath);
-    }
-
-    // no anchors inside this run (shouldn’t really happen here, but safe):
-    let best = 1e18, bestPath = null;
-    for (let s = 0; s < m; s++) {
-      for (let t = 0; t < m; t++) {
-        if (m > 1 && s === t) continue;
-        const inner = hk.cost[s][t];
-        if (!Number.isFinite(inner)) continue;
-        if (inner < best) {
-          best = inner;
-          bestPath = hk.path[s][t];
-        }
-      }
-    }
-    return remap(bestPath);
-  }
-
   const finalOrder = [];
-  let i = 0;
+  const idxs       = [...Array(n).keys()];
 
+  let i = 0;
   while (i < n) {
     if (lockedSet.has(i)) {
-      // locked row stays exactly here
+      // Locked row stays at this relative position
       finalOrder.push(i);
       i++;
       continue;
     }
 
-    // contiguous unlocked run [lo..hi]
+    // Contiguous unlocked run [lo..hi]
     const lo = i;
     while (i < n && !lockedSet.has(i)) i++;
     const hi = i - 1;
 
-    const leftAnchorIdx  = (lo - 1 >= 0 && lockedSet.has(lo - 1)) ? (lo - 1) : null;
-    const rightAnchorIdx = (hi + 1 < n && lockedSet.has(hi + 1)) ? (hi + 1) : null;
+    const subIdxs = idxs.slice(lo, hi + 1);
+    const m       = subIdxs.length;
 
-    const bestIdxs = optimizeRun(lo, hi, leftAnchorIdx, rightAnchorIdx);
-    finalOrder.push(...bestIdxs);
+    if (m === 1) {
+      finalOrder.push(subIdxs[0]);
+      continue;
+    }
+
+    // Build local cost matrix for this unlocked run
+    const Dblock = Array.from({ length: m }, () => Array(m).fill(0));
+    for (let a = 0; a < m; a++) {
+      for (let b = 0; b < m; b++) {
+        if (a === b) Dblock[a][b] = 0;
+        else         Dblock[a][b] = D[subIdxs[a]][subIdxs[b]];
+      }
+    }
+
+    const localOrd = bestOrderForBlock(Dblock);
+    const mapped   = localOrd.map(k => subIdxs[k]);
+    finalOrder.push(...mapped);
   }
 
   const orderedRows = finalOrder.map(k => rows[k]);
@@ -3210,17 +3216,13 @@ window.routePlannerInit=()=>{
 if (window.__mapsApiReady) { window.routePlannerInit(); }
 
 /* --------- Flat-view optimizer (exact, with locks respected) --------- */
-async function globalOptimizeRoute() {
+async function globalOptimizeRoute(){
   if (!flatMode) return;
-
-  // Remove consecutive duplicates first (text + coord-based)
-  preCompressConsecutiveDuplicates();
-  await collapseConsecutiveDuplicatesCurrentView();
 
   const list = document.getElementById('addrList');
 
-  // Drop blank rows
-  [...list.querySelectorAll('.row')].forEach(r => {
+  // Remove empty rows first
+  [...list.querySelectorAll('.row')].forEach(r=>{
     const v = (r.querySelector('.stop').value || '').trim();
     if (!v) r.remove();
   });
@@ -3228,18 +3230,18 @@ async function globalOptimizeRoute() {
   const rows = [...list.querySelectorAll('.row')]
     .filter(r => r.querySelector('.stop').value.trim());
 
-  if (rows.length <= 1) {
+  if (rows.length <= 1){
     renumber();
     scheduleAutoCompute(0, true);
     return;
   }
 
-  // Optimize these rows in-place (respects locks)
+  console.log('Optimizing', rows.length, 'flat stops…');  // <--- debug line
+
   await optimizeRowsInPlace(rows);
 
-  pruneEmptyRowsAndFrames();   // cleans up empties if any
   renumber();
-  scheduleAutoCompute(0, true);  // redraws directions + totals
+  scheduleAutoCompute(0, true);
 }
 </script>
 
