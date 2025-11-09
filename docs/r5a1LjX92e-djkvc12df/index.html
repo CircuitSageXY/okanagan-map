@@ -2052,7 +2052,7 @@ function clearLegDisplays(){document.querySelectorAll('.leg-display').forEach(d=
 /* =================== DRIVING DISTANCE MATRIX (exact) =================== */
 async function buildDrivingMatrixAll(points){
   // Build full NxN driving-time matrix using Google DistanceMatrixService, chunked.
-  // Costs are in minutes (duration); we fall back to straight-line km if needed.
+  // Costs are in *minutes*; we fall back to straight-line km if needed.
   const n = points.length;
   const D = Array.from({length:n}, () => Array(n).fill(0));
   const MAX = 25; // API limit per dimension
@@ -2085,12 +2085,12 @@ async function buildDrivingMatrixAll(points){
 
             if (el?.status === 'OK'){
               // Prefer duration (seconds → minutes). If missing, fall back to distance.
-              const sec = el.duration && el.duration.value;
-              const meters = el.distance && el.distance.value;
+              const sec    = el.duration  && el.duration.value;
+              const meters = el.distance  && el.distance.value;
               if (sec != null){
-                D[i][j] = sec / 60;                 // minutes  ← NEW: we minimize time
+                D[i][j] = sec / 60;              // minutes  ← we minimize this
               } else if (meters != null){
-                D[i][j] = (meters / 1000);          // km fallback
+                D[i][j] = meters / 1000;         // km fallback
               } else {
                 D[i][j] = haversine(points[i], points[j]); // ultimate fallback
               }
@@ -2369,6 +2369,17 @@ async function optimizeRowsInPlace(rows) {
 
   // ---------- Case 1: no locks at all ⇒ global shortest path ----------
   if (lockedSet.size === 0) {
+
+    // For small N, brute-force the best order by *time*.
+    // This is exact and guarantees the shortest total minutes.
+    if (n <= 9) {
+      const ord         = bestHamiltonianOrder(D);    // uses minutes matrix
+      const orderedRows = ord.map(i => rows[i]);
+      orderedRows.forEach(r => parent.appendChild(r));
+      return;
+    }
+
+    // For larger N, fall back to Held-Karp DP (still time-based).
     const { cost, path } = shortestHamiltonianPaths(D);
     let bestC = 1e18, bestS = 0, bestT = n - 1;
 
@@ -2384,7 +2395,7 @@ async function optimizeRowsInPlace(rows) {
       }
     }
 
-    const ord = path[bestS][bestT] || [...Array(n).keys()];
+    const ord         = path[bestS][bestT] || [...Array(n).keys()];
     const orderedRows = ord.map(i => rows[i]);
     orderedRows.forEach(r => parent.appendChild(r));
     return;
