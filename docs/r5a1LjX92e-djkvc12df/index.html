@@ -2390,19 +2390,101 @@ async function optimizeRowsInPlace(rows) {
   const parent = rows[0].parentElement;
   const n      = rows.length;
 
-  // 2) Build the point list for the DistanceMatrix
+  // 2) Point list for this block
   const pts = rows.map(r => {
     const inp = r.querySelector('.stop');
     return { lat: +inp.dataset.lat, lng: +inp.dataset.lng };
   });
 
-  // 3) Full driving-time matrix (minutes, or km fallback)
-  const Dglobal = await buildDrivingMatrixAll(pts);
-
-  // 4) Which indices are locked in this block?
+  // 3) Locked rows in this block
   const lockedSet = new Set(
     rows.map((r, i) => (isLocked(r) ? i : -1)).filter(i => i >= 0)
   );
+
+  /* ------------------------------------------------------------------
+     SPECIAL CASE: small flat route with NO locks (≤ 4 stops)
+     → brute-force all permutations using the Directions API itself.
+     This guarantees we pick exactly the same "best" order that you get
+     when you manually reorder and look at the total.
+     ------------------------------------------------------------------ */
+  if (lockedSet.size === 0 && n <= 4) {
+    const idxs  = [...Array(n).keys()];
+    const perms = [];
+
+    // generate all permutations of [0..n-1]
+    const used = new Array(n).fill(false);
+    const cur  = [];
+    function backtrack() {
+      if (cur.length === n) {
+        perms.push(cur.slice());
+        return;
+      }
+      for (let i = 0; i < n; i++) {
+        if (used[i]) continue;
+        used[i] = true;
+        cur.push(i);
+        backtrack();
+        cur.pop();
+        used[i] = false;
+      }
+    }
+    backtrack();
+
+    // exact total minutes for a given order using DirectionsService
+    function routeCostForOrder(order) {
+      return new Promise(resolve => {
+        const seq = order.map(i => pts[i]);
+        if (seq.length <= 1) {
+          resolve(0);
+          return;
+        }
+        const req = {
+          origin:      seq[0],
+          destination: seq[seq.length - 1],
+          waypoints:   seq.slice(1, -1).map(p => ({ location: p, stopover: true })),
+          travelMode:  google.maps.TravelMode.DRIVING
+        };
+        dirSvc.route(req, (res, status) => {
+          if (status !== 'OK' || !res?.routes?.[0]?.legs) {
+            resolve(Infinity);
+            return;
+          }
+          let minutes = 0;
+          for (const leg of res.routes[0].legs) {
+            if (leg.duration && leg.duration.value != null) {
+              minutes += leg.duration.value / 60;
+            } else if (leg.distance && leg.distance.value != null) {
+              minutes += leg.distance.value / 1000;
+            }
+          }
+          resolve(minutes);
+        });
+      });
+    }
+
+    let bestOrder = idxs.slice();
+    let bestCost  = Infinity;
+
+    for (const perm of perms) {
+      const c = await routeCostForOrder(perm);
+      if (c < bestCost) {
+        bestCost  = c;
+        bestOrder = perm.slice();
+      }
+    }
+
+    const orderedRows = bestOrder.map(i => rows[i]);
+    orderedRows.forEach(r => parent.appendChild(r));
+    return;                           // done for the small, no-lock case
+  }
+
+  /* ------------------------------------------------------------------
+     GENERAL CASE (locks and/or > 4 stops):
+     use driving-time matrix + Held–Karp per run, as before.
+     ------------------------------------------------------------------ */
+
+  // 4) Full driving-time matrix (minutes, or km fallback)
+  const Dglobal = await buildDrivingMatrixAll(pts);
 
   // Helper: best order for the run [lo..hi] (inclusive),
   // given optional locked neighbours at lo-1 and hi+1.
@@ -2432,7 +2514,6 @@ async function optimizeRowsInPlace(rows) {
 
     let bestCost = Infinity;
     let bestPathLocal = null;
-
     const allLocal = [...Array(m).keys()];
 
     for (let s = 0; s < m; s++) {
@@ -2444,52 +2525,44 @@ async function optimizeRowsInPlace(rows) {
 
         let total = inner;
 
-        // cost from left locked neighbour → first in run
         if (leftLock != null) {
           total += Dglobal[leftLock][sub[s]];
         }
-        // cost from last in run → right locked neighbour
         if (rightLock != null) {
           total += Dglobal[sub[t]][rightLock];
         }
 
         if (total < bestCost) {
           bestCost = total;
-          // hk.path[s][t] is the optimal local order for the run
-          bestPathLocal = hk.path[s][t] ? hk.path[s][t].slice() : allLocal.slice();
+          bestPathLocal = hk.path[s][t]
+            ? hk.path[s][t].slice()
+            : allLocal.slice();
         }
       }
     }
 
-    if (!bestPathLocal) {
-      bestPathLocal = allLocal;
-    }
-
-    // Map local indices back to global row indices
-    return bestPathLocal.map(li => sub[li]);
+    if (!bestPathLocal) bestPathLocal = allLocal;
+    return bestPathLocal.map(li => sub[li]);   // global indices
   }
 
-  // 5) Build the final global index order; locked rows stay put,
-  //    unlocked segments are optimized with respect to their neighbours.
+  // 5) Build final global index order; locked rows stay fixed, each
+  //    contiguous unlocked segment is optimised against its neighbours.
   const finalIdxOrder = [];
   let i = 0;
-
   while (i < n) {
     if (lockedSet.has(i)) {
       finalIdxOrder.push(i);
       i++;
       continue;
     }
-
     const lo = i;
     while (i < n && !lockedSet.has(i)) i++;
     const hi = i - 1;
-
     const bestRun = optimizeRun(lo, hi);
     finalIdxOrder.push(...bestRun);
   }
 
-  // 6) Re-append rows to the parent in the new order
+  // 6) Re-append rows in new order
   const orderedRows = finalIdxOrder.map(idx => rows[idx]);
   orderedRows.forEach(r => parent.appendChild(r));
 }
