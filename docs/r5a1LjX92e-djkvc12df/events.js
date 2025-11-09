@@ -11,6 +11,18 @@
   // Central Okanagan bbox
   const BBOX = { w: -119.8, s: 49.6, e: -119.15, n: 50.2 };
 
+  // Central Okanagan bounds as a Google LatLngBounds (lazy-built once)
+  let LIVE_BOUNDS = null;
+  function getLiveBounds() {
+    if (!LIVE_BOUNDS && window.google && google.maps) {
+      LIVE_BOUNDS = new google.maps.LatLngBounds(
+        new google.maps.LatLng(BBOX.s, BBOX.w),
+        new google.maps.LatLng(BBOX.n, BBOX.e)
+      );
+    }
+    return LIVE_BOUNDS;
+  }
+
   // Optional feeds (only used if WORKER_BASE is set)
   const FEEDS = {
     wildfirePerimeters: {
@@ -199,16 +211,75 @@
   }
 
   /* ============== Google Traffic ============== */
+  let trafficListener = null;   // add this near the other traffic vars
+
   function setTraffic(on) {
-    const m = mapOrNull(); if (!m) return;
-    if (on) {
-      if (!trafficLayer) trafficLayer = new google.maps.TrafficLayer();
-      trafficLayer.setMap(m);
-    } else {
-      trafficLayer?.setMap(null);
-    }
+    const m = mapOrNull(); 
+    if (!m) return;
+
     trafficOn = !!on;
     try { localStorage.setItem('live_trafficOn', trafficOn ? '1' : '0'); } catch (_){}
+
+    // Turning traffic OFF → hide layer + remove listener
+    if (!trafficOn) {
+      if (trafficLayer) trafficLayer.setMap(null);
+      if (trafficListener) {
+        google.maps.event.removeListener(trafficListener);
+        trafficListener = null;
+      }
+      return;
+    }
+
+    // Ensure layer exists
+    if (!trafficLayer) {
+      trafficLayer = new google.maps.TrafficLayer();
+    }
+
+    const liveBounds = getLiveBounds();
+
+    // When turning traffic ON, make sure map is focused on Central Okanagan
+    if (liveBounds) {
+      const mb = m.getBounds();
+      const zoom = m.getZoom();
+      const needsRefocus =
+        !mb || !liveBounds.intersects(mb) || zoom == null || zoom < 9;
+
+      if (needsRefocus) {
+        // pad a bit so UI isn’t tight to the edges
+        m.fitBounds(liveBounds, { top: 60, right: 60, bottom: 60, left: 60 });
+      }
+    }
+
+    // Function to update visibility whenever map moves/zooms
+    const updateTrafficVisibility = () => {
+      if (!trafficLayer || !trafficOn) {
+        trafficLayer?.setMap(null);
+        return;
+      }
+      const b = getLiveBounds();
+      if (!b) {
+        // Fallback: no bounds → just show normally
+        trafficLayer.setMap(m);
+        return;
+      }
+      const center = m.getCenter();
+      const zoom   = m.getZoom() || 0;
+
+      // Only show traffic if map center is inside Central Okanagan AND zoomed in
+      const inside = center && b.contains(center);
+      const zoomOK = zoom >= 9;      // tweak threshold if you like (8–10)
+      const show   = inside && zoomOK;
+
+      trafficLayer.setMap(show ? m : null);
+    };
+
+    // Attach a single idle listener so moving/zooming updates visibility
+    if (!trafficListener) {
+      trafficListener = m.addListener('idle', updateTrafficVisibility);
+    }
+
+    // Run once immediately
+    updateTrafficVisibility();
   }
 
   /* ============== External feeds via Worker (safe, optional) ============== */
