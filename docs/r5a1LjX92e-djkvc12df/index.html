@@ -2602,66 +2602,6 @@ async function optimizeRowsInPlace(rows) {
   orderedRows.forEach(r => parent.appendChild(r));
 }
 
-  // -----------------------------------------------------------------------
-  // Which indices are locked?
-  const lockedSet = new Set(
-    rows.map((r, i) => (isLocked(r) ? i : -1)).filter(i => i >= 0)
-  );
-
-  // ---------- Case 1: no locks at all ⇒ optimize whole list ----------
-  if (lockedSet.size === 0) {
-    const ord = bestOrderForBlock(D);
-    const orderedRows = ord.map(i => rows[i]);
-    orderedRows.forEach(r => parent.appendChild(r));
-    return;
-  }
-
-  // ---------- Case 2: some rows locked ----------
-  // Keep locked rows exactly where they are, and only optimize
-  // the unlocked runs between them.
-  const finalOrder = [];
-  const idxs       = [...Array(n).keys()];
-
-  let i = 0;
-  while (i < n) {
-    if (lockedSet.has(i)) {
-      // Locked row stays at this relative position
-      finalOrder.push(i);
-      i++;
-      continue;
-    }
-
-    // Contiguous unlocked run [lo..hi]
-    const lo = i;
-    while (i < n && !lockedSet.has(i)) i++;
-    const hi = i - 1;
-
-    const subIdxs = idxs.slice(lo, hi + 1);
-    const m       = subIdxs.length;
-
-    if (m === 1) {
-      finalOrder.push(subIdxs[0]);
-      continue;
-    }
-
-    // Build local cost matrix for this unlocked run
-    const Dblock = Array.from({ length: m }, () => Array(m).fill(0));
-    for (let a = 0; a < m; a++) {
-      for (let b = 0; b < m; b++) {
-        if (a === b) Dblock[a][b] = 0;
-        else         Dblock[a][b] = D[subIdxs[a]][subIdxs[b]];
-      }
-    }
-
-    const localOrd = bestOrderForBlock(Dblock);
-    const mapped   = localOrd.map(k => subIdxs[k]);
-    finalOrder.push(...mapped);
-  }
-
-  const orderedRows = finalOrder.map(k => rows[k]);
-  orderedRows.forEach(r => parent.appendChild(r));
-}
-
 /* =================== OPTIMIZE BY FRAMES (exact with DP across frames) =================== */
 async function optimizeByFrames(){
   if (flatMode) { return; }
