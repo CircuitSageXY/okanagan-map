@@ -6,11 +6,7 @@
 (() => {
   const VERSION = '2024-08-02';
 
-  /* **********  SET THIS TO YOUR CLOUDFLARE WORKER BASE URL  ********** */
-  // Example once deployed: 'https://okanagan-live-proxy.yourname.workers.dev'
-  // Leave as empty string to disable external feeds safely.
-  const WORKER_BASE = '';
-  /* ******************************************************************* */
+  const WORKER_BASE = 'https://okanagan-live-proxy-spies08.workers.dev';
 
   // Central Okanagan bbox
   const BBOX = { w: -119.8, s: 49.6, e: -119.15, n: 50.2 };
