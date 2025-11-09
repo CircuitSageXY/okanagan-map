@@ -2051,39 +2051,51 @@ function clearLegDisplays(){document.querySelectorAll('.leg-display').forEach(d=
 
 /* =================== DRIVING DISTANCE MATRIX (exact) =================== */
 async function buildDrivingMatrixAll(points){
-  // Build full NxN driving-distance matrix using Google DistanceMatrixService, chunked.
+  // Build full NxN driving-time matrix using Google DistanceMatrixService, chunked.
+  // Costs are in minutes (duration); we fall back to straight-line km if needed.
   const n = points.length;
-  const D = Array.from({length:n},()=>Array(n).fill(0));
-  const MAX = 25; // API limit per call dimension
+  const D = Array.from({length:n}, () => Array(n).fill(0));
+  const MAX = 25; // API limit per dimension
 
   async function getBlock(oStart, oEnd, dStart, dEnd){
     return new Promise((resolve)=>{
       dmSvc.getDistanceMatrix({
-        origins: points.slice(oStart,oEnd),
-        destinations: points.slice(dStart,dEnd),
+        origins: points.slice(oStart, oEnd),
+        destinations: points.slice(dStart, dEnd),
         travelMode: google.maps.TravelMode.DRIVING,
         unitSystem: google.maps.UnitSystem.METRIC
       }, (res, status)=>{
-        if(status !== 'OK' || !res?.rows){
-          // fallback: fill with haversine if API fails
-          for(let i=oStart;i<oEnd;i++){
-            for(let j=dStart;j<dEnd;j++){
-              if(i===j){ D[i][j]=0; continue; }
-              D[i][j] = haversine(points[i], points[j]);
+        if (status !== 'OK' || !res?.rows){
+          // Fallback: straight-line distance (km) if the API fails completely
+          for (let i = oStart; i < oEnd; i++){
+            for (let j = dStart; j < dEnd; j++){
+              if (i === j){ D[i][j] = 0; continue; }
+              D[i][j] = haversine(points[i], points[j]); // km
             }
           }
           resolve();
           return;
         }
-        for(let i=oStart;i<oEnd;i++){
+
+        for (let i = oStart; i < oEnd; i++){
           const row = res.rows[i - oStart];
-          for(let j=dStart;j<dEnd;j++){
+          for (let j = dStart; j < dEnd; j++){
             const el = row.elements[j - dStart];
-            if(i===j){ D[i][j]=0; continue; }
-            if(el?.status === 'OK'){
-              D[i][j] = (el.distance.value || 0) / 1000; // km
-            }else{
-              D[i][j] = haversine(points[i], points[j]); // fallback
+            if (i === j){ D[i][j] = 0; continue; }
+
+            if (el?.status === 'OK'){
+              // Prefer duration (seconds → minutes). If missing, fall back to distance.
+              const sec = el.duration && el.duration.value;
+              const meters = el.distance && el.distance.value;
+              if (sec != null){
+                D[i][j] = sec / 60;                 // minutes  ← NEW: we minimize time
+              } else if (meters != null){
+                D[i][j] = (meters / 1000);          // km fallback
+              } else {
+                D[i][j] = haversine(points[i], points[j]); // ultimate fallback
+              }
+            } else {
+              D[i][j] = haversine(points[i], points[j]);   // no route ⇒ straight-line
             }
           }
         }
@@ -2092,13 +2104,15 @@ async function buildDrivingMatrixAll(points){
     });
   }
 
-  for(let oi=0; oi<n; oi+=MAX){
-    for(let dj=0; dj<n; dj+=MAX){
-      await getBlock(oi, Math.min(oi+MAX,n), dj, Math.min(dj+MAX,n));
+  for (let oi = 0; oi < n; oi += MAX){
+    for (let dj = 0; dj < n; dj += MAX){
+      await getBlock(oi, Math.min(oi+MAX, n),
+                     dj, Math.min(dj+MAX, n));
     }
   }
   return D;
 }
+
 function haversine(a,b){const R=6371;const toRad=x=>x*Math.PI/180;const dLat=toRad(b.lat-a.lat);const dLng=toRad(b.lng-a.lng);const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(s));}
 
 /* =================== Held–Karp shortest Hamiltonian PATH (per frame) =================== */
